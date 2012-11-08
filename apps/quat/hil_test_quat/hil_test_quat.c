@@ -47,7 +47,6 @@
 #include <string.h>
 #include "mavlink_bridge_header.h"
 #include <v1.0/common/mavlink.h>
-#include <arch/board/up_hrt.h>
 #include <time.h>
 #include <float.h>
 #include <unistd.h>
@@ -60,6 +59,7 @@
 #include <drivers/drv_accel.h>
 #include <drivers/drv_gyro.h>
 #include <drivers/drv_mag.h>
+#include <drivers/drv_hrt.h>
 #include <uORB/uORB.h>
 #include <uORB/topics/sensor_combined.h>
 #include <uORB/topics/rc_channels.h>
