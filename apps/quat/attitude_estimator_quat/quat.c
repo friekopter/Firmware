@@ -1,6 +1,6 @@
 
 #include "quat.h"
-#include "compass_utils.h"
+#include <quat/utils/compass_utils.h>
 #include "aq.h"
 #include <attitude_estimator_quat_params.h>
 #include <unistd.h>

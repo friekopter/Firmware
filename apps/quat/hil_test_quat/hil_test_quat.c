@@ -373,7 +373,7 @@ static void *uorb_receiveloop(void *arg)
 	/* --- ATTITUDE VALUE --- */
 	/* subscribe to ORB for attitude */
 	subs->att_sub = orb_subscribe(ORB_ID(vehicle_attitude));
-	orb_set_interval(subs->att_sub, 100);
+	orb_set_interval(subs->att_sub, 10);
 	fds[fdsc_count].fd = subs->att_sub;
 	fds[fdsc_count].events = POLLIN;
 	fdsc_count++;
@@ -381,14 +381,14 @@ static void *uorb_receiveloop(void *arg)
 
 	/* --- GLOBAL POS VALUE --- */
 	mavlink_subs.global_pos_sub = orb_subscribe(ORB_ID(vehicle_global_position));
-	orb_set_interval(mavlink_subs.global_pos_sub, 1000);	/* 1Hz active updates */
+	orb_set_interval(subs->global_pos_sub, 1000);	/* 1Hz active updates */
 	fds[fdsc_count].fd = subs->global_pos_sub;
 	fds[fdsc_count].events = POLLIN;
 	fdsc_count++;
 
 	/* --- LOCAL POS VALUE --- */
-	mavlink_subs.local_pos_sub = orb_subscribe(ORB_ID(vehicle_local_position));
-	orb_set_interval(mavlink_subs.local_pos_sub, 1000);	/* 1Hz active updates */
+	subs->local_pos_sub = orb_subscribe(ORB_ID(vehicle_local_position));
+	orb_set_interval(subs->local_pos_sub, 1000);	/* 1Hz active updates */
 	fds[fdsc_count].fd = subs->local_pos_sub;
 	fds[fdsc_count].events = POLLIN;
 	fdsc_count++;

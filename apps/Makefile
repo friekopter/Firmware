@@ -75,6 +75,7 @@ ifeq ($(CONFIG_NUTTX_NEWCONFIG),y)
 
 # builtin/Make.defs must be included first
 
+<<<<<<< HEAD
 include builtin/Make.defs
 include examples/Make.defs
 include graphics/Make.defs
@@ -83,6 +84,17 @@ include modbus/Make.defs
 include netutils/Make.defs
 include nshlib/Make.defs
 include system/Make.defs
+=======
+-include namedapp/Make.defs
+-include examples/Make.defs
+-include graphics/Make.defs
+-include interpreters/Make.defs
+-include modbus/Make.defs
+-include netutils/Make.defs
+-include nshlib/Make.defs
+-include system/Make.defs
+-include quat/Make.defs
+>>>>>>> add quat control
 
 # INSTALLED_APPS is the list of currently available application directories.  It
 # is the same as CONFIGURED_APPS, but filtered to exclude any non-existent

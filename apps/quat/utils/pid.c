@@ -16,12 +16,10 @@
     Copyright � 2011  Bill Nesbitt
 */
 #include "pid.h"
-#include "aq.h"
 #include "util.h"
-#include "nav.h"
 #include <stdlib.h>
 
-pidStruct_t *pidInit(float *p, float *i, float *d, float *f, float *pMax, float *iMax, float *dMax, float *oMax, int *pTrim, int *iTrim, int *dTrim, int *fTrim) {
+pidStruct_t *pidInit(const float *p,const float *i,const float *d,const float *f,const float *pMax,const float *iMax,const float *dMax,const float *oMax,const int *pTrim,const int *iTrim,const int *dTrim,const int *fTrim) {
     pidStruct_t *pid;
 
     pid = (pidStruct_t *)aqCalloc(1, sizeof(pidStruct_t));

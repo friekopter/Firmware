@@ -47,7 +47,6 @@
 #include <stdbool.h>
 #include <poll.h>
 #include <fcntl.h>
-#include <float.h>
 #include <nuttx/sched.h>
 #include <sys/prctl.h>
 #include <drivers/drv_hrt.h>
@@ -228,17 +227,17 @@ int attitude_estimator_quat_thread_main(int argc, char *argv[])
 	printf("[attitude estimator quat] parameter updated.\n");
 	// Call init methods
 	quatInit();
-
+	struct pollfd fds[2] = {
+		{ .fd = sub_raw,   .events = POLLIN },
+		{ .fd = sub_params, .events = POLLIN }
+	};
 	/* Main loop*/
 	while (!thread_should_exit){
 		if(mavlink_fd <= 0){
 			mavlink_fd = open(MAVLINK_LOG_DEVICE, 0);
 			mavlink_log_info(mavlink_fd,"[attitude estimator quat] estimator starting.\n");
 		}
-		struct pollfd fds[2] = {
-			{ .fd = sub_raw,   .events = POLLIN },
-			{ .fd = sub_params, .events = POLLIN }
-		};
+
 		int ret = poll(fds, 2, 1000);
 
 		if (ret < 0)
@@ -340,8 +339,8 @@ int attitude_estimator_quat_thread_main(int argc, char *argv[])
 				// /* print debug information every 200th time */
 				if (debug == true && printcounter % 2000 == 0)
 				{
-					printf("sensor inputs: g: %8.4f\t%8.4f\t%8.4f\ta: %8.4f\t%8.4f\t%8.4f\t m: %8.4f\t%8.4f\t%8.4f\t", (double)z_k[0], (double)z_k[1], (double)z_k[2], (double)z_k[3], (double)z_k[4], (double)z_k[5], (double)z_k[6], (double)z_k[7], (double)z_k[8]);
-					printf("quat params: accdist: %8.4f\tka: %8.4f\t ki:%8.4f\tkm1: %8.4f\tkm2: %8.4f\t kp: %8.4f\t",(double)quat_params.accdist, (double)quat_params.ka, (double)quat_params.ki, (double)quat_params.km1, (double)quat_params.km2, (double)quat_params.kp);
+					printf("sensor inputs: g: %8.4f\t%8.4f\t%8.4f\ta: %8.4f\t%8.4f\t%8.4f\t m: %8.4f\t%8.4f\t%8.4f\n", (double)z_k[0], (double)z_k[1], (double)z_k[2], (double)z_k[3], (double)z_k[4], (double)z_k[5], (double)z_k[6], (double)z_k[7], (double)z_k[8]);
+					printf("quat params: accdist: %8.4f\tka: %8.4f\t ki:%8.4f\tkm1: %8.4f\tkm2: %8.4f\t kp: %8.4f\n",(double)quat_params.accdist, (double)quat_params.ka, (double)quat_params.ki, (double)quat_params.km1, (double)quat_params.km2, (double)quat_params.kp);
 					printf("quat attitude iteration: %d, runtime: %d us, dt: %d us (%d Hz)\n", loopcounter, (int)timing_diff, (int)(dt * 1000000.0f), (int)(1.0f / dt));
 					printf("roll: %8.4f\tpitch: %8.4f\tyaw:%8.4f\n", (double)att.roll, (double)att.pitch, (double)att.yaw);
 					printf("update rates gyro: %8.4f\taccel: %8.4f\tmag:%8.4f\n", (double)sensor_update_hz[0], (double)sensor_update_hz[1], (double)sensor_update_hz[2]);

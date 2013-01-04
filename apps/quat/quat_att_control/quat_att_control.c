@@ -1,22 +1,12 @@
 #include "quat_att_control.h"
-#include "conf.h"
 #include "inttypes.h"
-#include "global_data.h"
-// Include comm
-#include "comm.h"
 #include "debug.h"
+#include <uORB/topics/actuator_controls.h>
 
-#include "transformation.h"
-#include "pid.h"
-#include "control_quadrotor_start_land.h"
-#include "remote_control.h"
-#include "nav.h"
-#include "aq.h"
-#include "quat.h"
-#include "motors.h"
-#include "imu_config.h"
-#include "compass_utils.h"
-#include "util.h"
+#include <quat/utils/pid.h>
+#include <quat/utils/compass_utils.h>
+#include <quat/utils/util.h>
+
 
 #include <math.h>
 #include <stdbool.h>
@@ -27,6 +17,7 @@ controlParameter_t controlParameter;
 
 
 uint32_t controller_counter = 0;
+
 inline void control_quadrotor_attitude_reset()
 {
 	pidZeroIntegral(controlData.pitchRate,0.0f,0.0f);
@@ -37,51 +28,56 @@ inline void control_quadrotor_attitude_reset()
 	pidZeroIntegral(controlData.yawAngle,0.0f,0.0f);
 
 }
-PARAM_DEFINE_FLOAT(PARAM_PID_TILT_RATE_P, 0.0f);
 
-inline void control_quadrotor_attitude_init()
+inline void control_quadrotor_attitude_init(const struct attitude_pid_quat_params *tilt_rate,
+											const struct attitude_pid_quat_params *tilt_angle,
+											const struct attitude_pid_quat_params *yaw_rate,
+											const struct attitude_pid_quat_params *yaw_angle,
+											const struct attitude_control_quat_params *control)
 {
     int i;
     for (i = 0; i < 3; i++)
     {
-    	utilFilterInit(&controlData.userPitchFilter[i], 1.0f/100.0f, 0.1f, 0.0f);
-    	utilFilterInit(&controlData.userRollFilter[i], 1.0f/100.0f, 0.1f, 0.0f);
-    	utilFilterInit(&controlData.navPitchFilter[i], 1.0f/100.0f, 0.125f, 0.0f);
-    	utilFilterInit(&controlData.navRollFilter[i], 1.0f/100.0f, 0.125f, 0.0f);
+    	utilFilterInit(&controlData.pitchFilter[i], 1.0f/100.0f, 0.1f, 0.0f);
+    	utilFilterInit(&controlData.rollFilter[i], 1.0f/100.0f, 0.1f, 0.0f);
     }
 
-    controlData.pitchRate = pidInit(&global_data.param[PARAM_PID_TILT_RATE_P], &global_data.param[PARAM_PID_TILT_RATE_I], &global_data.param[PARAM_PID_TILT_RATE_D], &global_data.param[PARAM_PID_TILT_RATE_F],
-    								&global_data.param[PARAM_PID_TILT_RATE_MAX_P], &global_data.param[PARAM_PID_TILT_RATE_MAX_I], &global_data.param[PARAM_PID_TILT_RATE_MAX_D], &global_data.param[PARAM_PID_TILT_RATE_MAX_O],
+    controlData.pitchRate = pidInit(&tilt_rate->p, &tilt_rate->i, &tilt_rate->d, &tilt_rate->f,
+    								&tilt_rate->max_p, &tilt_rate->max_i, &tilt_rate->max_d, &tilt_rate->max_o,
     								0, 0, 0, 0);
-    controlData.rollRate = pidInit( &global_data.param[PARAM_PID_TILT_RATE_P], &global_data.param[PARAM_PID_TILT_RATE_I], &global_data.param[PARAM_PID_TILT_RATE_D], &global_data.param[PARAM_PID_TILT_RATE_F],
-									&global_data.param[PARAM_PID_TILT_RATE_MAX_P], &global_data.param[PARAM_PID_TILT_RATE_MAX_I], &global_data.param[PARAM_PID_TILT_RATE_MAX_D], &global_data.param[PARAM_PID_TILT_RATE_MAX_O],
+    controlData.rollRate = pidInit (&tilt_rate->p, &tilt_rate->i, &tilt_rate->d, &tilt_rate->f,
+									&tilt_rate->max_p, &tilt_rate->max_i, &tilt_rate->max_d, &tilt_rate->max_o,
 									0, 0, 0, 0);
-    controlData.yawRate = pidInit(  &global_data.param[PARAM_PID_YAW_RATE_P], &global_data.param[PARAM_PID_YAW_RATE_I], &global_data.param[PARAM_PID_YAW_RATE_D], &global_data.param[PARAM_PID_YAW_RATE_F],
-									&global_data.param[PARAM_PID_YAW_RATE_MAX_P], &global_data.param[PARAM_PID_YAW_RATE_MAX_I], &global_data.param[PARAM_PID_YAW_RATE_MAX_D], &global_data.param[PARAM_PID_YAW_RATE_MAX_O],
+    controlData.yawRate = pidInit  (&yaw_rate->p, &yaw_rate->i, &yaw_rate->d, &yaw_rate->f,
+									&yaw_rate->max_p, &yaw_rate->max_i, &yaw_rate->max_d, &yaw_rate->max_o,
 									0, 0, 0, 0);
-    controlData.pitchAngle = pidInit(&global_data.param[PARAM_PID_TILT_ANGLE_P], &global_data.param[PARAM_PID_TILT_ANGLE_I], &global_data.param[PARAM_PID_TILT_ANGLE_D], &global_data.param[PARAM_PID_TILT_ANGLE_F],
-									 &global_data.param[PARAM_PID_TILT_ANGLE_MAX_P], &global_data.param[PARAM_PID_TILT_ANGLE_MAX_I], &global_data.param[PARAM_PID_TILT_ANGLE_MAX_D], &global_data.param[PARAM_PID_TILT_ANGLE_MAX_O],
-									 0, 0, 0, 0);
-    controlData.rollAngle = pidInit(&global_data.param[PARAM_PID_TILT_ANGLE_P], &global_data.param[PARAM_PID_TILT_ANGLE_I], &global_data.param[PARAM_PID_TILT_ANGLE_D], &global_data.param[PARAM_PID_TILT_ANGLE_F],
-									&global_data.param[PARAM_PID_TILT_ANGLE_MAX_P], &global_data.param[PARAM_PID_TILT_ANGLE_MAX_I], &global_data.param[PARAM_PID_TILT_ANGLE_MAX_D], &global_data.param[PARAM_PID_TILT_ANGLE_MAX_O],
+    controlData.pitchAngle = pidInit(&tilt_angle->p, &tilt_angle->i, &tilt_angle->d, &tilt_angle->f,
+									&tilt_angle->max_p, &tilt_angle->max_i, &tilt_angle->max_d, &tilt_angle->max_o,
 									0, 0, 0, 0);
-    controlData.yawAngle = pidInit(&global_data.param[PARAM_PID_YAW_ANGLE_P], &global_data.param[PARAM_PID_YAW_ANGLE_I], &global_data.param[PARAM_PID_YAW_ANGLE_D], &global_data.param[PARAM_PID_YAW_ANGLE_F],
-								   &global_data.param[PARAM_PID_YAW_ANGLE_MAX_P], &global_data.param[PARAM_PID_YAW_ANGLE_MAX_I], &global_data.param[PARAM_PID_YAW_ANGLE_MAX_D], &global_data.param[PARAM_PID_YAW_ANGLE_MAX_O],
-								   0, 0, 0, 0);
-    controlParameter.paramControlDeadBand 	= &global_data.param[PARAM_CONTROL_DEAD_BAND_YAW];
-    controlParameter.paramControlPitchF 		= &global_data.param[PARAM_CONTROL_PITCH_F];
-    controlParameter.paramControlRollF 		= &global_data.param[PARAM_CONTROL_ROLL_F];
-    controlParameter.paramControlThrottleF 	= &global_data.param[PARAM_CONTROL_THROTTLE_F];
-    controlParameter.paramControlYawF 			= &global_data.param[PARAM_CONTROL_YAW_F];
+    controlData.rollAngle = pidInit(&tilt_angle->p, &tilt_angle->i, &tilt_angle->d, &tilt_angle->f,
+									&tilt_angle->max_p, &tilt_angle->max_i, &tilt_angle->max_d, &tilt_angle->max_o,
+									0, 0, 0, 0);
+    controlData.yawAngle = pidInit(&yaw_angle->p, &yaw_angle->i, &yaw_angle->d, &yaw_angle->f,
+									&yaw_angle->max_p, &yaw_angle->max_i, &yaw_angle->max_d, &yaw_angle->max_o,
+									0, 0, 0, 0);
+    controlParameter.paramControlDeadBand 	= &control->controlDeadBand;
+    controlParameter.paramControlPitchF 		= &control->controlPitchF;
+    controlParameter.paramControlRollF 		= &control->controlRollF;
+    controlParameter.paramControlThrottleF 	= &control->controlThrottleF;
+    controlParameter.paramControlYawF 			= &control->controlYawF;
 }
 
-inline void control_quadrotor_attitude()
+inline void control_quadrotor_attitude(
+		const struct vehicle_attitude_setpoint_s *att_sp,
+		const struct vehicle_attitude_s *att,
+		const struct vehicle_rates_setpoint_s *rate_sp,
+		const struct attitude_control_quat_params *control,
+		struct actuator_controls_s *actuators)
 {
-    float pitch, roll, userThrottle, userRudd;
     float pitchCommand, rollCommand, ruddCommand, throttleCommand;
-
+/*
     throttleCommand = 0;
-    userThrottle = configData.motorsHoverThrot;
+    userThrottle = control->controlHoverThrottle;
     //First handle throttle that controls altitude
     // are we in altitude hold mode?
     if (navData.status > NAV_STATUS_MANUAL)
@@ -92,7 +88,6 @@ inline void control_quadrotor_attitude()
     {
     	userThrottle = (float)REMOTE_THROT * *controlParameter.paramControlThrottleF;;
     }
-
 
     //Second handle direction
     userRudd = REMOTE_RUDD * *controlParameter.paramControlYawF;
@@ -155,88 +150,39 @@ inline void control_quadrotor_attitude()
 	// combine nav & user requests (both are already smoothed)
 	pitch = pitch + controlData.userPitchTarget;
 	roll = roll + controlData.userRollTarget;
+*/
+    if(rate_sp->yaw == 0.0f)
+    {
+    	// hold heading
+    	float yawRateTarget = pidUpdate(controlData.yawAngle, 0.0f, compassDifference(controlData.yawSetpoint, att->yaw));	// seek a 0 deg difference between hold heading and actual yaw
+    	ruddCommand = constrainFloat(pidUpdate(controlData.yawRate, yawRateTarget, att->yawspeed), -control->controlMax, control->controlMax);
+    }
+    else
+    {
+    	// rate controls
+    	ruddCommand = constrainFloat(pidUpdate(controlData.yawRate, rate_sp->yaw, att->yawspeed), -control->controlMax, control->controlMax);
+    	controlData.yawSetpoint = att->yaw;
+    }
 
+    // smooth
+   	float rollTarget = utilFilter3(controlData.rollFilter, att_sp->roll_body);
     // roll angle
-    rollCommand = pidUpdate(controlData.rollAngle, roll, AQ_ROLL);
+    rollCommand = pidUpdate(controlData.rollAngle, rollTarget, att->roll);
     // rate
-    rollCommand += pidUpdate(controlData.rollRate, 0.0f, AQ_HRATEX);
-    rollCommand = constrainFloat(rollCommand, -configData.controlMax, configData.controlMax);
+    rollCommand += pidUpdate(controlData.rollRate, 0.0f, att->rollspeed);
+    rollCommand = constrainFloat(rollCommand, -control->controlMax, control->controlMax);
 
+    // smooth
+   	float pitchTarget = utilFilter3(controlData.pitchFilter, att_sp->pitch_body);
     // pitch angle
-    pitchCommand = pidUpdate(controlData.pitchAngle, pitch, AQ_PITCH);
+    pitchCommand = pidUpdate(controlData.pitchAngle, pitchTarget, att->pitch);
     // rate
-    pitchCommand += pidUpdate(controlData.pitchRate, 0.0f, AQ_HRATEY);
-    pitchCommand = constrainFloat(pitchCommand, -configData.controlMax, configData.controlMax);
+    pitchCommand += pidUpdate(controlData.pitchRate, 0.0f, att->pitchspeed);
+    pitchCommand = constrainFloat(pitchCommand, -control->controlMax, control->controlMax);
+    throttleCommand = att_sp->thrust;
+    actuators->control[0] = rollCommand;
+    actuators->control[1] = pitchCommand;
+    actuators->control[2] = ruddCommand;
+    actuators->control[3] = throttleCommand;
 
-
-    //now transmit commands to the motor
-    motorsCommands(throttleCommand + userThrottle, pitchCommand, rollCommand, ruddCommand);
-
-	if ((	global_data.state.mav_mode == MAV_MODE_MANUAL ||
-			global_data.state.mav_mode == MAV_MODE_GUIDED 	) &&
-		(	global_data.state.status == MAV_STATE_ACTIVE  ||
-			global_data.state.status == MAV_STATE_CRITICAL||
-			global_data.state.status == MAV_STATE_EMERGENCY	))
-	{
-		// Set MOTORS
-#ifndef SCISIM
-		motor_i2c_set_11bit_pwm(MOT1_I2C_SLAVE_ADDRESS, *motorsData.m1p);
-		motor_i2c_set_11bit_pwm(MOT2_I2C_SLAVE_ADDRESS, *motorsData.m2p);
-		motor_i2c_set_11bit_pwm(MOT3_I2C_SLAVE_ADDRESS, *motorsData.m3p);
-		motor_i2c_set_11bit_pwm(MOT4_I2C_SLAVE_ADDRESS, *motorsData.m4p);
-#endif
-		global_data.active_throttle = motorsData.throttle;
-	}
-	else
-	{
-			// Set MOTORS to 0 thrust
-#ifndef SCISIM
-		motor_i2c_set_pwm(MOT1_I2C_SLAVE_ADDRESS, 0);
-		motor_i2c_set_pwm(MOT2_I2C_SLAVE_ADDRESS, 0);
-		motor_i2c_set_pwm(MOT3_I2C_SLAVE_ADDRESS, 0);
-		motor_i2c_set_pwm(MOT4_I2C_SLAVE_ADDRESS, 0);
-#endif
-		global_data.active_throttle = 0;
-	}
-#ifndef SCISIM
-	//DEBUGGING
-	if (controller_counter++ == 200)
-	{
-		controller_counter = 0;
-
-		if (global_data.param[PARAM_SEND_SLOT_DEBUG_3] == 1)
-		{
-			mavlink_msg_debug_send(global_data.param[PARAM_SEND_DEBUGCHAN], 21, REMOTE_ROLL);
-			mavlink_msg_debug_send(global_data.param[PARAM_SEND_DEBUGCHAN], 22, REMOTE_PITCH);
-			mavlink_msg_debug_send(global_data.param[PARAM_SEND_DEBUGCHAN], 23, REMOTE_RUDD);
-			mavlink_msg_debug_send(global_data.param[PARAM_SEND_DEBUGCHAN], 24, REMOTE_THROT);
-			mavlink_msg_debug_send(global_data.param[PARAM_SEND_DEBUGCHAN], 25, roll);
-			mavlink_msg_debug_send(global_data.param[PARAM_SEND_DEBUGCHAN], 26, pitch);
-			mavlink_msg_debug_send(global_data.param[PARAM_SEND_DEBUGCHAN], 27, controlData.yawRateTarget);
-			mavlink_msg_debug_send(global_data.param[PARAM_SEND_DEBUGCHAN], 28, compassDifference(navData.holdHeading, AQ_YAW));
-			mavlink_msg_debug_send(global_data.param[PARAM_SEND_DEBUGCHAN], 29, navData.holdHeading);
-			mavlink_msg_debug_send(global_data.param[PARAM_SEND_DEBUGCHAN], 30, rollCommand);
-			mavlink_msg_debug_send(global_data.param[PARAM_SEND_DEBUGCHAN], 31, pitchCommand);
-			mavlink_msg_debug_send(global_data.param[PARAM_SEND_DEBUGCHAN], 32, ruddCommand);
-			mavlink_msg_debug_send(global_data.param[PARAM_SEND_DEBUGCHAN], 33, throttleCommand + userThrottle);
-			mavlink_msg_debug_send(global_data.param[PARAM_SEND_DEBUGCHAN], 34, motorsData.throttle);
-			mavlink_msg_debug_send(global_data.param[PARAM_SEND_DEBUGCHAN], 35, global_data.active_throttle);
-			mavlink_msg_debug_send(global_data.param[PARAM_SEND_DEBUGCHAN], 36, global_data.temperature_bctrl1_si);
-			mavlink_msg_debug_send(global_data.param[PARAM_SEND_DEBUGCHAN], 37, global_data.temperature_bctrl2_si);
-			mavlink_msg_debug_send(global_data.param[PARAM_SEND_DEBUGCHAN], 38, global_data.temperature_bctrl3_si);
-			mavlink_msg_debug_send(global_data.param[PARAM_SEND_DEBUGCHAN], 39, global_data.temperature_bctrl4_si);
-			mavlink_msg_debug_send(global_data.param[PARAM_SEND_DEBUGCHAN], 40, global_data.current_bctrl1_si);
-			mavlink_msg_debug_send(global_data.param[PARAM_SEND_DEBUGCHAN], 41, global_data.current_bctrl2_si);
-			mavlink_msg_debug_send(global_data.param[PARAM_SEND_DEBUGCHAN], 42, global_data.current_bctrl3_si);
-			mavlink_msg_debug_send(global_data.param[PARAM_SEND_DEBUGCHAN], 43, global_data.current_bctrl4_si);
-			mavlink_msg_debug_send(global_data.param[PARAM_SEND_DEBUGCHAN], 44, global_data.temperature_gyros);
-			mavlink_msg_debug_send(global_data.param[PARAM_SEND_DEBUGCHAN], 45, navData.holdSpeedAlt);
-			mavlink_msg_debug_send(global_data.param[PARAM_SEND_DEBUGCHAN], 46, navData.holdAlt);
-			mavlink_msg_debug_send(global_data.param[PARAM_SEND_DEBUGCHAN], 47, REMOTE_HOME);
-			//mavlink_msg_debug_send(global_data.param[PARAM_SEND_DEBUGCHAN], 48, AQ_HRATEY);
-			mavlink_msg_debug_send(global_data.param[PARAM_SEND_DEBUGCHAN], 49, AQ_YAW);
-			mavlink_msg_debug_send(global_data.param[PARAM_SEND_DEBUGCHAN], 50, AQ_HRATEZ);
-		}
-	}
-#endif
 }

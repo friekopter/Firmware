@@ -42,41 +42,73 @@
 
 #include <systemlib/param/param.h>
 
-struct attitude_estimator_quat_params {
-	float
-	tilt_rate_p,
-	tilt_rate_i,
-	tilt_rate_d,
-	tilt_rate_f,
-	tilt_rate_max_p,
-	tilt_rate_max_i,
-	tilt_rate_max_d,
-	tilt_rate_max_f,
-	tilt_angle_p,
-	tilt_angle_i,
-	tilt_angle_d,
-	tilt_angle_f,
-	tilt_angle_max_p,
-	tilt_angle_max_i,
-	tilt_angle_max_d,
-	tilt_angle_max_f
-	;
+struct attitude_control_quat_param_handles {
+	param_t
+    controlDeadBand,
+    controlPitchF,
+    controlRollF,
+    controlThrottleF,
+    controlYawF,
+    controlMax;
 };
 
-struct attitude_estimator_quat_param_handles {
-	param_t accdist, kp, ki, ka, km1, km2;
+struct attitude_control_quat_params {
+	float
+    controlDeadBand,
+    controlPitchF,
+    controlRollF,
+    controlThrottleF,
+    controlYawF,
+    controlMax;
+};
+
+struct attitude_pid_quat_param_handles {
+	param_t
+	p,
+	i,
+	d,
+	f,
+	max_p,
+	max_i,
+	max_d,
+	max_o;
+};
+
+struct attitude_pid_quat_params {
+	float
+	p,
+	i,
+	d,
+	f,
+	max_p,
+	max_i,
+	max_d,
+	max_o;
 };
 
 /**
  * Initialize all parameter handles and values
  *
  */
-int parameters_init(struct attitude_estimator_quat_param_handles *h);
+int parameters_init(struct attitude_pid_quat_param_handles *tiltRate,
+					struct attitude_pid_quat_param_handles *tiltAngle,
+					struct attitude_pid_quat_param_handles *yawRate,
+					struct attitude_pid_quat_param_handles *yawAngle,
+					struct attitude_control_quat_param_handles *control);
 
 /**
  * Update all parameters
  *
  */
-int parameters_update(const struct attitude_estimator_quat_param_handles *source, struct attitude_estimator_quat_params *destination);
+int parameters_update(	struct attitude_pid_quat_param_handles *tiltRate,
+						struct attitude_pid_quat_param_handles *tiltAngle,
+						struct attitude_pid_quat_param_handles *yawRate,
+						struct attitude_pid_quat_param_handles *yawAngle,
+						struct attitude_control_quat_param_handles *control,
+						struct attitude_pid_quat_params *tiltRateDest,
+						struct attitude_pid_quat_params *tiltAngleDest,
+						struct attitude_pid_quat_params *yawRateDest,
+						struct attitude_pid_quat_params *yawAngleDest,
+						struct attitude_control_quat_params *controlDest);
 
 #endif //#define _quat_att_control_params_h_

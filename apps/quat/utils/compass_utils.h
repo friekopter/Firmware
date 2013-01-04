@@ -2,7 +2,13 @@
 #ifndef _compass_utils_h
 #define _compass_utils_h
 
-extern float compassNormalize(float heading);
-extern float compassDifference(float a, float b);
+#include <systemlib/visibility.h>
+
+__BEGIN_DECLS
+
+__EXPORT float compassNormalize(float heading);
+__EXPORT float compassDifference(float a, float b);
+
+__END_DECLS
 
 #endif

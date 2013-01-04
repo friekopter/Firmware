@@ -35,7 +35,7 @@
 # Makefile to build uORB
 #
 
-APPNAME		 = multirotor_att_control
+APPNAME		 = quat_att_control
 PRIORITY	 = SCHED_PRIORITY_MAX - 15
 STACKSIZE	 = 2048
 

@@ -21,6 +21,9 @@
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <systemlib/visibility.h>
+
+__BEGIN_DECLS
 
 // first order filter
 typedef struct {
@@ -29,15 +32,15 @@ typedef struct {
 } utilFilter_t;
 
 void *aqCalloc(size_t count, size_t size);
-int constrainInt(int i, int lo, int hi);
-float constrainFloat(float i, float lo, float hi);
-extern void utilFilterInit(utilFilter_t *f, float dt, float tau, float setpoint);
-extern void utilFilterInit3(utilFilter_t *f, float dt, float tau, float setpoint);
-extern float utilFilter(utilFilter_t *f, float signal);
-extern float utilFilter3(utilFilter_t *f, float signal);
-extern void utilFilterReset(utilFilter_t *f, float setpoint);
-extern void utilFilterReset3(utilFilter_t *f, float setpoint);
+__EXPORT int constrainInt(int i, int lo, int hi);
+__EXPORT float constrainFloat(float i, float lo, float hi);
+__EXPORT void utilFilterInit(utilFilter_t *f, float dt, float tau, float setpoint);
+__EXPORT void utilFilterInit3(utilFilter_t *f, float dt, float tau, float setpoint);
+__EXPORT float utilFilter(utilFilter_t *f, float signal);
+__EXPORT float utilFilter3(utilFilter_t *f, float signal);
+__EXPORT void utilFilterReset(utilFilter_t *f, float setpoint);
+__EXPORT void utilFilterReset3(utilFilter_t *f, float setpoint);
 
-
+__END_DECLS
 
 #endif //_util_h
