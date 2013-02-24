@@ -17,7 +17,7 @@
 #include "mkMotorDriver.h"
 
 
-int quat_write_motor_commands(uint16_t motor1, uint16_t motor2, uint16_t motor3, uint16_t motor4) {
+int quat_write_motor_commands(const bool simulation, uint16_t motor1, uint16_t motor2, uint16_t motor3, uint16_t motor4) {
 
 	static int initialized = FALSE;
 	if(!initialized){
@@ -39,10 +39,18 @@ int quat_write_motor_commands(uint16_t motor1, uint16_t motor2, uint16_t motor3,
 
 	if (hrt_absolute_time() - last_motor_time > min_motor_interval) {
 		int ret = OK;
-		ret |= mkMotorDriver_set_11bit_pwm(MOT1, motor1);
-		ret |= mkMotorDriver_set_11bit_pwm(MOT2, motor2);
-		ret |= mkMotorDriver_set_11bit_pwm(MOT3, motor3);
-		ret |= mkMotorDriver_set_11bit_pwm(MOT4, motor4);
+		if(simulation){
+			ret |= mkMotorDriver_set_11bit_pwm(MOT1, 0);
+			ret |= mkMotorDriver_set_11bit_pwm(MOT2, 0);
+			ret |= mkMotorDriver_set_11bit_pwm(MOT3, 0);
+			ret |= mkMotorDriver_set_11bit_pwm(MOT4, 0);
+		}
+		else{
+			ret |= mkMotorDriver_set_11bit_pwm(MOT1, motor1);
+			ret |= mkMotorDriver_set_11bit_pwm(MOT2, motor2);
+			ret |= mkMotorDriver_set_11bit_pwm(MOT3, motor3);
+			ret |= mkMotorDriver_set_11bit_pwm(MOT4, motor4);
+		}
 		/* publish just written values */
 		orb_publish(ORB_ID_VEHICLE_CONTROLS, pub, &outputs);
 		return ret;
@@ -51,7 +59,7 @@ int quat_write_motor_commands(uint16_t motor1, uint16_t motor2, uint16_t motor3,
 	}
 }
 
-void quat_mixing_and_output(const struct actuator_controls_s *actuators) {
+void quat_mixing_and_output(const bool simulation, const struct actuator_controls_s *actuators) {
 
 	float roll_control = actuators->control[0];
 	float pitch_control = actuators->control[1];
@@ -154,5 +162,5 @@ void quat_mixing_and_output(const struct actuator_controls_s *actuators) {
 	motor_pwm[3] = (motor_pwm[3] <= scaling) ? motor_pwm[3] : scaling;
 
 	/* send motors via UART */
-	quat_write_motor_commands(motor_pwm[0], motor_pwm[1], motor_pwm[2], motor_pwm[3]);
+	quat_write_motor_commands(simulation, motor_pwm[0], motor_pwm[1], motor_pwm[2], motor_pwm[3]);
 }

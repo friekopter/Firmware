@@ -34,7 +34,8 @@ __EXPORT int quat_interface_main(int argc, char *argv[]);
 static bool thread_should_exit = false;		/**< Deamon exit flag */
 static bool thread_running = false;		/**< Deamon status flag */
 static int quat_interface_task;		/**< Handle of deamon task / thread */
-//static mkMotorDriver motor_driver;			/**< motor driver */
+
+static const char *commandline_usage = "\tusage: quat_interface start|status|stop [-t for motor test (10%% thrust)]\n";
 
 /**
  * Mainloop of quat_interface.
@@ -51,7 +52,7 @@ usage(const char *reason)
 {
 	if (reason)
 		fprintf(stderr, "%s\n", reason);
-	fprintf(stderr, "usage: quat_interface {start|stop|status} [-d <UART>]\n\n");
+	fprintf(stderr, commandline_usage);
 	exit(1);
 }
 
@@ -111,13 +112,18 @@ int quat_interface_thread_main(int argc, char *argv[])
 	/* welcome user */
 	printf("[quat_interface] Control started, taking over motors\n");
 
-	char *commandline_usage = "\tusage: quat_interface start|status|stop [-t for motor test (10%% thrust)]\n";
-
 	bool motor_test_mode = false;
 	int test_motor = -1;
+	bool simulator_mode = false;
 
 	/* read commandline arguments */
 	for (int i = 0; i < argc && argv[i]; i++) {
+		if (strcmp(argv[i], "-s") == 0 || strcmp(argv[i], "--simulate") == 0) {
+			simulator_mode = true;
+			motor_test_mode = false;
+			break;
+		}
+
 		if (strcmp(argv[i], "-t") == 0 || strcmp(argv[i], "--test") == 0) {
 			motor_test_mode = true;
 		}
@@ -158,7 +164,7 @@ int quat_interface_thread_main(int argc, char *argv[])
 	printf("[quat_interface] Motors initialized - ready.\n");
 	fflush(stdout);
 
-	quat_write_motor_commands(0, 0, 0, 0);
+	quat_write_motor_commands(simulator_mode, 0, 0, 0, 0);
 
 	while (!thread_should_exit) {
 
@@ -167,9 +173,9 @@ int quat_interface_thread_main(int argc, char *argv[])
 			if (test_motor > 0 && test_motor < 5) {
 				int motors[4] = {0, 0, 0, 0};
 				motors[test_motor - 1] = motors_test_pwm;
-				quat_write_motor_commands(motors[0], motors[1], motors[2], motors[3]);
+				quat_write_motor_commands(simulator_mode, motors[0], motors[1], motors[2], motors[3]);
 			} else {
-				quat_write_motor_commands(motors_test_pwm, motors_test_pwm, motors_test_pwm, motors_test_pwm);
+				quat_write_motor_commands(simulator_mode, motors_test_pwm, motors_test_pwm, motors_test_pwm, motors_test_pwm);
 			}
 
 		} else {
@@ -185,10 +191,10 @@ int quat_interface_thread_main(int argc, char *argv[])
 			 * if in failsafe
 			 */
 			if (armed.armed && !armed.lockdown) {
-				quat_mixing_and_output(&actuator_controls);
+				quat_mixing_and_output(simulator_mode, &actuator_controls);
 			} else {
 				/* Silently lock down motor speeds to zero */
-				quat_write_motor_commands(0, 0, 0, 0);
+				quat_write_motor_commands(simulator_mode, 0, 0, 0, 0);
 			}
 		}
 
