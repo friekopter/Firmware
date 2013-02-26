@@ -97,7 +97,16 @@ CONFIGURED_APPS += fixedwing_att_control
 CONFIGURED_APPS += fixedwing_pos_control
 CONFIGURED_APPS += position_estimator
 CONFIGURED_APPS += attitude_estimator_ekf
+<<<<<<< HEAD
 CONFIGURED_APPS += hott_telemetry
+=======
+CONFIGURED_APPS += quat/utils
+CONFIGURED_APPS += quat/attitude_estimator_quat
+CONFIGURED_APPS += quat/hil_test_quat
+CONFIGURED_APPS += quat/quat_att_control
+CONFIGURED_APPS += quat/quat_interface
+CONFIGURED_APPS += quat/quat_position_control
+>>>>>>> added position control
 CONFIGURED_APPS += px4/ground_estimator
 
 # Hacking tools
