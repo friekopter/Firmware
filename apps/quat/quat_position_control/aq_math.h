@@ -19,7 +19,7 @@
 #ifndef _aq_math_h
 #define _aq_math_h
 #define ARM_MATH_CM4
-//#include "arm_math.h"
+#include "arm_math.h"
 
 extern void matrixInit(arm_matrix_instance_f32 *m, int rows, int cols);
 extern void matrixFree(arm_matrix_instance_f32 *m);
