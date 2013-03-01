@@ -18,8 +18,7 @@
 
 #include "srcdkf.h"
 #include "aq_math.h"
-#include "util.h"
-#include <intrinsics.h>
+#include <../utils/util.h>
 
 float *srcdkfGetState(srcdkf_t *f) {
     return f->x.pData;
