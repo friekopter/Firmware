@@ -359,7 +359,7 @@ usage(const char *reason)
 {
 	if (reason)
 		fprintf(stderr, "%s\n", reason);
-	fprintf(stderr, "usage: quat_att_control [-m <mode>] [-t] {start|status|stop}\n");
+	fprintf(stderr, "usage: quat_att_control [-t] {start|status|stop}\n");
 	fprintf(stderr, "    <mode> is 'rates' or 'attitude'\n");
 	fprintf(stderr, "    -t enables motor test mode with 10%% thrust\n");
 	exit(1);

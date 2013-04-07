@@ -13,14 +13,14 @@
     You should have received a copy of the GNU General Public License
     along with AutoQuad.  If not, see <http://www.gnu.org/licenses/>.
 
-    Copyright © 2011, 2012  Bill Nesbitt
+    Copyright ï¿½ 2011, 2012  Bill Nesbitt
 */
 
 #ifndef _nav_h
 #define _nav_h
 
-#include <CoOS.h>
-#include "pid.h"
+//#include <CoOS.h>
+#include <../utils/pid.h>
 
 #define NAV_MIN_GPS_ACC		3.0f
 #define NAV_MAX_FIX_AGE		((int)1e6f)				    // 1 second

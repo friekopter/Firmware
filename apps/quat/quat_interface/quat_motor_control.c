@@ -32,6 +32,7 @@ int quat_write_motor_commands(const bool simulation, uint16_t motor1, uint16_t m
 	outputs.output[1] = motor2;
 	outputs.output[2] = motor3;
 	outputs.output[3] = motor4;
+	outputs.noutputs = 4;
 	static orb_advert_t pub = 0;
 	if (pub == 0) {
 		pub = orb_advertise(ORB_ID_VEHICLE_CONTROLS, &outputs);

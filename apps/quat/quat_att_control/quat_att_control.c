@@ -26,7 +26,6 @@ inline void control_quadrotor_attitude_reset()
 	pidZeroIntegral(controlData.pitchAngle,0.0f,0.0f);
 	pidZeroIntegral(controlData.rollAngle,0.0f,0.0f);
 	pidZeroIntegral(controlData.yawAngle,0.0f,0.0f);
-
 }
 
 inline void control_quadrotor_attitude_init(const struct attitude_pid_quat_params *tilt_rate,

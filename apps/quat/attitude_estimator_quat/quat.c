@@ -6,11 +6,8 @@
 #include <unistd.h>
 #include <string.h>
 #include <math.h>
-
-#define COMPASS_DECLINATION		2.36888889f//East in degrees//2.2666f//Declination +Ost-West   -10.11f	// local magnetic compass correction to true north [Cove]
-#define COMPASS_INCLINATION		64.15194444444f
-#define RAD_TO_DEG		(180.0f/M_PI)
-#define DEG_TO_RAD		(M_PI/180.0f)
+#include <systemlib/conversions.h>
+#include <quat/utils/quat_constants.h>
 
 quatStruct_t quatData;
 
@@ -287,24 +284,45 @@ void quatUpdate(const uint8_t updateVect[3],
     quat_real_t gDev;			// deviation from 1g
     quat_real_t yaw, pitch, roll;
 
-    gyro[0] = z[0];
-    gyro[1] = z[1];
-    gyro[2] = z[2];
+    if(updateVect[0] == 1){
+        gyro[0] = z[0];
+        gyro[1] = z[1];
+        gyro[2] = z[2];
+    }
+    else{
+    	gyro[0] = 0;
+    	gyro[1] = 0;
+    	gyro[2] = 0;
+    }
 
-    acc[0] = z[3];
-    acc[1] = z[4];
-    acc[2] = z[5];
+    if(updateVect[1] == 1){
+    	acc[0] = z[3];
+    	acc[1] = z[4];
+    	acc[2] = z[5];
+    }
+    else{
+    	acc[0] = 0;
+    	acc[1] = 0;
+    	acc[2] = 0;
+    }
 
-    mag[0] = z[6];
-    mag[1] = z[7];
-    mag[2] = z[8];
+    if(updateVect[2] == 1){
+    	mag[0] = z[6];
+    	mag[1] = z[7];
+    	mag[2] = z[8];
+    }
+    else{
+    	mag[0] = 0;
+    	mag[1] = 0;
+    	mag[2] = 0;
+    }
 
     // estimate bias shift due to motor speed (electromagnetic induced field)
     gDev = 1.0f;
     if (throttle > 0)
     {
     	// calculate deviance from 1g
-    	gDev = 1.0f + fabsf(sqrtf(acc[0]*acc[0] + acc[1]*acc[1] + acc[2]*acc[2]) - QUAT_GRAVITY) * params->accdist;
+    	gDev = 1.0f + fabsf(sqrtf(acc[0]*acc[0] + acc[1]*acc[1] + acc[2]*acc[2]) - CONSTANTS_ONE_G) * params->accdist;
     	gDev = 1.0f / (gDev*gDev);
     }
 
@@ -323,13 +341,9 @@ void quatUpdate(const uint8_t updateVect[3],
     rotError[1] = -(acc[0] * estAcc[2] - estAcc[0] * acc[2]) * params->ka * gDev;
     rotError[2] = -(acc[1] * estAcc[0] - estAcc[1] * acc[0]) * params->ka * gDev;
 
-    // add in mag vector if data ok
-    if(updateVect[2] == 1)
-    {
-    	rotError[0] += -(mag[2] * estMag[1] - estMag[2] * mag[1]) * params->km1;
-    	rotError[1] += -(mag[0] * estMag[2] - estMag[0] * mag[2]) * params->km1;
-    	rotError[2] += -(mag[1] * estMag[0] - estMag[1] * mag[0]) * params->km2;
-    }
+	rotError[0] += -(mag[2] * estMag[1] - estMag[2] * mag[1]) * params->km1;
+	rotError[1] += -(mag[0] * estMag[2] - estMag[0] * mag[2]) * params->km1;
+	rotError[2] += -(mag[1] * estMag[0] - estMag[1] * mag[0]) * params->km2;
 
     // Integrate error into existing bias estimates
     quatData.rateBias[0] -= rotError[0] * params->ki;

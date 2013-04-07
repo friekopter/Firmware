@@ -6,7 +6,6 @@
 
 
 #define QUAT_N                  1.0f		// factor that determines the convergence speed of the quat's numerical error: (n * dt) < 1
-#define QUAT_GRAVITY		9.80665f	// m/s^2
 #define QUAT_BIAS_FACTOR	0.001f		//(AQ_TIMESTEP * 1.0f)
 
 typedef float quat_real_t;

@@ -367,7 +367,7 @@ static void *uorb_receiveloop(void *arg)
 		struct vehicle_attitude_s att;
 		struct vehicle_local_position_s local;
 		struct vehicle_global_position_s global;
-		struct actuator_controls_s actuators;
+		struct actuator_outputs_s actuators;
 	} buf;
 
 	/* --- ATTITUDE VALUE --- */
@@ -402,7 +402,7 @@ static void *uorb_receiveloop(void *arg)
 
 	/* --- ACTUATOR CONTROL VALUE --- */
 	/* subscribe to ORB for actuator control */
-	subs->actuators_sub = orb_subscribe(ORB_ID_VEHICLE_ATTITUDE_CONTROLS);
+	subs->actuators_sub = orb_subscribe(ORB_ID_VEHICLE_CONTROLS);
 	fds[fdsc_count].fd = subs->actuators_sub;
 	fds[fdsc_count].events = POLLIN;
 	fdsc_count++;
@@ -490,7 +490,7 @@ static void *uorb_receiveloop(void *arg)
 
 			/* --- ACTUATOR CONTROL --- */
 			if (fds[ifds++].revents & POLLIN) {
-				orb_copy(ORB_ID_VEHICLE_ATTITUDE_CONTROLS, subs->actuators_sub, &buf.actuators);
+				orb_copy(ORB_ID_VEHICLE_CONTROLS, subs->actuators_sub, &buf.actuators);
 				/* send, add spaces so that string buffer is at least 10 chars long */
 				//mavlink_msg_named_value_float_send(chan, last_sensor_timestamp / 1000, "ctrl0       ", buf.actuators.control[0]);
 				//mavlink_msg_named_value_float_send(chan, last_sensor_timestamp / 1000, "ctrl1       ", buf.actuators.control[1]);
@@ -505,10 +505,10 @@ static void *uorb_receiveloop(void *arg)
 				/* HIL message as per MAVLink spec */
 				mavlink_msg_set_quad_motors_setpoint_send(chan,
 					hrt_absolute_time(),
-					(uint16_t)buf.actuators.control[0],
-					(uint16_t)buf.actuators.control[1],
-					(uint16_t)buf.actuators.control[2],
-					(uint16_t)buf.actuators.control[3]);
+					(uint16_t)buf.actuators.output[0],
+					(uint16_t)buf.actuators.output[1],
+					(uint16_t)buf.actuators.output[2],
+					(uint16_t)buf.actuators.output[3]);
 			}
 		}
 	}
@@ -535,6 +535,7 @@ void handleMessage(mavlink_message_t *msg)
 		sensors_raw_report.accelerometer_m_s2[0] = imu.xacc*9.81f/1000.0f;
 		sensors_raw_report.accelerometer_m_s2[1] = imu.yacc*9.81f/1000.0f;
 		sensors_raw_report.accelerometer_m_s2[2] = imu.zacc*9.81f/1000.0f;
+		sensors_raw_report.accelerometer_counter++;
 		accel_report.timestamp = hrt_absolute_time();
 		gyro_report.x = imu.xgyro/1000.0f;
 		gyro_report.y = imu.ygyro/1000.0f;
@@ -542,6 +543,7 @@ void handleMessage(mavlink_message_t *msg)
 		sensors_raw_report.gyro_rad_s[0] = imu.xgyro/1000.0f;
 		sensors_raw_report.gyro_rad_s[1] = imu.ygyro/1000.0f;
 		sensors_raw_report.gyro_rad_s[2] = imu.zgyro/1000.0f;
+		sensors_raw_report.gyro_counter++;
 		gyro_report.timestamp = hrt_absolute_time();
 		mag_report.x = imu.xmag/1000.0f;
 		mag_report.y = imu.ymag/1000.0f;
@@ -549,6 +551,7 @@ void handleMessage(mavlink_message_t *msg)
 		sensors_raw_report.magnetometer_ga[0] = imu.xmag/1000.0f;
 		sensors_raw_report.magnetometer_ga[1] = imu.ymag/1000.0f;
 		sensors_raw_report.magnetometer_ga[2] = imu.zmag/1000.0f;
+		sensors_raw_report.magnetometer_counter++;
 		mag_report.timestamp = hrt_absolute_time();
 		sensors_raw_report.timestamp = hrt_absolute_time();
 		/* advertise sensor topics */

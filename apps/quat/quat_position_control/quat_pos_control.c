@@ -134,8 +134,8 @@ quat_pos_control_thread_main(int argc, char *argv[])
 
 	int loopcounter = 0;
 
-	struct quat_position_control_params p;
-	struct quat_position_control_param_handles h;
+	struct quat_position_control_UKF_params p;
+	struct quat_position_control_UKF_param_handles h;
 	parameters_init(&h);
 	parameters_update(&h, &p);
 
@@ -169,7 +169,7 @@ quat_pos_control_thread_main(int argc, char *argv[])
 			/* local pos is the Vicon position */
 
 			// XXX just an example, lacks rotation around world-body transformation
-			att_sp.pitch_body = (local_pos.x - x_setpoint) * p.p;
+			//att_sp.pitch_body = (local_pos.x - x_setpoint) * p.p;
 			att_sp.roll_body = 0.0f;
 			att_sp.yaw_body = 0.0f;
 			att_sp.thrust = 0.3f;

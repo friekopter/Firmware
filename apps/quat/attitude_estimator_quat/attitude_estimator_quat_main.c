@@ -114,8 +114,7 @@ int attitude_estimator_quat_main(int argc, char *argv[])
 	if (argc < 1)
 		usage("missing command");
 
-	if (!strcmp(argv[1], "debug"))
-	{
+	if (!strcmp(argv[1], "debug")){
 		debug = true;
 	}
 	if (!strcmp(argv[1], "start") || !strcmp(argv[1], "debug"))

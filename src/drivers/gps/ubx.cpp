@@ -33,14 +33,7 @@
  *
  ****************************************************************************/
 
-/**
- * @file ubx.cpp
- *
- * U-Blox protocol implementation. Following u-blox 6/7 Receiver Description
- * including Prototol Specification.
- *
- * @see http://www.u-blox.com/images/downloads/Product_Docs/u-blox6_ReceiverDescriptionProtocolSpec_%28GPS.G6-SW-10018%29.pdf
- */
+/* @file U-Blox protocol implementation */
 
 #include <unistd.h>
 #include <stdio.h>
@@ -60,8 +53,7 @@
 UBX::UBX(const int &fd, struct vehicle_gps_position_s *gps_position) :
 _fd(fd),
 _gps_position(gps_position),
-_waiting_for_ack(false),
-_disable_cmd_counter(0)
+_waiting_for_ack(false)
 {
 	decode_init();
 }
@@ -121,14 +113,12 @@ UBX::configure(unsigned &baudrate)
 		cfg_prt_packet.outProtoMask	= UBX_CFG_PRT_PAYLOAD_OUTPROTOMASK;
 
 		send_config_packet(_fd, (uint8_t*)&cfg_prt_packet, sizeof(cfg_prt_packet));
-		
-		/* no ACK is expected here, but read the buffer anyway in case we actually get an ACK */
-		receive(UBX_CONFIG_TIMEOUT);
-		
 		if (UBX_CFG_PRT_PAYLOAD_BAUDRATE != baudrate) {
 			set_baudrate(_fd, UBX_CFG_PRT_PAYLOAD_BAUDRATE);
 			baudrate = UBX_CFG_PRT_PAYLOAD_BAUDRATE;
 		}
+
+		/* no ack is ecpected here, keep going configuring */
 
 		/* send a CFT-RATE message to define update rate */
 		type_gps_bin_cfg_rate_packet_t cfg_rate_packet;
@@ -140,12 +130,12 @@ UBX::configure(unsigned &baudrate)
 		cfg_rate_packet.clsID		= UBX_CLASS_CFG;
 		cfg_rate_packet.msgID		= UBX_MESSAGE_CFG_RATE;
 		cfg_rate_packet.length		= UBX_CFG_RATE_LENGTH;
-		cfg_rate_packet.measRate	= UBX_CFG_RATE_PAYLOAD_MEASINTERVAL;
+		cfg_rate_packet.measRate	= UBX_CFG_RATE_PAYLOAD_MEASRATE;
 		cfg_rate_packet.navRate		= UBX_CFG_RATE_PAYLOAD_NAVRATE;
 		cfg_rate_packet.timeRef		= UBX_CFG_RATE_PAYLOAD_TIMEREF;
 
 		send_config_packet(_fd, (uint8_t*)&cfg_rate_packet, sizeof(cfg_rate_packet));
-		if (wait_for_ack(UBX_CONFIG_TIMEOUT) < 0) {
+		if (receive(UBX_CONFIG_TIMEOUT) < 0) {
 			/* try next baudrate */
 			continue;
 		}
@@ -165,55 +155,79 @@ UBX::configure(unsigned &baudrate)
 		cfg_nav5_packet.fixMode      = UBX_CFG_NAV5_PAYLOAD_FIXMODE;
 
 		send_config_packet(_fd, (uint8_t*)&cfg_nav5_packet, sizeof(cfg_nav5_packet));
-		if (wait_for_ack(UBX_CONFIG_TIMEOUT) < 0) {
+		if (receive(UBX_CONFIG_TIMEOUT) < 0) {
 			/* try next baudrate */
 			continue;
 		}
 
-		configure_message_rate(UBX_CLASS_NAV, UBX_MESSAGE_NAV_POSLLH,
-			UBX_CFG_MSG_PAYLOAD_RATE1_5HZ);
-		/* insist of receiving the ACK for this packet */
-		// if (wait_for_ack(UBX_CONFIG_TIMEOUT) < 0)
-		// 	continue;
-		configure_message_rate(UBX_CLASS_NAV, UBX_MESSAGE_NAV_TIMEUTC,
-			1);
-		// /* insist of receiving the ACK for this packet */
-		// if (wait_for_ack(UBX_CONFIG_TIMEOUT) < 0)
-		// 	continue;
-		configure_message_rate(UBX_CLASS_NAV, UBX_MESSAGE_NAV_SOL,
-			1);
-		// /* insist of receiving the ACK for this packet */
-		// if (wait_for_ack(UBX_CONFIG_TIMEOUT) < 0)
-		// 	continue;
-		configure_message_rate(UBX_CLASS_NAV, UBX_MESSAGE_NAV_VELNED,
-			1);
-		// /* insist of receiving the ACK for this packet */
-		// if (wait_for_ack(UBX_CONFIG_TIMEOUT) < 0)
-		// 	continue;
-		// configure_message_rate(UBX_CLASS_NAV, UBX_MESSAGE_NAV_DOP,
-		// 	0);
-		// /* insist of receiving the ACK for this packet */
-		// if (wait_for_ack(UBX_CONFIG_TIMEOUT) < 0)
-		// 	continue;
-		configure_message_rate(UBX_CLASS_NAV, UBX_MESSAGE_NAV_SVINFO,
-			0);
-		// /* insist of receiving the ACK for this packet */
-		// if (wait_for_ack(UBX_CONFIG_TIMEOUT) < 0)
-		// 	continue;
+		type_gps_bin_cfg_msg_packet_t cfg_msg_packet;
+		memset(&cfg_msg_packet, 0, sizeof(cfg_msg_packet));
+
+		_clsID_needed = UBX_CLASS_CFG;
+		_msgID_needed = UBX_MESSAGE_CFG_MSG;
+
+		cfg_msg_packet.clsID        = UBX_CLASS_CFG;
+		cfg_msg_packet.msgID        = UBX_MESSAGE_CFG_MSG;
+		cfg_msg_packet.length       = UBX_CFG_MSG_LENGTH;
+		/* Choose fast 5Hz rate for all messages except SVINFO which is big and not important */
+		cfg_msg_packet.rate[1]      = UBX_CFG_MSG_PAYLOAD_RATE1_5HZ;
+
+		cfg_msg_packet.msgClass_payload = UBX_CLASS_NAV;
+		cfg_msg_packet.msgID_payload = UBX_MESSAGE_NAV_POSLLH;
+
+		send_config_packet(_fd, (uint8_t*)&cfg_msg_packet, sizeof(cfg_msg_packet));
+		if (receive(UBX_CONFIG_TIMEOUT) < 0) {
+			/* try next baudrate */
+			continue;
+		}
+
+		cfg_msg_packet.msgClass_payload = UBX_CLASS_NAV;
+		cfg_msg_packet.msgID_payload = UBX_MESSAGE_NAV_TIMEUTC;
+
+		send_config_packet(_fd, (uint8_t*)&cfg_msg_packet, sizeof(cfg_msg_packet));
+		if (receive(UBX_CONFIG_TIMEOUT) < 0) {
+			/* try next baudrate */
+			continue;
+		}
+
+		cfg_msg_packet.msgClass_payload = UBX_CLASS_NAV;
+		cfg_msg_packet.msgID_payload = UBX_MESSAGE_NAV_SVINFO;
+		/* For satelites info 1Hz is enough */
+		cfg_msg_packet.rate[1] = UBX_CFG_MSG_PAYLOAD_RATE1_1HZ;
+
+		send_config_packet(_fd, (uint8_t*)&cfg_msg_packet, sizeof(cfg_msg_packet));
+		if (receive(UBX_CONFIG_TIMEOUT) < 0) {
+			/* try next baudrate */
+			continue;
+		}
+
+		cfg_msg_packet.msgClass_payload = UBX_CLASS_NAV;
+		cfg_msg_packet.msgID_payload = UBX_MESSAGE_NAV_SOL;
+
+		send_config_packet(_fd, (uint8_t*)&cfg_msg_packet, sizeof(cfg_msg_packet));
+		if (receive(UBX_CONFIG_TIMEOUT) < 0) {
+			/* try next baudrate */
+			continue;
+		}
+
+		cfg_msg_packet.msgClass_payload = UBX_CLASS_NAV;
+		cfg_msg_packet.msgID_payload = UBX_MESSAGE_NAV_VELNED;
+
+		send_config_packet(_fd, (uint8_t*)&cfg_msg_packet, sizeof(cfg_msg_packet));
+		if (receive(UBX_CONFIG_TIMEOUT) < 0) {
+			/* try next baudrate */
+			continue;
+		}
+//		cfg_msg_packet.msgClass_payload = UBX_CLASS_NAV;
+//		cfg_msg_packet.msgID_payload = UBX_MESSAGE_NAV_DOP;
+
+//		cfg_msg_packet.msgClass_payload = UBX_CLASS_RXM;
+//		cfg_msg_packet.msgID_payload = UBX_MESSAGE_RXM_SVSI;
 
 		_waiting_for_ack = false;
 		return 0;
 	}
 	return -1;
-}
-
-int
-UBX::wait_for_ack(unsigned timeout)
-{
-	_waiting_for_ack = true;
-	int ret = receive(timeout);
-	_waiting_for_ack = false;
-	return ret;
 }
 
 int
@@ -475,8 +489,6 @@ UBX::handle_message()
 				_gps_position->eph_m = (float)packet->hAcc * 1e-3f; // from mm to m
 				_gps_position->epv_m = (float)packet->vAcc * 1e-3f; // from mm to m
 
-				_rate_count_lat_lon++;
-
 				/* Add timestamp to finish the report */
 				_gps_position->timestamp_position = hrt_absolute_time();
 				/* only return 1 when new position is available */
@@ -501,17 +513,21 @@ UBX::handle_message()
 
 //		case NAV_DOP: {
 ////		printf("GOT NAV_DOP MESSAGE\n");
-//			gps_bin_nav_dop_packet_t *packet = (gps_bin_nav_dop_packet_t *) _rx_buffer;
-//
-//			_gps_position->eph_m =  packet->hDOP;
-//			_gps_position->epv =  packet->vDOP;
-//
-//			_gps_position->timestamp_posdilution = hrt_absolute_time();
-//
-//			_new_nav_dop = true;
-//
-//			break;
-//		}
+			gps_bin_nav_dop_packet_t *packet = (gps_bin_nav_dop_packet_t *) _rx_buffer;
+
+			_gps_position->pDop =  packet->pDOP;
+			_gps_position->hDop =  packet->hDOP;
+			_gps_position->vDop =  packet->vDOP;
+			_gps_position->tDop =  packet->tDOP;
+			_gps_position->eDop =  packet->eDOP;
+			_gps_position->nDop =  packet->nDOP;
+
+			_gps_position->timestamp_posdilution = hrt_absolute_time();
+
+			//_new_nav_dop = true;
+
+			break;
+		}
 
 		case NAV_TIMEUTC: {
 //			printf("GOT NAV_TIMEUTC MESSAGE\n");
@@ -619,21 +635,20 @@ UBX::handle_message()
 		}
 
 		case NAV_VELNED: {
+//			printf("GOT NAV_VELNED MESSAGE\n");
 
 			if (!_waiting_for_ack) {
-				/* 35.15 NAV-VELNED (0x01 0x12) message (page 181 / 210 of reference manual */
 				gps_bin_nav_velned_packet_t *packet = (gps_bin_nav_velned_packet_t *) _rx_buffer;
 
 				_gps_position->vel_m_s   = (float)packet->speed * 1e-2f;
-				_gps_position->vel_n_m_s = (float)packet->velN * 1e-2f; /* NED NORTH velocity */
-				_gps_position->vel_e_m_s = (float)packet->velE * 1e-2f; /* NED EAST velocity */
-				_gps_position->vel_d_m_s = (float)packet->velD * 1e-2f; /* NED DOWN velocity */
+				_gps_position->vel_n_m_s = (float)packet->velN * 1e-2f;
+				_gps_position->vel_e_m_s = (float)packet->velE * 1e-2f;
+				_gps_position->vel_d_m_s = (float)packet->velD * 1e-2f;
 				_gps_position->cog_rad   = (float)packet->heading * M_DEG_TO_RAD_F * 1e-5f;
-				_gps_position->c_variance_rad = (float)packet->cAcc * M_DEG_TO_RAD_F * 1e-5f;
+				_gps_position->sAcc      = (float)packet->sAcc *  0.01f;	    // cm/s => m/s
+				_gps_position->cAcc      = (float)packet->cAcc *  1e-5f;
 				_gps_position->vel_ned_valid = true;
 				_gps_position->timestamp_velocity = hrt_absolute_time();
-
-				_rate_count_vel++;
 			}
 
 			break;
@@ -674,12 +689,6 @@ UBX::handle_message()
 
 		default: //we don't know the message
 			warnx("UBX: Unknown message received: %d-%d\n",_message_class,_message_id);
-			if (_disable_cmd_counter++ == 0) {
-				// Don't attempt for every message to disable, some might not be disabled */
-				warnx("Disabling message 0x%02x 0x%02x", (unsigned)_message_class, (unsigned)_message_id);
-				configure_message_rate(_message_class, _message_id, 0);
-			}
-		return ret;
 			ret = -1;
 			break;
 		}
@@ -724,25 +733,6 @@ UBX::add_checksum_to_message(uint8_t* message, const unsigned length)
 }
 
 void
-UBX::add_checksum(uint8_t* message, const unsigned length, uint8_t &ck_a, uint8_t &ck_b)
-{
-	for (unsigned i = 0; i < length; i++) {
-		ck_a = ck_a + message[i];
-		ck_b = ck_b + ck_a;
-	}
-}
-
-void
-UBX::configure_message_rate(uint8_t msg_class, uint8_t msg_id, uint8_t rate)
-{
-    struct ubx_cfg_msg_rate msg;
-    msg.msg_class	= msg_class;
-    msg.msg_id		= msg_id;
-    msg.rate		= rate;
-    send_message(UBX_CLASS_CFG, UBX_MESSAGE_CFG_MSG, &msg, sizeof(msg));
-}
-
-void
 UBX::send_config_packet(const int &fd, uint8_t *packet, const unsigned length)
 {
 	ssize_t ret = 0;
@@ -758,28 +748,4 @@ UBX::send_config_packet(const int &fd, uint8_t *packet, const unsigned length)
 
 	if (ret != (int)length + (int)sizeof(sync_bytes)) // XXX is there a neater way to get rid of the unsigned signed warning?
 		warnx("ubx: config write fail");
-}
-
-void
-UBX::send_message(uint8_t msg_class, uint8_t msg_id, void *msg, uint8_t size)
-{
-	struct ubx_header header;
-	uint8_t ck_a=0, ck_b=0;
-	header.sync1 = UBX_SYNC1;
-	header.sync2 = UBX_SYNC2;
-	header.msg_class = msg_class;
-	header.msg_id    = msg_id;
-	header.length    = size;
-
-	add_checksum((uint8_t *)&header.msg_class, sizeof(header)-2, ck_a, ck_b);
-	add_checksum((uint8_t *)msg, size, ck_a, ck_b);
-
-	// Configure receive check
-	_clsID_needed = msg_class;
-	_msgID_needed = msg_id;
-
-	write(_fd, (const char *)&header, sizeof(header));
-	write(_fd, (const char *)msg, size);
-	write(_fd, (const char *)&ck_a, 1);
-	write(_fd, (const char *)&ck_b, 1);
 }
