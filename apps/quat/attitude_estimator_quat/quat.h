@@ -23,7 +23,7 @@ extern quatStruct_t quatData;
 extern void quatInit(void);
 extern void quatUpdate(const uint8_t updateVect[3],
 						quat_real_t dt,
-						const uint16_t throttle,
+						const bool isFlying,
 						const quat_real_t z[9],
 						const struct attitude_estimator_quat_params* params,
 						struct vehicle_attitude_s* attitudeResult );

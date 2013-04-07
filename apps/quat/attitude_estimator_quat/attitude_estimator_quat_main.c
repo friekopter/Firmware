@@ -59,6 +59,7 @@
 #include <uORB/topics/sensor_combined.h>
 #include <uORB/topics/vehicle_attitude.h>
 #include <uORB/topics/parameter_update.h>
+#include <uORB/topics/vehicle_status.h>
 #include <mavlink/mavlink_log.h>
 #include <quat.h>
 
@@ -81,6 +82,7 @@ static bool thread_running = false;		/**< Deamon status flag */
 static int attitude_estimator_quat_task;				/**< Handle of deamon task / thread */
 static bool debug = false;
 static int mavlink_fd;
+static struct vehicle_status_s state;
 
 /**
  * Mainloop of attitude_estimator_quat.
@@ -184,6 +186,8 @@ int attitude_estimator_quat_thread_main(int argc, char *argv[])
 	uint64_t last_data = 0;
 	uint64_t last_measurement = 0;
 
+	// Init state struct
+	memset(&state, 0, sizeof(state));
 
 	/* subscribe to raw data */
 	int sub_raw = orb_subscribe(ORB_ID(sensor_combined));
@@ -212,6 +216,11 @@ int attitude_estimator_quat_thread_main(int argc, char *argv[])
 	/* rate-limit raw data updates to 1Hz */
 	orb_set_interval(sub_params, 1000);
 
+	// System state
+	int state_sub = orb_subscribe(ORB_ID(vehicle_status));
+	/* rate-limit raw data updates to 2Hz */
+	orb_set_interval(state_sub, 500);
+
 	// initialize parameter handles
 	int param_init_result = parameters_init(&quat_param_handles);
 	if(param_init_result)
@@ -226,9 +235,10 @@ int attitude_estimator_quat_thread_main(int argc, char *argv[])
 	printf("[attitude estimator quat] parameter updated.\n");
 	// Call init methods
 	quatInit();
-	struct pollfd fds[2] = {
+	struct pollfd fds[3] = {
 		{ .fd = sub_raw,   .events = POLLIN },
-		{ .fd = sub_params, .events = POLLIN }
+		{ .fd = sub_params, .events = POLLIN },
+		{ .fd = state_sub, .events = POLLIN }
 	};
 	/* Main loop*/
 	while (!thread_should_exit){
@@ -237,7 +247,7 @@ int attitude_estimator_quat_thread_main(int argc, char *argv[])
 			mavlink_log_info(mavlink_fd,"[attitude estimator quat] estimator starting.\n");
 		}
 
-		int ret = poll(fds, 2, 1000);
+		int ret = poll(fds, 3, 1000);
 
 		if (ret < 0)
 		{
@@ -250,27 +260,6 @@ int attitude_estimator_quat_thread_main(int argc, char *argv[])
 		}
 		else
 		{
-	
-			/* only update parameters if they changed */
-			if (fds[1].revents & POLLIN)
-			{
-				/* read from param to clear updated flag */
-				struct parameter_update_s update;
-				orb_copy(ORB_ID(parameter_update), sub_params, &update);
-				/* update parameters */
-				param_update_result = parameters_update(&quat_param_handles, &quat_params);
-				if(param_update_result)
-				{
-					//printf("[attitude estimator quat] WARNING: Parameter update error!\n");
-					mavlink_log_critical(mavlink_fd,"[attitude estimator quat] WARNING: Parameter update error!\n");
-				}
-				else
-				{
-					//printf("[attitude estimator quat] parameter updated.\n");
-					mavlink_log_info(mavlink_fd,"[attitude estimator quat] parameter updated.\n");
-				}
-			}
-
 			/* only run filter if sensor values changed */
 			if (fds[0].revents & POLLIN)
 			{
@@ -331,8 +320,8 @@ int attitude_estimator_quat_thread_main(int argc, char *argv[])
 				}
 
 				uint64_t timing_start = hrt_absolute_time();
-				uint16_t throttle = 0; // TODO: provide that parameter, or move to sensors
-				quatUpdate(update_vect, dt, throttle, z_k, &quat_params, &att );
+				bool isFlying = (state.flight_mode < VEHICLE_FLIGHT_MODE_MANUAL); // TODO: provide that parameter, or move to sensors
+				quatUpdate(update_vect, dt, isFlying, z_k, &quat_params, &att );
 				uint64_t timing_diff = hrt_absolute_time() - timing_start;
 
 				// /* print debug information every 200th time */
@@ -353,12 +342,40 @@ int attitude_estimator_quat_thread_main(int argc, char *argv[])
 				// Broadcast
 				orb_publish(ORB_ID(vehicle_attitude), pub_att, &att);
 			}
+			/* only update parameters if state changed */
+			if (fds[2].revents & POLLIN)
+			{
+				orb_copy(ORB_ID(vehicle_status), state_sub, &state);
+			}
+
+			/* only update parameters if they changed */
+			if (fds[1].revents & POLLIN)
+			{
+				/* read from param to clear updated flag */
+				struct parameter_update_s update;
+				orb_copy(ORB_ID(parameter_update), sub_params, &update);
+				/* update parameters */
+				param_update_result = parameters_update(&quat_param_handles, &quat_params);
+				if(param_update_result)
+				{
+					//printf("[attitude estimator quat] WARNING: Parameter update error!\n");
+					mavlink_log_critical(mavlink_fd,"[attitude estimator quat] WARNING: Parameter update error!\n");
+				}
+				else
+				{
+					//printf("[attitude estimator quat] parameter updated.\n");
+					mavlink_log_info(mavlink_fd,"[attitude estimator quat] parameter updated.\n");
+				}
+			}
 		}
 
 		loopcounter++;
 	}
 
 	thread_running = false;
+	close(state_sub);
+	close(sub_params);
+	close(sub_raw);
 
 	return 0;
 }

@@ -272,7 +272,7 @@ void quatInit(void) {
 // ~ 485 us
 void quatUpdate(const uint8_t updateVect[3],
 				quat_real_t dt,
-				const uint16_t throttle,
+				const bool isFlying,
 				const quat_real_t z[9],
 				const struct attitude_estimator_quat_params* params,
 				struct vehicle_attitude_s* attitudeResult)
@@ -319,7 +319,7 @@ void quatUpdate(const uint8_t updateVect[3],
 
     // estimate bias shift due to motor speed (electromagnetic induced field)
     gDev = 1.0f;
-    if (throttle > 0)
+    if (isFlying)
     {
     	// calculate deviance from 1g
     	gDev = 1.0f + fabsf(sqrtf(acc[0]*acc[0] + acc[1]*acc[1] + acc[2]*acc[2]) - CONSTANTS_ONE_G) * params->accdist;
