@@ -73,7 +73,7 @@ int uart;
  * @param chan MAVLink channel to use, usually MAVLINK_COMM_0 = UART0
  * @param ch Character to send
  */
-static inline void mavlink_send_uart_bytes(mavlink_channel_t chan, uint8_t *ch, uint16_t length)
+static inline void mavlink_send_uart_bytes(mavlink_channel_t chan, const uint8_t *ch, uint16_t length)
 {
 	ssize_t ret;
 

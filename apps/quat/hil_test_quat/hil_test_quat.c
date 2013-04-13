@@ -60,6 +60,7 @@
 #include <drivers/drv_gyro.h>
 #include <drivers/drv_mag.h>
 #include <drivers/drv_hrt.h>
+#include <commander/state_machine_helper.h>
 #include <uORB/uORB.h>
 #include <uORB/topics/sensor_combined.h>
 #include <uORB/topics/rc_channels.h>
@@ -78,13 +79,16 @@
 #include <uORB/topics/actuator_controls.h>
 #include <uORB/topics/manual_control_setpoint.h>
 #include <uORB/topics/debug_key_value.h>
+#include <mavlink/mavlink_log.h>
 
 #include <systemlib/param/param.h>
 #include <systemlib/systemlib.h>
 
 
 __EXPORT int hil_test_quat_main(int argc, char *argv[]);
-int mavlink_thread_main(int argc, char *argv[]);
+int hil_test_thread_main(int argc, char *argv[]);
+
+static int mavlink_fd;
 
 static bool thread_should_exit = false;
 static bool thread_running = false;
@@ -111,13 +115,14 @@ struct mag_report	mag_report;
 orb_advert_t		mag_topic;
 struct sensor_combined_s sensors_raw_report;
 orb_advert_t		sensors_raw_topic;
+static struct vehicle_status_s v_status;
+static orb_advert_t stat_pub;
 
 // Orb registrations for data that has to be forwarded to the testbed
 static struct vehicle_global_position_s global_pos;
 static struct vehicle_local_position_s local_pos;
 static struct vehicle_attitude_s hil_attitude;
 static struct vehicle_command_s vcmd;
-static struct vehicle_status_s v_status;
 static struct actuator_armed_s armed;
 
 static int baudrate = 57600;
@@ -176,7 +181,7 @@ static void mavlink_update_system(void);
  */
 void get_mavlink_mode_and_state(const struct vehicle_status_s *c_status, const struct actuator_armed_s *actuator, uint8_t *mavlink_state, uint8_t *mavlink_mode);
 
-int mavlink_open_uart(int baudrate, const char *uart_name, struct termios *uart_config_original, bool *is_usb);
+int hil_test_open_uart(int baudrate, const char *uart_name, struct termios *uart_config_original, bool *is_usb);
 
 
 
@@ -497,11 +502,6 @@ static void *uorb_receiveloop(void *arg)
 				//mavlink_msg_named_value_float_send(chan, last_sensor_timestamp / 1000, "ctrl2       ", buf.actuators.control[2]);
 				//mavlink_msg_named_value_float_send(chan, last_sensor_timestamp / 1000, "ctrl3       ", buf.actuators.control[3]);
 
-				/* translate the current syste state to mavlink state and mode */
-				uint8_t mavlink_state = 0;
-				uint8_t mavlink_mode = 0;
-				get_mavlink_mode_and_state(&v_status, &armed, &mavlink_state, &mavlink_mode);
-
 				/* HIL message as per MAVLink spec */
 				mavlink_msg_set_quad_motors_setpoint_send(chan,
 					hrt_absolute_time(),
@@ -524,7 +524,6 @@ void handleMessage(mavlink_message_t *msg)
 {
 	if (msg->msgid == MAVLINK_MSG_ID_SCALED_IMU)
 	{
-		/* Set mode on request */
 		mavlink_scaled_imu_t imu;
 		mavlink_msg_scaled_imu_decode(msg, &imu);
 
@@ -572,10 +571,20 @@ void handleMessage(mavlink_message_t *msg)
 			orb_publish(ORB_ID(sensor_combined), sensors_raw_topic, &sensors_raw_report);
 		}
 	}
+	if (msg->msgid == MAVLINK_MSG_ID_SET_MODE)
+	{
+		/* Set mode on request */
+		mavlink_set_mode_t mode;
+		mavlink_msg_set_mode_decode(msg, &mode);
+		uint8_t base_mode = mode.base_mode;
+		// ignore target system here
+		// Update Mode and State and publish to the orb
+		update_state_machine_mode_request(stat_pub,&v_status,mavlink_fd,base_mode);
+	}
 }
 
 
-int mavlink_open_uart(int baud, const char *uart_name, struct termios *uart_config_original, bool *is_usb)
+int hil_test_open_uart(int baud, const char *uart_name, struct termios *uart_config_original, bool *is_usb)
 {
 	/* process baud rate */
 	int speed;
@@ -675,7 +684,7 @@ int mavlink_open_uart(int baud, const char *uart_name, struct termios *uart_conf
 /**
  * hil_test_quat Protocol main function.
  */
-int mavlink_thread_main(int argc, char *argv[])
+int hil_test_thread_main(int argc, char *argv[])
 {
 
 	/* initialize global data structs */
@@ -731,7 +740,7 @@ int mavlink_thread_main(int argc, char *argv[])
 
 	bool usb_uart;
 
-	uart = mavlink_open_uart(baudrate, uart_name, &uart_config_original, &usb_uart);
+	uart = hil_test_open_uart(baudrate, uart_name, &uart_config_original, &usb_uart);
 
 	if (uart < 0) {
 		printf("[hil_test_quat] FAILED to open %s, terminating.\n", uart_name);
@@ -740,6 +749,8 @@ int mavlink_thread_main(int argc, char *argv[])
 
 	/* Flush UART */
 	fflush(stdout);
+
+	mavlink_fd = open(MAVLINK_LOG_DEVICE, 0);
 
 	/* Initialize system properties */
 	mavlink_update_system();
@@ -801,6 +812,11 @@ int mavlink_thread_main(int argc, char *argv[])
 		orb_set_interval(mavlink_subs.local_pos_sub, 1000);
 	}
 
+	/* advertise to ORB */
+	stat_pub = orb_advertise(ORB_ID(vehicle_status), &v_status);
+	/* publish current state machine */
+	state_machine_publish(stat_pub, &v_status, mavlink_fd);
+
 	thread_running = true;
 
 	/* arm counter to go off immediately */
@@ -822,7 +838,7 @@ int mavlink_thread_main(int argc, char *argv[])
 			get_mavlink_mode_and_state(&v_status, &armed, &mavlink_state, &mavlink_mode);
 
 			/* send heartbeat */
-			//mavlink_msg_heartbeat_send(chan, mavlink_system.type, MAV_AUTOPILOT_PX4, mavlink_mode, v_status.state_machine, mavlink_state);
+			mavlink_msg_heartbeat_send(chan, mavlink_system.type, MAV_AUTOPILOT_PX4, mavlink_mode, v_status.state_machine, mavlink_state);
 
 			/* send status (values already copied in the section above) */
 			//mavlink_msg_sys_status_send(chan, v_status.onboard_control_sensors_present, v_status.onboard_control_sensors_enabled,
@@ -908,7 +924,7 @@ int hil_test_quat_main(int argc, char *argv[])
 					  SCHED_DEFAULT,
 					  SCHED_PRIORITY_DEFAULT,
 					  6000,
-					  mavlink_thread_main,
+					  hil_test_thread_main,
 					  (argv) ? (const char **)&argv[2] : (const char **)NULL);
 		exit(0);
 	}

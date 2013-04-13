@@ -46,7 +46,9 @@
 
 #include <uORB/uORB.h>
 #include <uORB/topics/vehicle_status.h>
+#include <systemlib/visibility.h>
 
+__BEGIN_DECLS
 /**
  * Switch to new state with no checking.
  *
@@ -152,7 +154,7 @@ void update_state_machine_mode_auto(int status_pub, struct vehicle_status_s *cur
  * @param current_status pointer to the current state machine to operate on
  * @param mavlink_fd file descriptor for MAVLink statustext messages
  */
-void state_machine_publish(int status_pub, struct vehicle_status_s *current_status, const int mavlink_fd);
+__EXPORT void state_machine_publish(int status_pub, struct vehicle_status_s *current_status, const int mavlink_fd);
 
 
 /*
@@ -168,7 +170,7 @@ void state_machine_publish(int status_pub, struct vehicle_status_s *current_stat
  * @param current_status pointer to the current state machine to operate on
  * @param mavlink_fd file descriptor for MAVLink statustext messages
  */
-uint8_t update_state_machine_mode_request(int status_pub, struct vehicle_status_s *current_status, const int mavlink_fd, uint8_t mode);
+__EXPORT uint8_t update_state_machine_mode_request(int status_pub, struct vehicle_status_s *current_status, const int mavlink_fd, uint8_t mode);
 
 /**
  * Handles *incoming request* to switch to a specific custom state, if state change is successful returns 0
@@ -204,6 +206,6 @@ void state_machine_emergency(int status_pub, struct vehicle_status_s *current_st
  */
 void publish_armed_status(const struct vehicle_status_s *current_status);
 
-
+__END_DECLS
 
 #endif /* STATE_MACHINE_HELPER_H_ */
