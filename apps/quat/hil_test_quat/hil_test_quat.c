@@ -574,12 +574,40 @@ void handleMessage(mavlink_message_t *msg)
 	if (msg->msgid == MAVLINK_MSG_ID_SET_MODE)
 	{
 		/* Set mode on request */
+    	//  [15] mav mode (-1: preflight, 0:standby=manual disarmed, 1:armed manual, 2:stabilized, 3:auto)
 		mavlink_set_mode_t mode;
 		mavlink_msg_set_mode_decode(msg, &mode);
 		uint8_t base_mode = mode.base_mode;
-		// ignore target system here
-		// Update Mode and State and publish to the orb
-		update_state_machine_mode_request(stat_pub,&v_status,mavlink_fd,base_mode);
+		switch(base_mode)
+		{
+		case MAV_MODE_PREFLIGHT:
+			// Do nothing, only initial state
+			break;
+		case MAV_MODE_MANUAL_DISARMED:
+			v_status.flag_system_armed = false;
+			v_status.state_machine = SYSTEM_STATE_STANDBY;
+			/* publish current state machine */
+			state_machine_publish(stat_pub, &v_status, mavlink_fd);
+			publish_armed_status(&v_status);
+			break;
+		case MAV_MODE_MANUAL_ARMED:
+			if(v_status.state_machine == SYSTEM_STATE_STANDBY){
+			// set to ground ready, otherwise we can't switch to manual
+			v_status.state_machine = SYSTEM_STATE_GROUND_READY;
+			}
+			update_state_machine_mode_request(stat_pub,&v_status,mavlink_fd,base_mode);
+			break;
+		case MAV_MODE_STABILIZE_ARMED:
+			update_state_machine_mode_request(stat_pub,&v_status,mavlink_fd,base_mode);
+			break;
+		case MAV_MODE_AUTO_ARMED:
+			update_state_machine_mode_request(stat_pub,&v_status,mavlink_fd,base_mode);
+			break;
+		default:
+			// unsupported state
+			mavlink_log_critical(mavlink_fd, "Trying to set unknown state!");
+			break;
+		}
 	}
 }
 
@@ -833,12 +861,12 @@ int hil_test_thread_main(int argc, char *argv[])
 			mavlink_update_system();
 
 			/* translate the current syste state to mavlink state and mode */
-			uint8_t mavlink_state = 0;
-			uint8_t mavlink_mode = 0;
-			get_mavlink_mode_and_state(&v_status, &armed, &mavlink_state, &mavlink_mode);
+			//uint8_t mavlink_state = 0;
+			//uint8_t mavlink_mode = 0;
+			//get_mavlink_mode_and_state(&v_status, &armed, &mavlink_state, &mavlink_mode);
 
 			/* send heartbeat */
-			mavlink_msg_heartbeat_send(chan, mavlink_system.type, MAV_AUTOPILOT_PX4, mavlink_mode, v_status.state_machine, mavlink_state);
+			//mavlink_msg_heartbeat_send(chan, mavlink_system.type, MAV_AUTOPILOT_PX4, mavlink_mode, v_status.state_machine, mavlink_state);
 
 			/* send status (values already copied in the section above) */
 			//mavlink_msg_sys_status_send(chan, v_status.onboard_control_sensors_present, v_status.onboard_control_sensors_enabled,

@@ -17,18 +17,10 @@
 */
 
 #include "nav_ukf.h"
-//#include "imu.h"
 #include <systemlib/conversions.h>
 #include <quat/utils/quat_constants.h>
 #include "nav.h"
 #include <../utils/util.h>
-//#include "compass.h"
-//#include "aq_timer.h"
-//#include "config.h"
-//#include "gps.h"
-//#include "supervisor.h"
-//#include "filer.h"
-//#include <intrinsics.h>
 
 navUkfStruct_t navUkfData;
 

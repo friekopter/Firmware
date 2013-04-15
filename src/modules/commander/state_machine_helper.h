@@ -204,7 +204,7 @@ void state_machine_emergency(int status_pub, struct vehicle_status_s *current_st
  *
  * @param current_status the current system status
  */
-void publish_armed_status(const struct vehicle_status_s *current_status);
+__EXPORT void publish_armed_status(const struct vehicle_status_s *current_status);
 
 __END_DECLS
 
