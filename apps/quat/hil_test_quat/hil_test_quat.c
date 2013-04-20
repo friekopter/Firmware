@@ -158,8 +158,6 @@ void get_mavlink_mode_and_state(const struct vehicle_status_s *c_status, const s
 
 int hil_test_open_uart(int baudrate, const char *uart_name, struct termios *uart_config_original, bool *is_usb);
 
-
-
 /**
  * Print the usage
  */
@@ -254,7 +252,6 @@ static void *uorb_receiveloop(void *arg)
 	/* Set thread name */
 	prctl(PR_SET_NAME, "hil_test_quat orb rcv", getpid());
 
-
 	/* --- IMPORTANT: DEFINE NUMBER OF ORB STRUCTS TO WAIT FOR HERE --- */
 	/* number of messages */
 	const ssize_t fdsc = 25;
@@ -279,7 +276,6 @@ static void *uorb_receiveloop(void *arg)
 	fds[fdsc_count].events = POLLIN;
 	fdsc_count++;
 
-
 	/* --- GLOBAL POS VALUE --- */
 	orb_subs.global_pos_sub = orb_subscribe(ORB_ID(vehicle_global_position));
 	orb_set_interval(subs->global_pos_sub, 1000);	/* 1Hz active updates */
@@ -303,7 +299,6 @@ static void *uorb_receiveloop(void *arg)
 
 	/* all subscriptions initialized, return success */
 	subs->initialized = true;
-
 
 	/* WARNING: If you get the error message below,
 	 * then the number of registered messages (fdsc)
@@ -339,7 +334,6 @@ static void *uorb_receiveloop(void *arg)
 		} else {
 
 			int ifds = 0;
-
 
 			/* --- ATTITUDE VALUE --- */
 			if (fds[ifds++].revents & POLLIN) {
@@ -475,7 +469,7 @@ void handleMessage(mavlink_message_t *msg)
 			}
 			update_state_machine_mode_request(stat_pub,&quad_status,mavlink_fd,base_mode);
 			break;
-		case MAV_MODE_STABILIZE_ARMED:
+		case MAV_MODE_GUIDED_ARMED:
 			update_state_machine_mode_request(stat_pub,&quad_status,mavlink_fd,base_mode);
 			break;
 		case MAV_MODE_AUTO_ARMED:
@@ -602,6 +596,7 @@ int hil_test_thread_main(int argc, char *argv[])
 
 	/* init structs */
 	memset(&quad_status, 0, sizeof(quad_status));
+	quad_status.system_type = VEHICLE_TYPE_QUADROTOR;
 
 	/* read program arguments */
 	int i;
