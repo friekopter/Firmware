@@ -18,7 +18,7 @@ controlParameter_t controlParameter;
 
 uint32_t controller_counter = 0;
 
-inline void control_quadrotor_attitude_reset()
+void control_quadrotor_attitude_reset()
 {
 	pidZeroIntegral(controlData.pitchRate,0.0f,0.0f);
 	pidZeroIntegral(controlData.rollRate,0.0f,0.0f);
@@ -28,7 +28,7 @@ inline void control_quadrotor_attitude_reset()
 	pidZeroIntegral(controlData.yawAngle,0.0f,0.0f);
 }
 
-inline void control_quadrotor_attitude_init(const struct attitude_pid_quat_params *tilt_rate,
+void control_quadrotor_attitude_init(const struct attitude_pid_quat_params *tilt_rate,
 											const struct attitude_pid_quat_params *tilt_angle,
 											const struct attitude_pid_quat_params *yaw_rate,
 											const struct attitude_pid_quat_params *yaw_angle,
@@ -66,7 +66,7 @@ inline void control_quadrotor_attitude_init(const struct attitude_pid_quat_param
     controlParameter.paramControlYawF 			= &control->controlYawF;
 }
 
-inline void control_quadrotor_attitude(
+void control_quadrotor_attitude(
 		const struct vehicle_attitude_setpoint_s *att_sp,
 		const struct vehicle_attitude_s *att,
 		const struct vehicle_rates_setpoint_s *rate_sp,

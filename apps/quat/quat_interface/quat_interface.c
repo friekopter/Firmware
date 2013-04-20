@@ -121,11 +121,13 @@ int quat_interface_thread_main(int argc, char *argv[])
 		if (strcmp(argv[i], "-s") == 0 || strcmp(argv[i], "--simulate") == 0) {
 			simulator_mode = true;
 			motor_test_mode = false;
+			printf("[quat_interface] Starting simulation mode\n");
 			break;
 		}
 
 		if (strcmp(argv[i], "-t") == 0 || strcmp(argv[i], "--test") == 0) {
 			motor_test_mode = true;
+			printf("[quat_interface] Starting motor test mode\n");
 		}
 
 		if (strcmp(argv[i], "-m") == 0 || strcmp(argv[i], "--motor") == 0) {
@@ -133,6 +135,7 @@ int quat_interface_thread_main(int argc, char *argv[])
 				int motor = atoi(argv[i+1]);
 				if (motor > 0 && motor < 5) {
 					test_motor = motor;
+					printf("[quat_interface] Testing motor %d\n",motor);
 				} else {
 					thread_running = false;
 					errx(1, "supply a motor # between 1 and 4. Example: -m 1\n %s", commandline_usage);
@@ -182,7 +185,7 @@ int quat_interface_thread_main(int argc, char *argv[])
 			/* MAIN OPERATION MODE */
 
 			/* get a local copy of the vehicle state */
-			orb_copy(ORB_ID(vehicle_status), state_sub, &state);
+			//orb_copy(ORB_ID(vehicle_status), state_sub, &state);
 			/* get a local copy of the actuator controls */
 			orb_copy(ORB_ID_VEHICLE_ATTITUDE_CONTROLS, actuator_controls_sub, &actuator_controls);
 			orb_copy(ORB_ID(actuator_armed), armed_sub, &armed);

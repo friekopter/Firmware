@@ -343,10 +343,8 @@ static void *uorb_receiveloop(void *arg)
 
 			/* --- ATTITUDE VALUE --- */
 			if (fds[ifds++].revents & POLLIN) {
-
 				/* copy attitude data into local buffer */
 				orb_copy(ORB_ID(vehicle_attitude), subs->att_sub, &buf.att);
-
 				/* send sensor values */
 				mavlink_msg_attitude_send(chan, last_sensor_timestamp / 1000, buf.att.roll, buf.att.pitch, buf.att.yaw, buf.att.rollspeed, buf.att.pitchspeed, buf.att.yawspeed);
 			}
@@ -371,12 +369,12 @@ static void *uorb_receiveloop(void *arg)
 			}
 
 			/* --- VEHICLE LOCAL POSITION --- */
-			if (fds[ifds++].revents & POLLIN) {
+			//if (fds[ifds++].revents & POLLIN) {
 				/* copy local position data into local buffer */
-				orb_copy(ORB_ID(vehicle_local_position), subs->local_pos_sub, &buf.local);
-				mavlink_msg_local_position_ned_send(chan, buf.local.timestamp / 1000, buf.local.x,
-					buf.local.y, buf.local.z, buf.local.vx, buf.local.vy, buf.local.vz);
-			}
+			//	orb_copy(ORB_ID(vehicle_local_position), subs->local_pos_sub, &buf.local);
+			//	mavlink_msg_local_position_ned_send(chan, buf.local.timestamp / 1000, buf.local.x,
+			//		buf.local.y, buf.local.z, buf.local.vx, buf.local.vy, buf.local.vz);
+			//}
 
 			/* --- ACTUATOR CONTROL --- */
 			if (fds[ifds++].revents & POLLIN) {
@@ -463,6 +461,7 @@ void handleMessage(mavlink_message_t *msg)
 			// Do nothing, only initial state
 			break;
 		case MAV_MODE_MANUAL_DISARMED:
+			if(quad_status.state_machine == SYSTEM_STATE_STANDBY) break;
 			quad_status.flag_system_armed = false;
 			quad_status.state_machine = SYSTEM_STATE_STANDBY;
 			/* publish current state machine */

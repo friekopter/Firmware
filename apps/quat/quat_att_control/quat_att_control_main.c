@@ -319,7 +319,7 @@ quat_att_control_thread_main(int argc, char *argv[])
 				&actuators);
 
 		// /* print debug information every 200th time */
-		if (debug == true && printcounter % 2000 == 0)
+		if (debug == true && printcounter % 1000 == 0)
 		{
 			printf("attitude_sp: %8.4f\t%8.4f\t%8.4f\t%8.4f\n", (double)att_sp.roll_body, (double)att_sp.pitch_body, (double)att_sp.yaw_body, (double)att_sp.thrust);
 			printf("actuators: %8.4f\t%8.4f\t%8.4f\t%8.4f\n", (double)actuators.control[0], (double)actuators.control[1], (double)actuators.control[2], (double)actuators.control[3]);
@@ -358,9 +358,7 @@ usage(const char *reason)
 {
 	if (reason)
 		fprintf(stderr, "%s\n", reason);
-	fprintf(stderr, "usage: quat_att_control [-t] {start|status|stop}\n");
-	fprintf(stderr, "    <mode> is 'rates' or 'attitude'\n");
-	fprintf(stderr, "    -t enables motor test mode with 10%% thrust\n");
+	fprintf(stderr, "usage: quat_att_control {debug|start|stop}\n");
 	exit(1);
 }
 
@@ -385,7 +383,6 @@ int quat_att_control_main(int argc, char *argv[])
 		}
 	}
 	argc -= optioncount;
-	//argv += optioncount;
 
 	if (argc < 1)
 		usage("missing command");

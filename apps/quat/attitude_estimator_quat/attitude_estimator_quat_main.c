@@ -335,7 +335,7 @@ int attitude_estimator_quat_thread_main(int argc, char *argv[])
 				}
 				printcounter++;
 
-				if (last_data > 0 && raw.timestamp - last_data > 12000) printf("[attitude estimator quat] sensor data missed! (%llu)\n", raw.timestamp - last_data);
+				//if (last_data > 0 && raw.timestamp - last_data > 12000) printf("[attitude estimator quat] sensor data missed! (%llu)\n", raw.timestamp - last_data);
 
 				last_data = raw.timestamp;
 
