@@ -5,14 +5,15 @@
 
 #include <nuttx/config.h>
 #include <stdio.h>
-#include <fcntl.h>
+#include <stdlib.h>
+#include <string.h>
+#include <stdbool.h>
 #include <unistd.h>
 #include <drivers/drv_gpio.h>
 #include <drivers/drv_hrt.h>
 #include <uORB/uORB.h>
 #include <uORB/topics/actuator_outputs.h>
 #include <systemlib/err.h>
-
 #include "quat_motor_control.h"
 #include "mkMotorDriver.h"
 
@@ -20,24 +21,22 @@
 int quat_write_motor_commands(const bool simulation, uint16_t motor1, uint16_t motor2, uint16_t motor3, uint16_t motor4) {
 
 	static int initialized = FALSE;
+	static orb_advert_t pub = 0;
+	static struct actuator_outputs_s outputs;
 	if(!initialized){
 		mkMotorDriver_init();
+		memset(&outputs, 0, sizeof(outputs));
+		pub = orb_advertise(ORB_ID_VEHICLE_CONTROLS, &outputs);
 		initialized = TRUE;
 	}
 	const unsigned int min_motor_interval = 4900;
 	static uint64_t last_motor_time = 0;
-	static struct actuator_outputs_s outputs;
 	outputs.timestamp = hrt_absolute_time();
 	outputs.output[0] = motor1;
 	outputs.output[1] = motor2;
 	outputs.output[2] = motor3;
 	outputs.output[3] = motor4;
 	outputs.noutputs = 4;
-	static orb_advert_t pub = 0;
-	if (pub == 0) {
-		pub = orb_advertise(ORB_ID_VEHICLE_CONTROLS, &outputs);
-	}
-
 	if (hrt_absolute_time() - last_motor_time > min_motor_interval) {
 		int ret = OK;
 		if(simulation){
