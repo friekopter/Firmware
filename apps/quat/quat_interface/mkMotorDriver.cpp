@@ -47,10 +47,10 @@ private:
 
 };
 
-MkMotorDriver *motor_driver;
+static MkMotorDriver *motor_driver = NULL;
 
 MkMotorDriver::MkMotorDriver(int bus) :
-I2C("MK_MOTOR", MOT_DEVICE_PATH, bus, 0, 500000)
+		I2C("MK_MOTOR", MOT_DEVICE_PATH, bus, 0, 500000)
 {
 	// TODO FL Set interrupt number
 	// TODO Auto-generated constructor stub

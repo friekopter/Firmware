@@ -26,7 +26,6 @@
 #include <systemlib/systemlib.h>
 
 #include "quat_motor_control.h"
-//#include "mkMotorDriver.h"
 
 __EXPORT int quat_interface_main(int argc, char *argv[]);
 
@@ -35,77 +34,12 @@ static bool thread_should_exit = false;		/**< Deamon exit flag */
 static bool thread_running = false;		/**< Deamon status flag */
 static int quat_interface_task;		/**< Handle of deamon task / thread */
 
-static const char *commandline_usage = "\tusage: quat_interface start|status|stop [-t for motor test (10%% thrust)]\n";
+static const char *commandline_usage = "\tusage: quat_interface start|status|stop [-t for motor test (10%% thrust)] [-s for simulation mode]\n";
 
 /**
  * Mainloop of quat_interface.
  */
-int quat_interface_thread_main(int argc, char *argv[]);
-
-/**
- * Print the correct usage.
- */
-static void usage(const char *reason);
-
-static void
-usage(const char *reason)
-{
-	if (reason)
-		fprintf(stderr, "%s\n", reason);
-	fprintf(stderr, commandline_usage);
-	exit(1);
-}
-
-/**
- * The deamon app only briefly exists to start
- * the background job. The stack size assigned in the
- * Makefile does only apply to this management task.
- * 
- * The actual stack size should be set in the call
- * to task_create().
- */
-int quat_interface_main(int argc, char *argv[])
-{
-		if (argc < 1)
-		usage("missing command");
-
-	if (!strcmp(argv[1], "start")) {
-
-		if (thread_running) {
-			printf("quat_interface already running\n");
-			/* this is not an error */
-			exit(0);
-		}
-
-		thread_should_exit = false;
-		quat_interface_task = task_spawn("quat_interface",
-						    SCHED_DEFAULT,
-						    SCHED_PRIORITY_MAX - 15,
-						    2048,
-						    quat_interface_thread_main,
-						    (argv) ? (const char **)&argv[2] : (const char **)NULL);
-		exit(0);
-	}
-
-	if (!strcmp(argv[1], "stop")) {
-		thread_should_exit = true;
-		exit(0);
-	}
-
-	if (!strcmp(argv[1], "status")) {
-		if (thread_running) {
-			printf("\tquat_interface is running\n");
-		} else {
-			printf("\tquat_interface not started\n");
-		}
-		exit(0);
-	}
-
-	usage("unrecognized command");
-	exit(1);
-}
-
-int quat_interface_thread_main(int argc, char *argv[])
+static int quat_interface_thread_main(int argc, char *argv[])
 {
 	thread_running = true;
 	const uint16_t motors_test_pwm = 80;
@@ -150,10 +84,7 @@ int quat_interface_thread_main(int argc, char *argv[])
 	if (motor_test_mode) {
 		printf("[quat_interface] Motor test mode enabled, setting 10 %% thrust.\n");
 	}
-
 	/* declare and safely initialize all structs */
-	struct vehicle_status_s state;
-	memset(&state, 0, sizeof(state));
 	struct actuator_controls_s actuator_controls;
 	memset(&actuator_controls, 0, sizeof(actuator_controls));
 	struct actuator_armed_s armed;
@@ -161,16 +92,13 @@ int quat_interface_thread_main(int argc, char *argv[])
 
 	/* subscribe to attitude, motor setpoints and system state */
 	int actuator_controls_sub = orb_subscribe(ORB_ID_VEHICLE_ATTITUDE_CONTROLS);
-	int state_sub = orb_subscribe(ORB_ID(vehicle_status));
 	int armed_sub = orb_subscribe(ORB_ID(actuator_armed));
 
 	printf("[quat_interface] Motors initialized - ready.\n");
 	fflush(stdout);
 
 	quat_write_motor_commands(simulator_mode, 0, 0, 0, 0);
-
 	while (!thread_should_exit) {
-
 		if (motor_test_mode) {
 			/* set motors to idle speed */
 			if (test_motor > 0 && test_motor < 5) {
@@ -183,17 +111,18 @@ int quat_interface_thread_main(int argc, char *argv[])
 
 		} else {
 			/* MAIN OPERATION MODE */
-
-			/* get a local copy of the vehicle state */
-			//orb_copy(ORB_ID(vehicle_status), state_sub, &state);
 			/* get a local copy of the actuator controls */
-			orb_copy(ORB_ID_VEHICLE_ATTITUDE_CONTROLS, actuator_controls_sub, &actuator_controls);
-			orb_copy(ORB_ID(actuator_armed), armed_sub, &armed);
-			
-			/* for now only spin if armed and immediately shut down
-			 * if in failsafe
-			 */
-			if (armed.armed && !armed.lockdown) {
+			int ret = OK;
+			ret |= orb_copy(ORB_ID_VEHICLE_ATTITUDE_CONTROLS, actuator_controls_sub, &actuator_controls);
+			ret |= orb_copy(ORB_ID(actuator_armed), armed_sub, &armed);
+			if (ret != OK) {
+				static int error_count = 0;
+				if(error_count > 200) {
+					error_count = 0;
+					printf("[quat_interface]: Could not read attitude control\n");
+				}
+				error_count++;
+			} else if (armed.armed && !armed.lockdown) {
 				quat_mixing_and_output(simulator_mode, &actuator_controls);
 			} else {
 				/* Silently lock down motor speeds to zero */
@@ -210,5 +139,68 @@ int quat_interface_thread_main(int argc, char *argv[])
 	thread_running = false;
 
 	return OK;
+}
+
+/**
+ * Print the correct usage.
+ */
+static void usage(const char *reason);
+
+static void
+usage(const char *reason)
+{
+	if (reason)
+		fprintf(stderr, "%s\n", reason);
+	fprintf(stderr, commandline_usage);
+	exit(1);
+}
+
+/**
+ * The deamon app only briefly exists to start
+ * the background job. The stack size assigned in the
+ * Makefile does only apply to this management task.
+ *
+ * The actual stack size should be set in the call
+ * to task_create().
+ */
+int quat_interface_main(int argc, char *argv[])
+{
+		if (argc < 1)
+		usage("missing command");
+
+	if (!strcmp(argv[1], "start")) {
+
+		if (thread_running) {
+			printf("quat_interface already running\n");
+			/* this is not an error */
+			exit(0);
+		}
+
+		thread_should_exit = false;
+		quat_interface_task = task_spawn("quat_interface",
+						    SCHED_DEFAULT,
+						    SCHED_PRIORITY_MAX - 15,
+						    2048,
+						    quat_interface_thread_main,
+						    (argv) ? (const char **)&argv[1] : (const char **)NULL);
+		exit(0);
+	}
+
+	if (!strcmp(argv[1], "stop")) {
+		thread_should_exit = true;
+		exit(0);
+	}
+
+	if (!strcmp(argv[1], "status")) {
+		if (thread_running) {
+			printf("\tquat_interface is running\n");
+		} else {
+			printf("\tquat_interface not started\n");
+		}
+		exit(0);
+	}
+
+	usage("unrecognized command");
+	exit(1);
 }
 

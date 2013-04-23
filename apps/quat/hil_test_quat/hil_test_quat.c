@@ -136,14 +136,12 @@ static struct orb_subscriptions {
 	int att_sub;
 	int global_pos_sub;
 	int actuators_sub;
-	int local_pos_sub;
 	bool initialized;
 } orb_subs = {
 	//.sensor_sub = 0,
 	.att_sub = 0,
 	.global_pos_sub = 0,
 	.actuators_sub = 0,
-	.local_pos_sub = 0,
 	.initialized = false
 };
 
@@ -252,18 +250,8 @@ static void *uorb_receiveloop(void *arg)
 	/* Set thread name */
 	prctl(PR_SET_NAME, "hil_test_quat orb rcv", getpid());
 
-	/* --- IMPORTANT: DEFINE NUMBER OF ORB STRUCTS TO WAIT FOR HERE --- */
-	/* number of messages */
-	const ssize_t fdsc = 25;
-	/* Sanity check variable and index */
-	ssize_t fdsc_count = 0;
-	/* file descriptors to wait for */
-	struct pollfd fds[fdsc];
-
-
 	union {
 		struct vehicle_attitude_s att;
-		struct vehicle_local_position_s local;
 		struct vehicle_global_position_s global;
 		struct actuator_outputs_s actuators;
 	} buf;
@@ -272,42 +260,19 @@ static void *uorb_receiveloop(void *arg)
 	/* subscribe to ORB for attitude */
 	subs->att_sub = orb_subscribe(ORB_ID(vehicle_attitude));
 	orb_set_interval(subs->att_sub, 10);
-	fds[fdsc_count].fd = subs->att_sub;
-	fds[fdsc_count].events = POLLIN;
-	fdsc_count++;
-
 	/* --- GLOBAL POS VALUE --- */
 	orb_subs.global_pos_sub = orb_subscribe(ORB_ID(vehicle_global_position));
 	orb_set_interval(subs->global_pos_sub, 1000);	/* 1Hz active updates */
-	fds[fdsc_count].fd = subs->global_pos_sub;
-	fds[fdsc_count].events = POLLIN;
-	fdsc_count++;
-
-	/* --- LOCAL POS VALUE --- */
-	subs->local_pos_sub = orb_subscribe(ORB_ID(vehicle_local_position));
-	orb_set_interval(subs->local_pos_sub, 1000);	/* 1Hz active updates */
-	fds[fdsc_count].fd = subs->local_pos_sub;
-	fds[fdsc_count].events = POLLIN;
-	fdsc_count++;
-
 	/* --- ACTUATOR CONTROL VALUE --- */
-	/* subscribe to ORB for actuator control */
 	subs->actuators_sub = orb_subscribe(ORB_ID_VEHICLE_CONTROLS);
-	fds[fdsc_count].fd = subs->actuators_sub;
-	fds[fdsc_count].events = POLLIN;
-	fdsc_count++;
 
+	struct pollfd fds[3] = {
+		{ .fd = subs->att_sub, .events = POLLIN },
+		{ .fd = subs->global_pos_sub, .events = POLLIN },
+		{ .fd = subs->actuators_sub, .events = POLLIN }
+	};
 	/* all subscriptions initialized, return success */
 	subs->initialized = true;
-
-	/* WARNING: If you get the error message below,
-	 * then the number of registered messages (fdsc)
-	 * differs from the number of messages in the above list.
-	 */
-	if (fdsc_count > fdsc) {
-		fprintf(stderr, "[hil_test_quat] WARNING: Not enough space for poll fds allocated. Check %s:%d.\n", __FILE__, __LINE__);
-		fdsc_count = fdsc;
-	}
 
 	/*
 	 * set up poll to block for new data,
@@ -324,7 +289,7 @@ static void *uorb_receiveloop(void *arg)
 
 	while (!thread_should_exit) {
 
-		int poll_ret = poll(fds, fdsc_count, timeout);
+		int poll_ret = poll(fds, 3, timeout);
 
 		/* handle the poll result */
 		if (poll_ret == 0) {
@@ -332,11 +297,8 @@ static void *uorb_receiveloop(void *arg)
 		} else if (poll_ret < 0) {
 			//mavlink_missionlib_send_gcs_string("[hil_test_quat] ERROR reading uORB data");
 		} else {
-
-			int ifds = 0;
-
 			/* --- ATTITUDE VALUE --- */
-			if (fds[ifds++].revents & POLLIN) {
+			if (fds[0].revents & POLLIN) {
 				/* copy attitude data into local buffer */
 				orb_copy(ORB_ID(vehicle_attitude), subs->att_sub, &buf.att);
 				/* send sensor values */
@@ -344,7 +306,7 @@ static void *uorb_receiveloop(void *arg)
 			}
 
 			/* --- VEHICLE GLOBAL POSITION --- */
-			if (fds[ifds++].revents & POLLIN) {
+			if (fds[1].revents & POLLIN) {
 				/* copy global position data into local buffer */
 				orb_copy(ORB_ID(vehicle_global_position), subs->global_pos_sub, &buf.global);
 				uint64_t timestamp = buf.global.timestamp;
@@ -371,7 +333,7 @@ static void *uorb_receiveloop(void *arg)
 			//}
 
 			/* --- ACTUATOR CONTROL --- */
-			if (fds[ifds++].revents & POLLIN) {
+			if (fds[2].revents & POLLIN) {
 				orb_copy(ORB_ID_VEHICLE_CONTROLS, subs->actuators_sub, &buf.actuators);
 				/* HIL message as per MAVLink spec */
 				mavlink_msg_set_quad_motors_setpoint_send(chan,
@@ -681,7 +643,6 @@ int hil_test_thread_main(int argc, char *argv[])
 		orb_set_interval(orb_subs.actuators_sub, 20);
 		orb_set_interval(orb_subs.att_sub, 20);
 		orb_set_interval(orb_subs.global_pos_sub, 20);
-		orb_set_interval(orb_subs.local_pos_sub, 20);
 	}
 	else if (baudrate >= 115200)
 	{
@@ -689,7 +650,6 @@ int hil_test_thread_main(int argc, char *argv[])
 		orb_set_interval(orb_subs.actuators_sub, 100);
 		orb_set_interval(orb_subs.att_sub, 100);
 		orb_set_interval(orb_subs.global_pos_sub, 100);
-		orb_set_interval(orb_subs.local_pos_sub, 100);
 	}
 	else if (baudrate >= 57600)
 	{
@@ -697,7 +657,6 @@ int hil_test_thread_main(int argc, char *argv[])
 		orb_set_interval(orb_subs.actuators_sub, 200);
 		orb_set_interval(orb_subs.att_sub, 200);
 		orb_set_interval(orb_subs.global_pos_sub, 200);
-		orb_set_interval(orb_subs.local_pos_sub, 200);
 	}
 	else
 	{
@@ -705,7 +664,6 @@ int hil_test_thread_main(int argc, char *argv[])
 		orb_set_interval(orb_subs.actuators_sub, 1000);
 		orb_set_interval(orb_subs.att_sub, 1000);
 		orb_set_interval(orb_subs.global_pos_sub, 1000);
-		orb_set_interval(orb_subs.local_pos_sub, 1000);
 	}
 
 	/* advertise to ORB */
@@ -758,7 +716,7 @@ int hil_test_thread_main(int argc, char *argv[])
 			fprintf(stderr, "[hil_test_quat] ERROR setting baudrate / termios config for %s (tcsetattr)\r\n", uart_name);
 		}
 
-		printf("[hil_test_quat] Restored original UART config, exiting..\n");
+		printf("[hil_test_quat] Restored original UART config\n");
 	}
 
 exit_cleanup:
@@ -768,13 +726,14 @@ exit_cleanup:
 
 	/* close subscriptions */
 	close(orb_subs.global_pos_sub);
-	close(orb_subs.local_pos_sub);
+	close(orb_subs.att_sub);
+	close(orb_subs.actuators_sub);
 
 	fflush(stdout);
 	fflush(stderr);
 
 	thread_running = false;
-
+	printf("[hil_test_quat] Exiting..\n");
 	return 0;
 }
 

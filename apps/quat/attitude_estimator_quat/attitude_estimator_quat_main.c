@@ -183,16 +183,10 @@ int attitude_estimator_quat_thread_main(int argc, char *argv[])
 	struct sensor_combined_s raw;
 	struct vehicle_attitude_s att;
 
-	uint64_t last_data = 0;
 	uint64_t last_measurement = 0;
 
 	// Init state struct
 	memset(&state, 0, sizeof(state));
-
-	/* subscribe to raw data */
-	int sub_raw = orb_subscribe(ORB_ID(sensor_combined));
-	/* rate-limit raw data updates to 200Hz */
-	orb_set_interval(sub_raw, 4);
 
 	/* advertise attitude */
 	orb_advert_t pub_att = orb_advertise(ORB_ID(vehicle_attitude), &att);
@@ -212,6 +206,9 @@ int attitude_estimator_quat_thread_main(int argc, char *argv[])
 	// Track parameter changes
 	struct attitude_estimator_quat_params quat_params;
 	struct attitude_estimator_quat_param_handles quat_param_handles;
+
+	// Subscribe to data updates
+	// Parameter
 	int sub_params = orb_subscribe(ORB_ID(parameter_update));
 	/* rate-limit raw data updates to 1Hz */
 	orb_set_interval(sub_params, 1000);
@@ -220,6 +217,11 @@ int attitude_estimator_quat_thread_main(int argc, char *argv[])
 	int state_sub = orb_subscribe(ORB_ID(vehicle_status));
 	/* rate-limit raw data updates to 2Hz */
 	orb_set_interval(state_sub, 500);
+
+	// Raw data
+	int sub_raw = orb_subscribe(ORB_ID(sensor_combined));
+	/* rate-limit raw data updates to 200Hz */
+	orb_set_interval(sub_raw, 4);
 
 	// initialize parameter handles
 	int param_init_result = parameters_init(&quat_param_handles);
@@ -320,7 +322,7 @@ int attitude_estimator_quat_thread_main(int argc, char *argv[])
 				}
 
 				uint64_t timing_start = hrt_absolute_time();
-				bool isFlying = (state.flight_mode < VEHICLE_FLIGHT_MODE_MANUAL); // TODO: provide that parameter, or move to sensors
+				bool isFlying = (state.state_machine > SYSTEM_STATE_GROUND_READY); // TODO: provide that parameter, or move to sensors
 				quatUpdate(update_vect, dt, isFlying, z_k, &quat_params, &att );
 				uint64_t timing_diff = hrt_absolute_time() - timing_start;
 
@@ -334,10 +336,6 @@ int attitude_estimator_quat_thread_main(int argc, char *argv[])
 					printf("update rates gyro: %8.4f\taccel: %8.4f\tmag:%8.4f\n", (double)sensor_update_hz[0], (double)sensor_update_hz[1], (double)sensor_update_hz[2]);
 				}
 				printcounter++;
-
-				//if (last_data > 0 && raw.timestamp - last_data > 12000) printf("[attitude estimator quat] sensor data missed! (%llu)\n", raw.timestamp - last_data);
-
-				last_data = raw.timestamp;
 
 				// Broadcast
 				orb_publish(ORB_ID(vehicle_attitude), pub_att, &att);

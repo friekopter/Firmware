@@ -11,11 +11,13 @@
 #include <nuttx/arch.h>
 #include <nuttx/wqueue.h>
 #include <nuttx/clock.h>
+#include <systemlib/visibility.h>
+#include <arch/board/board.h>
 
 #ifndef MKMOTORDRIVER_H_
 #define MKMOTORDRIVER_H_
 
-#define MOT_I2C_BUS_NUMBER				0 // set back to 0
+#define MOT_I2C_BUS_NUMBER				PX4_I2C_BUS_ESC
 #define MOT_DEVICE_PATH					"/dev/mot"
 #define MOT_READMODE_STATUS  0
 
@@ -37,6 +39,9 @@ typedef struct
 	int8_t  Temperature;		// old BL-Ctrl will return a 255 here, the new version the temp. in °C
 } __attribute__((packed)) MotorData_t;
 
+
+__BEGIN_DECLS
+
 	void mkMotorDriver_init(void);
 	/**
 	 * @brief Function to set PWM value on one of the motors with 11 bit resolution
@@ -49,7 +54,7 @@ typedef struct
 	 * @return		OK if the transfer was successful, -errno
 	 *			otherwise.
 	 */
-	int mkMotorDriver_set_11bit_pwm(uint8_t motor_number, uint16_t pwm);
+	__EXPORT int mkMotorDriver_set_11bit_pwm(uint8_t motor_number, uint16_t pwm);
 
 
 	/**
@@ -58,5 +63,8 @@ typedef struct
 	MotorData_t mkMotorDriver_get_motor_data(uint8_t motor_number);
 
 	int mkMotorDriver_read_motor_state(uint8_t motor_number);
+
+
+	__END_DECLS
 
 #endif /* MKMOTORDRIVER_H_ */
