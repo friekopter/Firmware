@@ -117,8 +117,10 @@ orb_advert_t		gyro_topic;
 struct mag_report	mag_report;
 orb_advert_t		mag_topic;
 struct sensor_combined_s sensors_raw_report;
-orb_advert_t		sensors_raw_topic;
+static orb_advert_t		sensors_raw_topic;
 static orb_advert_t stat_pub;
+static orb_advert_t		manual_topic;
+struct manual_control_setpoint_s manual_report;
 
 
 static int baudrate = 57600;
@@ -404,7 +406,7 @@ void handleMessage(mavlink_message_t *msg)
 			orb_publish(ORB_ID(sensor_combined), sensors_raw_topic, &sensors_raw_report);
 		}
 	}
-	if (msg->msgid == MAVLINK_MSG_ID_SET_MODE)
+	else if (msg->msgid == MAVLINK_MSG_ID_SET_MODE)
 	{
 		/* Set mode on request */
     	//  [15] mav mode (-1: preflight, 0:standby=manual disarmed, 1:armed manual, 2:stabilized, 3:auto)
@@ -441,6 +443,21 @@ void handleMessage(mavlink_message_t *msg)
 			// unsupported state
 			mavlink_log_critical(mavlink_fd, "Trying to set unknown state!");
 			break;
+		}
+	}
+	else if (msg->msgid == MAVLINK_MSG_ID_MANUAL_CONTROL)
+	{
+		if (manual_topic <= 0) {
+			memset(&manual_report, 0, sizeof(manual_report));
+			manual_topic = orb_advertise(ORB_ID(manual_control_setpoint), &manual_report);
+		} else {
+			mavlink_manual_control_t control;
+			mavlink_msg_manual_control_decode(msg, &control);
+			manual_report.roll = ((float)control.x)/1000.0f;
+			manual_report.pitch = ((float)control.y)/1000.0f;
+			manual_report.yaw = ((float)control.z)/1000.0f;
+			manual_report.throttle = ((float)control.r)/1000.0f;
+			orb_publish(ORB_ID(manual_control_setpoint), manual_topic, &manual_report);
 		}
 	}
 }
