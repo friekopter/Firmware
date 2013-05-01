@@ -97,16 +97,16 @@ void quat_mixing_and_output(const bool simulation, const struct actuator_control
 	//add the yaw, nick and roll components to the basic thrust //TODO:this should be done by the mixer
 
 	// FRONT (MOTOR 1)
-	motor_calc[0] = motor_thrust + (roll_control / 2 + pitch_control / 2 - yaw_control);
+	motor_calc[0] = motor_thrust + pitch_control  - yaw_control;
 
 	// RIGHT (MOTOR 2)
-	motor_calc[1] = motor_thrust + (-roll_control / 2 + pitch_control / 2 + yaw_control);
+	motor_calc[1] = motor_thrust - roll_control + yaw_control;
 
 	// BACK (MOTOR 3)
-	motor_calc[2] = motor_thrust + (-roll_control / 2 - pitch_control / 2 - yaw_control);
+	motor_calc[2] = motor_thrust - pitch_control - yaw_control;
 
 	// LEFT (MOTOR 4)
-	motor_calc[3] = motor_thrust + (roll_control / 2 - pitch_control / 2 + yaw_control);
+	motor_calc[3] = motor_thrust + roll_control + yaw_control;
 
 	// if we are not in the output band
 	if (!(motor_calc[0] < motor_thrust + output_band && motor_calc[0] > motor_thrust - output_band
@@ -116,16 +116,16 @@ void quat_mixing_and_output(const bool simulation, const struct actuator_control
 
 		yaw_factor = 0.5f;
 		// FRONT (MOTOR 1)
-		motor_calc[0] = motor_thrust + (roll_control / 2 + pitch_control / 2 - yaw_control * yaw_factor);
+		motor_calc[0] = motor_thrust + pitch_control - yaw_control * yaw_factor;
 
 		// RIGHT (MOTOR 2)
-		motor_calc[1] = motor_thrust + (-roll_control / 2 + pitch_control / 2 + yaw_control * yaw_factor);
+		motor_calc[1] = motor_thrust - roll_control + yaw_control * yaw_factor;
 
 		// BACK (MOTOR 3)
-		motor_calc[2] = motor_thrust + (-roll_control / 2 - pitch_control / 2 - yaw_control * yaw_factor);
+		motor_calc[2] = motor_thrust - pitch_control - yaw_control * yaw_factor;
 
 		// LEFT (MOTOR 4)
-		motor_calc[3] = motor_thrust + (roll_control / 2 - pitch_control / 2 + yaw_control * yaw_factor);
+		motor_calc[3] = motor_thrust + roll_control + yaw_control * yaw_factor;
 	}
 
 	for (int i = 0; i < 4; i++) {
