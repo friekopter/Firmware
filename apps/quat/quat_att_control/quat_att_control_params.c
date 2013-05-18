@@ -44,38 +44,38 @@
 PARAM_DEFINE_FLOAT(QUA_TILT_R_P, 0.0f);//0
 PARAM_DEFINE_FLOAT(QUA_TILT_R_I, 0.0f);//0
 PARAM_DEFINE_FLOAT(QUA_TILT_R_D, 1.5f);//3000
-PARAM_DEFINE_FLOAT(QUA_TILT_R_F, 0.35e-3f);//0.7
-PARAM_DEFINE_FLOAT(QUA_TILT_R_MAX_P, 0.0f);//0.0
-PARAM_DEFINE_FLOAT(QUA_TILT_R_MAX_I, 0.0f);//0.0
-PARAM_DEFINE_FLOAT(QUA_TILT_R_MAX_D, 0.24f);//470
-PARAM_DEFINE_FLOAT(QUA_TILT_R_MAX_O, 0.24f);//470
+PARAM_DEFINE_FLOAT(QUA_TILT_R_F, 35e-5f);//0.7
+PARAM_DEFINE_FLOAT(QUA_TILT_R_MA_P, 0.0f);//0.0
+PARAM_DEFINE_FLOAT(QUA_TILT_R_MA_I, 0.0f);//0.0
+PARAM_DEFINE_FLOAT(QUA_TILT_R_MA_D, 0.24f);//470
+PARAM_DEFINE_FLOAT(QUA_TILT_R_MA_O, 0.24f);//470
 
 PARAM_DEFINE_FLOAT(QUA_TILT_A_P, 0.4f);//800
-PARAM_DEFINE_FLOAT(QUA_TILT_A_I, 0.0015e-3f);//0.003
+PARAM_DEFINE_FLOAT(QUA_TILT_A_I, 15e-7f);//0.003
 PARAM_DEFINE_FLOAT(QUA_TILT_A_D, 10.0f);//20000
-PARAM_DEFINE_FLOAT(QUA_TILT_A_F, 0.35e-3f);//0.7
-PARAM_DEFINE_FLOAT(QUA_TILT_A_MAX_P, 0.24f);//470
-PARAM_DEFINE_FLOAT(QUA_TILT_A_MAX_I, 62.0e-3f);//125
-PARAM_DEFINE_FLOAT(QUA_TILT_A_MAX_D, 0.24f);//470
-PARAM_DEFINE_FLOAT(QUA_TILT_A_MAX_O, 0.24f);//470
+PARAM_DEFINE_FLOAT(QUA_TILT_A_F, 35e-5f);//0.7
+PARAM_DEFINE_FLOAT(QUA_TILT_A_MA_P, 0.24f);//470
+PARAM_DEFINE_FLOAT(QUA_TILT_A_MA_I, 62e-3f);//125
+PARAM_DEFINE_FLOAT(QUA_TILT_A_MA_D, 0.24f);//470
+PARAM_DEFINE_FLOAT(QUA_TILT_A_MA_O, 0.24f);//470
 
 PARAM_DEFINE_FLOAT(QUA_YAW_R_P, 0.03f);//60
-PARAM_DEFINE_FLOAT(QUA_YAW_R_I, 0.005e-3f);//0.01
+PARAM_DEFINE_FLOAT(QUA_YAW_R_I, 5e-6f);//0.01
 PARAM_DEFINE_FLOAT(QUA_YAW_R_D, 0.1f);//200
-PARAM_DEFINE_FLOAT(QUA_YAW_R_F, 0.125e-3f);//0.25
-PARAM_DEFINE_FLOAT(QUA_YAW_R_MAX_P, 0.03f);//60
-PARAM_DEFINE_FLOAT(QUA_YAW_R_MAX_I, 0.02f);//40
-PARAM_DEFINE_FLOAT(QUA_YAW_R_MAX_D, 0.02f);//40
-PARAM_DEFINE_FLOAT(QUA_YAW_R_MAX_O, 0.035f);//70
+PARAM_DEFINE_FLOAT(QUA_YAW_R_F, 125e-6f);//0.25
+PARAM_DEFINE_FLOAT(QUA_YAW_R_MA_P, 0.03f);//60
+PARAM_DEFINE_FLOAT(QUA_YAW_R_MA_I, 0.02f);//40
+PARAM_DEFINE_FLOAT(QUA_YAW_R_MA_D, 0.02f);//40
+PARAM_DEFINE_FLOAT(QUA_YAW_R_MA_O, 0.035f);//70
 
-PARAM_DEFINE_FLOAT(QUA_YAW_A_P, 0.025e-3f);//0.05
-PARAM_DEFINE_FLOAT(QUA_YAW_A_I, 0.000005e-3f);//0.00001
+PARAM_DEFINE_FLOAT(QUA_YAW_A_P, 25e-6f);//0.05
+PARAM_DEFINE_FLOAT(QUA_YAW_A_I, 5e-9f);//0.00001
 PARAM_DEFINE_FLOAT(QUA_YAW_A_D, 0.0f);//0
 PARAM_DEFINE_FLOAT(QUA_YAW_A_F, 0.0f);//0
-PARAM_DEFINE_FLOAT(QUA_YAW_A_MAX_P, 0.625e-3f);//1.25
-PARAM_DEFINE_FLOAT(QUA_YAW_A_MAX_I, 0.1e-3f);//0.2
-PARAM_DEFINE_FLOAT(QUA_YAW_A_MAX_D, 0.0f);//0
-PARAM_DEFINE_FLOAT(QUA_YAW_A_MAX_O, 0.625e-3f);//1.25
+PARAM_DEFINE_FLOAT(QUA_YAW_A_MA_P, 625e-6f);//1.25
+PARAM_DEFINE_FLOAT(QUA_YAW_A_MA_I, 1e-4f);//0.2
+PARAM_DEFINE_FLOAT(QUA_YAW_A_MA_D, 0.0f);//0
+PARAM_DEFINE_FLOAT(QUA_YAW_A_MA_O, 625e-6f);//1.25
 
 // Range remote old -500...500 and 0...1000
 // Range remote new -1...1 and 0...1
@@ -101,37 +101,37 @@ int parameters_init(struct attitude_pid_quat_param_handles *tiltRate,
 	tiltRate->i 		=	param_find("QUA_TILT_R_I");
 	tiltRate->d 		=	param_find("QUA_TILT_R_D");
 	tiltRate->f 		=	param_find("QUA_TILT_R_F");
-	tiltRate->max_p 	=	param_find("QUA_TILT_R_MAX_P");
-	tiltRate->max_i 	=	param_find("QUA_TILT_R_MAX_I");
-	tiltRate->max_d 	=	param_find("QUA_TILT_R_MAX_D");
-	tiltRate->max_o 	=	param_find("QUA_TILT_R_MAX_O");
+	tiltRate->max_p 	=	param_find("QUA_TILT_R_MA_P");
+	tiltRate->max_i 	=	param_find("QUA_TILT_R_MA_I");
+	tiltRate->max_d 	=	param_find("QUA_TILT_R_MA_D");
+	tiltRate->max_o 	=	param_find("QUA_TILT_R_MA_O");
 
 	tiltAngle->p 		=	param_find("QUA_TILT_A_P");
 	tiltAngle->i 		=	param_find("QUA_TILT_A_I");
 	tiltAngle->d 		=	param_find("QUA_TILT_A_D");
 	tiltAngle->f 		=	param_find("QUA_TILT_A_F");
-	tiltAngle->max_p 	=	param_find("QUA_TILT_A_MAX_P");
-	tiltAngle->max_i 	=	param_find("QUA_TILT_A_MAX_I");
-	tiltAngle->max_d 	=	param_find("QUA_TILT_A_MAX_D");
-	tiltAngle->max_o 	=	param_find("QUA_TILT_A_MAX_O");
+	tiltAngle->max_p 	=	param_find("QUA_TILT_A_MA_P");
+	tiltAngle->max_i 	=	param_find("QUA_TILT_A_MA_I");
+	tiltAngle->max_d 	=	param_find("QUA_TILT_A_MA_D");
+	tiltAngle->max_o 	=	param_find("QUA_TILT_A_MA_O");
 
 	yawRate->p 		=	param_find("QUA_YAW_R_P");
 	yawRate->i 		=	param_find("QUA_YAW_R_I");
 	yawRate->d 		=	param_find("QUA_YAW_R_D");
 	yawRate->f 		=	param_find("QUA_YAW_R_F");
-	yawRate->max_p 	=	param_find("QUA_YAW_R_MAX_P");
-	yawRate->max_i 	=	param_find("QUA_YAW_R_MAX_I");
-	yawRate->max_d 	=	param_find("QUA_YAW_R_MAX_D");
-	yawRate->max_o 	=	param_find("QUA_YAW_R_MAX_O");
+	yawRate->max_p 	=	param_find("QUA_YAW_R_MA_P");
+	yawRate->max_i 	=	param_find("QUA_YAW_R_MA_I");
+	yawRate->max_d 	=	param_find("QUA_YAW_R_MA_D");
+	yawRate->max_o 	=	param_find("QUA_YAW_R_MA_O");
 
 	yawAngle->p 		=	param_find("QUA_YAW_A_P");
 	yawAngle->i 		=	param_find("QUA_YAW_A_I");
 	yawAngle->d 		=	param_find("QUA_YAW_A_D");
 	yawAngle->f 		=	param_find("QUA_YAW_A_F");
-	yawAngle->max_p 	=	param_find("QUA_YAW_A_MAX_P");
-	yawAngle->max_i 	=	param_find("QUA_YAW_A_MAX_I");
-	yawAngle->max_d 	=	param_find("QUA_YAW_A_MAX_D");
-	yawAngle->max_o 	=	param_find("QUA_YAW_A_MAX_O");
+	yawAngle->max_p 	=	param_find("QUA_YAW_A_MA_P");
+	yawAngle->max_i 	=	param_find("QUA_YAW_A_MA_I");
+	yawAngle->max_d 	=	param_find("QUA_YAW_A_MA_D");
+	yawAngle->max_o 	=	param_find("QUA_YAW_A_MA_O");
 
 	control->controlDeadBand 	= param_find("QUA_CO_DB");
 	control->controlPitchF 		= param_find("QUA_CO_PITCHF");
@@ -180,109 +180,5 @@ int parameters_update(	struct attitude_pid_quat_param_handles *tiltRate,
 	param_get(control->controlMax, &(controlDest->controlMax));
 	return OK;
 }
-/*
-PARAM_DEFINE_FLOAT(QUA_NA_SP_P, 0.2f);
-PARAM_DEFINE_FLOAT(QUA_NA_SP_I, 0.003f);
-PARAM_DEFINE_FLOAT(QUA_NA_SP_D, 2.0f);
-PARAM_DEFINE_FLOAT(QUA_NA_SP_MA_P, 0.8f);
-PARAM_DEFINE_FLOAT(QUA_NA_SP_MA_I, 0.5f);
-PARAM_DEFINE_FLOAT(QUA_NA_SP_MA_D, 1000.0f);
-PARAM_DEFINE_FLOAT(QUA_NA_SP_MA_O, 0.8f);
-
-PARAM_DEFINE_FLOAT(QUA_NA_DI_P, 0.5f);
-PARAM_DEFINE_FLOAT(QUA_NA_DI_I, 0.0f);
-PARAM_DEFINE_FLOAT(QUA_NA_DI_D, 0.1f);
-PARAM_DEFINE_FLOAT(QUA_NA_DI_MA_P, 3.0f);
-PARAM_DEFINE_FLOAT(QUA_NA_DI_MA_I, 0.0f);
-PARAM_DEFINE_FLOAT(QUA_NA_DI_MA_D, 1.0f);
-PARAM_DEFINE_FLOAT(QUA_NA_DI_MA_O, 3.0f);
-
-PARAM_DEFINE_FLOAT(QUA_NA_ASP_P, 1500.0f);
-PARAM_DEFINE_FLOAT(QUA_NA_ASP_I, 0.087f);
-PARAM_DEFINE_FLOAT(QUA_NA_ASP_D, 0.0f);
-PARAM_DEFINE_FLOAT(QUA_NA_ASP_MA_P, 100.0f);
-PARAM_DEFINE_FLOAT(QUA_NA_ASP_MA_I, 500.0f);
-PARAM_DEFINE_FLOAT(QUA_NA_ASP_MA_D, 0.0f);
-PARAM_DEFINE_FLOAT(QUA_NA_ASP_MA_O, 1000.0f);
-
-PARAM_DEFINE_FLOAT(QUA_NA_ADI_P, 0.4f);
-PARAM_DEFINE_FLOAT(QUA_NA_ADI_I, 0.0f);
-PARAM_DEFINE_FLOAT(QUA_NA_ADI_D, 0.0f);
-PARAM_DEFINE_FLOAT(QUA_NA_ADI_MA_P, 2.0f);
-PARAM_DEFINE_FLOAT(QUA_NA_ADI_MA_I, 0.0f);
-PARAM_DEFINE_FLOAT(QUA_NA_ADI_MA_D, 0.0f);
-PARAM_DEFINE_FLOAT(QUA_NA_ADI_MA_O, 2.0f);
-
-
-int parameters_init(struct attitude_pid_quat_param_handles *speed,
-					struct attitude_pid_quat_param_handles *distance,
-					struct attitude_pid_quat_param_handles *altSpeed,
-					struct attitude_pid_quat_param_handles *altDistance)
-{
-
-	speed->p 		=	param_find("QUA_NA_SP_P");
-	speed->i 		=	param_find("QUA_NA_SP_I");
-	speed->d 		=	param_find("QUA_NA_SP_D");
-	speed->max_p 	=	param_find("QUA_NA_SP_MA_P");
-	speed->max_i 	=	param_find("QUA_NA_SP_MA_I");
-	speed->max_d 	=	param_find("QUA_NA_SP_MA_D");
-	speed->max_o 	=	param_find("QUA_NA_SP_MA_O");
-
-	distance->p 		=	param_find("QUA_NA_DI_P");
-	distance->i 		=	param_find("QUA_NA_DI_I");
-	distance->d 		=	param_find("QUA_NA_DI_D");
-	distance->max_p 	=	param_find("QUA_NA_DI_MA_P");
-	distance->max_i 	=	param_find("QUA_NA_DI_MA_I");
-	distance->max_d 	=	param_find("QUA_NA_DI_MA_D");
-	distance->max_o 	=	param_find("QUA_NA_DI_MA_O");
-
-	altSpeed->p 		=	param_find("QUA_NA_ASP_P");
-	altSpeed->i 		=	param_find("QUA_NA_ASP_I");
-	altSpeed->d 		=	param_find("QUA_NA_ASP_D");
-	altSpeed->max_p 	=	param_find("QUA_NA_ASP_MA_P");
-	altSpeed->max_i 	=	param_find("QUA_NA_ASP_MA_I");
-	altSpeed->max_d 	=	param_find("QUA_NA_ASP_MA_D");
-	altSpeed->max_o 	=	param_find("QUA_NA_ASP_MA_O");
-
-	altDistance->p 		=	param_find("QUA_NA_ADI_P");
-	altDistance->i 		=	param_find("QUA_NA_ADI_I");
-	altDistance->d 		=	param_find("QUA_NA_ADI_D");
-	altDistance->max_p 	=	param_find("QUA_NA_ADI_MA_P");
-	altDistance->max_i 	=	param_find("QUA_NA_ADI_MA_I");
-	altDistance->max_d 	=	param_find("QUA_NA_ADI_MA_D");
-	altDistance->max_o 	=	param_find("QUA_NA_ADI_MA_O");
-
-	return OK;
-}
-
-int p_update(	struct attitude_pid_quat_param_handles *source,
-				struct attitude_pid_quat_params *destination)
-{
-	param_get(source->p, &(destination->p));
-	param_get(source->i, &(destination->i));
-	param_get(source->d, &(destination->d));
-	param_get(source->max_p, &(destination->max_p));
-	param_get(source->max_i, &(destination->max_i));
-	param_get(source->max_d, &(destination->max_d));
-	param_get(source->max_o, &(destination->max_o));
-	return OK;
-}
-
-int parameters_update(	struct attitude_pid_quat_param_handles *speed,
-						struct attitude_pid_quat_param_handles *distance,
-						struct attitude_pid_quat_param_handles *altSpeed,
-						struct attitude_pid_quat_param_handles *altDistance,
-						struct attitude_pid_quat_params *speedDest,
-						struct attitude_pid_quat_params *distanceDest,
-						struct attitude_pid_quat_params *altSpeedDest,
-						struct attitude_pid_quat_params *altDistanceDest)
-{
-	p_update(speed, speedDest);
-	p_update(distance, distanceDest);
-	p_update(altSpeed, altSpeedDest);
-	p_update(altDistance, altDistanceDest);
-	return OK;
-}
-*/
 
 

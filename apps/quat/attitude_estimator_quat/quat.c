@@ -288,6 +288,9 @@ void quatUpdate(const uint8_t updateVect[3],
         gyro[0] = z[0];
         gyro[1] = z[1];
         gyro[2] = z[2];
+        attitudeResult->rollspeed = gyro[0];
+        attitudeResult->pitchspeed = gyro[1];
+        attitudeResult->yawspeed = gyro[2];
     }
     else{
     	gyro[0] = 0;
@@ -366,10 +369,6 @@ void quatUpdate(const uint8_t updateVect[3],
     attitudeResult->roll = roll;
     attitudeResult->pitch = -pitch;
     attitudeResult->yaw = yaw;
-
-    attitudeResult->rollspeed = gyro[0];
-    attitudeResult->pitchspeed = gyro[1];
-    attitudeResult->yawspeed = gyro[2];
 
     // Copy quaternion
     memcpy(attitudeResult->q, quatData.q, sizeof(quatData.q));

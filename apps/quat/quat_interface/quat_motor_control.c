@@ -37,7 +37,8 @@ int quat_write_motor_commands(const bool simulation, uint16_t motor1, uint16_t m
 	outputs.output[2] = motor3;
 	outputs.output[3] = motor4;
 	outputs.noutputs = 4;
-	if (hrt_absolute_time() - last_motor_time > min_motor_interval) {
+	uint64_t currentTime = hrt_absolute_time();
+	if (currentTime - last_motor_time > min_motor_interval) {
 		int ret = OK;
 		if(simulation){
 			ret |= mkMotorDriver_set_11bit_pwm(MOT1, 0);
@@ -53,6 +54,7 @@ int quat_write_motor_commands(const bool simulation, uint16_t motor1, uint16_t m
 		}
 		/* publish just written values */
 		orb_publish(ORB_ID_VEHICLE_CONTROLS, pub, &outputs);
+		last_motor_time = currentTime;
 		return ret;
 	} else {
 		return -ERROR;

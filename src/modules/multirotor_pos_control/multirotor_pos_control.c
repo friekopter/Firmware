@@ -57,6 +57,7 @@
 #include <uORB/topics/manual_control_setpoint.h>
 #include <uORB/topics/vehicle_attitude_setpoint.h>
 #include <uORB/topics/vehicle_local_position_setpoint.h>
+#include <uORB/topics/vehicle_global_position_setpoint.h>
 #include <uORB/topics/vehicle_vicon_position.h>
 #include <systemlib/systemlib.h>
 
@@ -146,7 +147,7 @@ multirotor_pos_control_thread_main(int argc, char *argv[])
 	/* structures */
 	struct vehicle_status_s state;
 	struct vehicle_attitude_s att;
-	//struct vehicle_global_position_setpoint_s global_pos_sp;
+	struct vehicle_global_position_setpoint_s global_pos_sp;
 	struct vehicle_local_position_setpoint_s local_pos_sp;
 	struct vehicle_vicon_position_s local_pos;
 	struct manual_control_setpoint_s manual;

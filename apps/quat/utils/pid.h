@@ -26,7 +26,7 @@ typedef struct {
 __EXPORT  pidStruct_t *pidInit(const float *p,const float *i,const float *d,const float *f,const float *pMax,const float *iMax,const float *dMax,const float *oMax,const int *pTrim,const int *iTrim,const int *dTrim,const int *fTrim);
 __EXPORT  float pidUpdate(pidStruct_t *pid, float setpoint, float position);
 __EXPORT  float pidUpdateTest(pidStruct_t *pid, float setpoint, float position);
-void pidZeroIntegral(pidStruct_t *pid, float pv, float iState);
+__EXPORT  void pidZeroIntegral(pidStruct_t *pid, float pv, float iState);
 
 
 __END_DECLS

@@ -209,7 +209,7 @@ quat_att_control_thread_main(int argc, char *argv[])
 
 	while (!thread_should_exit) {
 
-		/* wait for a sensor update, check for exit condition every 500 ms */
+		/* wait for an attitude update, check for exit condition every 500 ms */
 		poll(fds, 1, 500);
 
 		perf_begin(mc_loop_perf);
@@ -253,6 +253,9 @@ quat_att_control_thread_main(int argc, char *argv[])
 		/* get a local copy of the current sensor values */
 		orb_copy(ORB_ID(sensor_combined), sensor_sub, &raw);
 
+		att.rollspeed = raw.gyro_rad_s[0];
+		att.pitchspeed = raw.gyro_rad_s[1];
+		att.yawspeed = raw.gyro_rad_s[2];
 
 		/** STEP 1: Define which input is the dominating control input */
 		if (state.flag_control_offboard_enabled) {
@@ -283,6 +286,7 @@ quat_att_control_thread_main(int argc, char *argv[])
 			// Always control attitude no rates
 				att_sp.roll_body = manual.roll * control.controlRollF;
 				att_sp.pitch_body = manual.pitch * control.controlPitchF;
+				att_sp.yaw_body = 0;
 				/* set yaw rate */
 				if (manual.yaw < -control.controlDeadBand || manual.yaw > control.controlDeadBand)
 				{
@@ -307,6 +311,11 @@ quat_att_control_thread_main(int argc, char *argv[])
 				/* STEP 2: publish the result to the vehicle actuators */
 				orb_publish(ORB_ID(vehicle_attitude_setpoint), att_sp_pub, &att_sp);
 			}
+		}
+		else {
+			// switch to yaw absolute control for the automatic control
+			rates_sp.yaw = 0.0f;
+			control_quadrotor_set_yaw(att_sp.yaw_body);
 		}
 
 		/** STEP 3: Identify the controller setup to run and set up the inputs correctly */

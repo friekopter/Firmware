@@ -19,15 +19,11 @@
 #ifndef _nav_ukf_h
 #define _nav_ukf_h
 
-//#include "aq.h"
 #include "srcdkf.h"
 #include "quat_pos_control_params.h"
 #include <uORB/topics/vehicle_status.h>
 #include <uORB/topics/sensor_combined.h>
 #include <uORB/topics/vehicle_gps_position.h>
-
-//#define UKF_LOG_BUF		(7*sizeof(float)*100)	// comment out to disable logging
-//#define UKF_FNAME		"UKF"
 
 #define SIM_S                   17		// states
 #define SIM_M                   3		// max measurements
@@ -91,7 +87,7 @@ extern navUkfStruct_t navUkfData;
 bool isFlying(const struct vehicle_status_s *current_status);
 extern void navUkfInit(	const struct quat_position_control_UKF_params* params,
 						const struct sensor_combined_s* sensors);
-extern void navUkfInertialUpdate(const float z[9], float dt);
+extern float navUkfInertialUpdate(const struct sensor_combined_s* raw);
 extern void simDoPresUpdate(float pres,
 		 const struct vehicle_status_s *current_status,
 		 const struct quat_position_control_UKF_params* params);

@@ -51,10 +51,10 @@
 struct manual_control_setpoint_s {
 	uint64_t timestamp;
 
-	float roll;			 	/**< ailerons roll / roll rate input */
-	float pitch;				/**< elevator / pitch / pitch rate */
-	float yaw;				/**< rudder / yaw rate / yaw */
-	float throttle;				/**< throttle / collective thrust / altitude */
+	float roll;			 	/**< ailerons roll / roll rate input [-1,1] */
+	float pitch;				/**< elevator / pitch / pitch rate [-1,1] */
+	float yaw;				/**< rudder / yaw rate / yaw [-1,1] */
+	float throttle;				/**< throttle / collective thrust / altitude [0,1] */
 
 	float manual_override_switch;		/**< manual override mode (mandatory) */
 	float auto_mode_switch;			/**< auto mode switch (mandatory) */

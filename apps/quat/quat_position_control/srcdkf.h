@@ -21,7 +21,7 @@
 
 #include "aq_math.h"
 
-#define SRCDKF_H	__sqrtf(3.0f)
+#define SRCDKF_H	sqrtf(3.0f)
 #define SRCDKF_RM	0.0001f		// Robbins-Monro stochastic term
 
 #define MAX(a, b)	((a > b) ? a : b)

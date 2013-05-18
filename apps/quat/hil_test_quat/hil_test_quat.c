@@ -261,10 +261,8 @@ static void *uorb_receiveloop(void *arg)
 	/* --- ATTITUDE VALUE --- */
 	/* subscribe to ORB for attitude */
 	subs->att_sub = orb_subscribe(ORB_ID(vehicle_attitude));
-	orb_set_interval(subs->att_sub, 10);
 	/* --- GLOBAL POS VALUE --- */
 	orb_subs.global_pos_sub = orb_subscribe(ORB_ID(vehicle_global_position));
-	orb_set_interval(subs->global_pos_sub, 1000);	/* 1Hz active updates */
 	/* --- ACTUATOR CONTROL VALUE --- */
 	subs->actuators_sub = orb_subscribe(ORB_ID_VEHICLE_CONTROLS);
 
@@ -275,6 +273,7 @@ static void *uorb_receiveloop(void *arg)
 	};
 	/* all subscriptions initialized, return success */
 	subs->initialized = true;
+	// this will trigger main thread to update orb interval
 
 	/*
 	 * set up poll to block for new data,
@@ -428,12 +427,14 @@ void handleMessage(mavlink_message_t *msg)
 			break;
 		case MAV_MODE_MANUAL_ARMED:
 			if(quad_status.state_machine == SYSTEM_STATE_STANDBY){
-			// set to ground ready, otherwise we can't switch to manual
-			quad_status.state_machine = SYSTEM_STATE_GROUND_READY;
+				// set to ground ready, otherwise we can't switch to manual
+				quad_status.state_machine = SYSTEM_STATE_GROUND_READY;
 			}
 			update_state_machine_mode_request(stat_pub,&quad_status,mavlink_fd,base_mode);
 			break;
 		case MAV_MODE_GUIDED_ARMED:
+			// set vector flight mode valid, otherwise no guided mode is possible
+			quad_status.flag_vector_flight_mode_ok = true;
 			update_state_machine_mode_request(stat_pub,&quad_status,mavlink_fd,base_mode);
 			break;
 		case MAV_MODE_AUTO_ARMED:
@@ -657,22 +658,22 @@ int hil_test_thread_main(int argc, char *argv[])
 	else if (baudrate >= 230400)
 	{
 		/* 200 Hz / 5 ms */
-		orb_set_interval(orb_subs.actuators_sub, 20);
-		orb_set_interval(orb_subs.att_sub, 20);
-		orb_set_interval(orb_subs.global_pos_sub, 20);
+		orb_set_interval(orb_subs.actuators_sub, 10);
+		orb_set_interval(orb_subs.att_sub, 1000);
+		orb_set_interval(orb_subs.global_pos_sub, 100);
 	}
 	else if (baudrate >= 115200)
 	{
 		/* 50 Hz / 20 ms */
-		orb_set_interval(orb_subs.actuators_sub, 100);
-		orb_set_interval(orb_subs.att_sub, 100);
+		orb_set_interval(orb_subs.actuators_sub, 50);
+		orb_set_interval(orb_subs.att_sub, 1000);
 		orb_set_interval(orb_subs.global_pos_sub, 100);
 	}
 	else if (baudrate >= 57600)
 	{
 		/* 10 Hz / 100 ms */
 		orb_set_interval(orb_subs.actuators_sub, 200);
-		orb_set_interval(orb_subs.att_sub, 200);
+		orb_set_interval(orb_subs.att_sub, 1000);
 		orb_set_interval(orb_subs.global_pos_sub, 200);
 	}
 	else

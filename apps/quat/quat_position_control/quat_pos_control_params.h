@@ -36,6 +36,31 @@
     	ukf_vel_delay;
     };
 
+    struct quat_position_control_NAV_params {
+        	float nav_max_speed,
+        	nav_max_decent,
+        	nav_speed_p,
+        	nav_speed_i,
+        	nav_speed_pm,
+        	nav_speed_im,
+        	nav_speed_om,
+        	nav_dist_p,
+        	nav_dist_i,
+        	nav_dist_pm,
+        	nav_dist_im,
+        	nav_dist_om,
+        	nav_alt_speed_p,
+        	nav_alt_speed_i,
+        	nav_alt_speed_pm,
+        	nav_alt_speed_im,
+        	nav_alt_speed_om,
+        	nav_alt_pos_p,
+        	nav_alt_pos_i,
+        	nav_alt_pos_pm,
+        	nav_alt_pos_im,
+        	nav_alt_pos_om;
+    };
+
     struct quat_position_control_UKF_param_handles {
     	float ukf_vel_q,
 		ukf_vel_alt_q,
@@ -69,17 +94,42 @@
 		ukf_vel_delay;
     };
 
+    struct quat_position_control_NAV_param_handles {
+        	float nav_max_speed,
+        	nav_max_decent,
+        	nav_speed_p,
+        	nav_speed_i,
+        	nav_speed_pm,
+        	nav_speed_im,
+        	nav_speed_om,
+        	nav_dist_p,
+        	nav_dist_i,
+        	nav_dist_pm,
+        	nav_dist_im,
+        	nav_dist_om,
+        	nav_alt_speed_p,
+        	nav_alt_speed_i,
+        	nav_alt_speed_pm,
+        	nav_alt_speed_im,
+        	nav_alt_speed_om,
+        	nav_alt_pos_p,
+        	nav_alt_pos_i,
+        	nav_alt_pos_pm,
+        	nav_alt_pos_im,
+        	nav_alt_pos_om;
+    };
 /**
  * Initialize all parameter handles and values
  *
  */
-int parameters_init(struct quat_position_control_UKF_param_handles *h);
+int parameters_init(struct quat_position_control_NAV_param_handles *nav, struct quat_position_control_UKF_param_handles *ukf);
 
 /**
  * Update all parameters
  *
  */
-int parameters_update(const struct quat_position_control_UKF_param_handles *h, struct quat_position_control_UKF_params *p);
+int parameters_update(const struct quat_position_control_NAV_param_handles *nav_handles, struct quat_position_control_NAV_params *nav_params,
+		const struct quat_position_control_UKF_param_handles *ukf_handles, struct quat_position_control_UKF_params *ukf_params);
 
 
 #endif //quat_pos_control_params_h_

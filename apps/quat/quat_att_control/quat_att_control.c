@@ -11,12 +11,19 @@
 #include <math.h>
 #include <stdbool.h>
 
+#define VERY_SMALL_FLOAT 0.00000001f
+
 
 controlStruct_t controlData;
 controlParameter_t controlParameter;
 
 
 uint32_t controller_counter = 0;
+
+void control_quadrotor_set_yaw(float yaw)
+{
+	controlData.yawSetpoint = yaw;
+}
 
 void control_quadrotor_attitude_reset()
 {
@@ -28,7 +35,7 @@ void control_quadrotor_attitude_reset()
 	pidZeroIntegral(controlData.yawAngle,0.0f,0.0f);
 }
 
-void control_quadrotor_attitude_init(const struct attitude_pid_quat_params *tilt_rate,
+void control_quadrotor_attitude_init(		const struct attitude_pid_quat_params *tilt_rate,
 											const struct attitude_pid_quat_params *tilt_angle,
 											const struct attitude_pid_quat_params *yaw_rate,
 											const struct attitude_pid_quat_params *yaw_angle,
@@ -74,7 +81,7 @@ void control_quadrotor_attitude(
 		struct actuator_controls_s *actuators)
 {
     float pitchCommand, rollCommand, ruddCommand, throttleCommand;
-    if(rate_sp->yaw == 0.0f)
+    if(abs(rate_sp->yaw) < VERY_SMALL_FLOAT)
     {
     	// hold heading
     	float yawRateTarget = pidUpdate(controlData.yawAngle, 0.0f, compassDifference(controlData.yawSetpoint, att->yaw));	// seek a 0 deg difference between hold heading and actual yaw
@@ -84,7 +91,7 @@ void control_quadrotor_attitude(
     {
     	// rate controls
     	ruddCommand = constrainFloat(pidUpdate(controlData.yawRate, rate_sp->yaw, att->yawspeed), -control->controlMax, control->controlMax);
-    	controlData.yawSetpoint = att->yaw;
+    	control_quadrotor_set_yaw(att->yaw);
     }
 
     // smooth
@@ -107,5 +114,5 @@ void control_quadrotor_attitude(
     actuators->control[1] = pitchCommand;
     actuators->control[2] = ruddCommand;
     actuators->control[3] = throttleCommand;
-
 }
+

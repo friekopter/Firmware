@@ -21,6 +21,10 @@
 
 //#include <CoOS.h>
 #include <../utils/pid.h>
+#include <uORB/topics/vehicle_gps_position.h>
+#include <uORB/topics/vehicle_status.h>
+#include <uORB/topics/manual_control_setpoint.h>
+#include <quat_pos_control_params.h>
 
 #define NAV_MIN_GPS_ACC		3.0f
 #define NAV_MAX_FIX_AGE		((int)1e6f)				    // 1 second
@@ -37,6 +41,8 @@
 #define NAV_STATUS_POSHOLD	0x02					    // altitude & position hold
 #define NAV_STATUS_DVH		0x03					    // dynamic velocity hold cut through
 #define NAV_STATUS_MISSION	0x04					    // autonomous mission
+
+#define IMU_STATIC_STD		0.05f						// Standard deviation
 
 enum navLegTypes {
     NAV_LEG_HOME = 1,
@@ -99,19 +105,22 @@ typedef struct {
 
 extern navStruct_t navData;
 
-extern void navInit(void);
-extern void navAccelUpdate(void);
-extern void navGpsUpdate(void);
-extern void navUpdateAlt(float altitude);
-extern float navGetVel(char direction);
-extern float navGetPos(char direction);
+extern void navInit(const struct quat_position_control_NAV_params* params,
+		float holdYaw,
+		float holdAlt);
 extern unsigned int navGetWaypointCount(void);
 extern unsigned char navClearWaypoints(void);
 extern navMission_t *navGetWaypoint(int seqId);
 extern navMission_t *navGetHomeWaypoint(void);
-extern void navSetHomeCurrent(void);
+extern void navSetHomeCurrent(	const struct vehicle_gps_position_s* gps_position,
+								const struct quat_position_control_NAV_params* params);
 extern void navLoadLeg(unsigned char leg);
-extern void navNavigate(void);
+extern void navNavigate(const struct vehicle_gps_position_s* gps_position,
+		const struct vehicle_status_s *current_status,
+		const struct quat_position_control_NAV_params* params,
+		const struct manual_control_setpoint_s* manual_control,
+		uint64_t imu_timestamp
+		);
 extern void navResetHoldAlt(float delta);
 
 #endif

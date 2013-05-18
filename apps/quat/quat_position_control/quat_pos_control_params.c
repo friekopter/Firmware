@@ -41,74 +41,153 @@
     PARAM_DEFINE_FLOAT(Q_U_VEL_Q, +7.6020e-02f);
     PARAM_DEFINE_FLOAT(Q_U_VEL_V, +1.0980e-07f);
 
+PARAM_DEFINE_FLOAT(Q_N_MAX_SPEED,	    5.0f);	// m/s
+PARAM_DEFINE_FLOAT(Q_N_MAX_DECENT,	    1.5f);	// m/s
 
-int parameters_init(struct quat_position_control_UKF_param_handles *h)
+// speed => tilt PID
+PARAM_DEFINE_FLOAT(Q_N_SPEED_P,	    7.0f);
+PARAM_DEFINE_FLOAT(Q_N_SPEED_I,    0.005f);
+PARAM_DEFINE_FLOAT(Q_N_SPEED_PM,	    20.0f);
+PARAM_DEFINE_FLOAT(Q_N_SPEED_IM,	    20.0f);
+PARAM_DEFINE_FLOAT(Q_N_SPEED_OM,	    30.0f);
+
+// distance => speed PID
+PARAM_DEFINE_FLOAT(Q_N_DIST_P,	    0.5f);
+PARAM_DEFINE_FLOAT(Q_N_DIST_I,	    0.0f);
+PARAM_DEFINE_FLOAT(Q_N_DIST_PM,	    999.0f);
+PARAM_DEFINE_FLOAT(Q_N_DIST_IM,	    0.0f);
+PARAM_DEFINE_FLOAT(Q_N_DIST_OM,	    999.0f);
+
+// Altitude hold Speed PID
+PARAM_DEFINE_FLOAT(Q_N_ALT_SPED_P,	    200.0f);
+PARAM_DEFINE_FLOAT(Q_N_ALT_SPED_I,	    2.85f);
+PARAM_DEFINE_FLOAT(Q_N_ALT_SPED_PM,	    150.0f);
+PARAM_DEFINE_FLOAT(Q_N_ALT_SPED_IM,	    600.0f);
+PARAM_DEFINE_FLOAT(Q_N_ALT_SPED_OM,	    600.0f);
+
+// Altitude hold Position PID
+PARAM_DEFINE_FLOAT(Q_N_ALT_POS_P,	    0.20f);
+PARAM_DEFINE_FLOAT(Q_N_ALT_POS_I,	    0.0f);
+PARAM_DEFINE_FLOAT(Q_N_ALT_POS_PM,	    2.5f);
+PARAM_DEFINE_FLOAT(Q_N_ALT_POS_IM,	    0.0f);
+PARAM_DEFINE_FLOAT(Q_N_ALT_POS_OM,	    2.5f);
+
+
+int parameters_init(struct quat_position_control_NAV_param_handles *nav,
+		struct quat_position_control_UKF_param_handles *ukf)
 {
-	h->ukf_acc_bias_q = param_find("Q_U_ACC_BIAS_Q");
-	h->ukf_acc_bias_v = param_find("Q_U_ACC_BIAS_V");
-	h->ukf_acc_n = param_find("Q_U_ACC_N");
-	h->ukf_alt_n = param_find("Q_U_ALT_N");
-	h->ukf_alt_pos_v = param_find("Q_U_ALT_POS_V");
-	h->ukf_alt_vel_v = param_find("Q_U_ALT_VEL_V");
-	h->ukf_dist_n = param_find("Q_U_DIST_N");
-	h->ukf_gps_alt_n = param_find("Q_U_GPS_ALT_N");
-	h->ukf_gps_alt_m_n = param_find("Q_U_GPS_ALT_M_N");
-	h->ukf_gps_pos_n = param_find("Q_U_GPS_POS_N");
-	h->ukf_gps_pos_m_n = param_find("Q_U_GPS_POS_M_N");
-	h->ukf_gps_vd_n = param_find("Q_U_GPS_VD_N");
-	h->ukf_gps_vd_m_n = param_find("Q_U_GPS_VD_M_N");
-	h->ukf_gps_vel_n = param_find("Q_U_GPS_VEL_N");
-	h->ukf_gps_vel_m_n = param_find("Q_U_GPS_VEL_M_N");
-	h->ukf_gyo_bias_q = param_find("Q_U_GYO_BIAS_Q");
-	h->ukf_gyo_bias_v = param_find("Q_U_GYO_BIAS_V");
-	h->ukf_mag_n = param_find("Q_U_MAG_N");
-	h->ukf_pos_alt_q = param_find("Q_U_POS_ALT_Q");
-	h->ukf_pos_delay = param_find("Q_U_POS_DELAY");
-	h->ukf_pos_q = param_find("Q_U_POS_Q");
-	h->ukf_pos_v = param_find("Q_U_POS_V");
-	h->ukf_pres_alt_q = param_find("Q_U_PRES_ALT_Q");
-	h->ukf_pres_alt_v = param_find("Q_U_PRES_ALT_V");
-    h->ukf_quat_q = param_find("Q_U_QUAT_Q");
-    h->ukf_rate_v = param_find("Q_U_RATE_V");
-    h->ukf_vel_alt_q = param_find("Q_U_VEL_ALT_Q");
-	h->ukf_pos_delay = param_find("Q_U_VEL_DELAY");
-	h->ukf_vel_q = param_find("Q_U_VEL_Q");
-	h->ukf_vel_v = param_find("Q_U_VEL_V");
+	nav->nav_max_speed = param_find("Q_N_MAX_SPEED");
+	nav->nav_max_decent = param_find("Q_N_MAX_DECENT");
+	nav->nav_speed_p = param_find("Q_N_SPEED_P");
+	nav->nav_speed_i = param_find("Q_N_SPEED_I");
+	nav->nav_speed_pm = param_find("Q_N_SPEED_PM");
+	nav->nav_speed_im = param_find("Q_N_SPEED_IM");
+	nav->nav_speed_om = param_find("Q_N_SPEED_OM");
+	nav->nav_dist_p = param_find("Q_N_DIST_P");
+	nav->nav_dist_i = param_find("Q_N_DIST_I");
+	nav->nav_dist_pm = param_find("Q_N_DIST_PM");
+	nav->nav_dist_im = param_find("Q_N_DIST_IM");
+	nav->nav_dist_om = param_find("Q_N_DIST_OM");
+	nav->nav_alt_speed_p = param_find("Q_N_ALT_SPED_P");
+	nav->nav_alt_speed_i = param_find("Q_N_ALT_SPED_I");
+	nav->nav_alt_speed_pm = param_find("Q_N_ALT_SPED_PM");
+	nav->nav_alt_speed_im = param_find("Q_N_ALT_SPED_IM");
+	nav->nav_alt_speed_om = param_find("Q_N_ALT_SPED_OM");
+	nav->nav_alt_pos_p = param_find("Q_N_ALT_POS_P");
+	nav->nav_alt_pos_i = param_find("Q_N_ALT_POS_I");
+	nav->nav_alt_pos_pm = param_find("Q_N_ALT_POS_PM");
+	nav->nav_alt_pos_im = param_find("Q_N_ALT_POS_IM");
+	nav->nav_alt_pos_om = param_find("Q_N_ALT_POS_OM");
+
+	ukf->ukf_acc_bias_q = param_find("Q_U_ACC_BIAS_Q");
+	ukf->ukf_acc_bias_v = param_find("Q_U_ACC_BIAS_V");
+	ukf->ukf_acc_n = param_find("Q_U_ACC_N");
+	ukf->ukf_alt_n = param_find("Q_U_ALT_N");
+	ukf->ukf_alt_pos_v = param_find("Q_U_ALT_POS_V");
+	ukf->ukf_alt_vel_v = param_find("Q_U_ALT_VEL_V");
+	ukf->ukf_dist_n = param_find("Q_U_DIST_N");
+	ukf->ukf_gps_alt_n = param_find("Q_U_GPS_ALT_N");
+	ukf->ukf_gps_alt_m_n = param_find("Q_U_GPS_ALT_M_N");
+	ukf->ukf_gps_pos_n = param_find("Q_U_GPS_POS_N");
+	ukf->ukf_gps_pos_m_n = param_find("Q_U_GPS_POS_M_N");
+	ukf->ukf_gps_vd_n = param_find("Q_U_GPS_VD_N");
+	ukf->ukf_gps_vd_m_n = param_find("Q_U_GPS_VD_M_N");
+	ukf->ukf_gps_vel_n = param_find("Q_U_GPS_VEL_N");
+	ukf->ukf_gps_vel_m_n = param_find("Q_U_GPS_VEL_M_N");
+	ukf->ukf_gyo_bias_q = param_find("Q_U_GYO_BIAS_Q");
+	ukf->ukf_gyo_bias_v = param_find("Q_U_GYO_BIAS_V");
+	ukf->ukf_mag_n = param_find("Q_U_MAG_N");
+	ukf->ukf_pos_alt_q = param_find("Q_U_POS_ALT_Q");
+	ukf->ukf_pos_delay = param_find("Q_U_POS_DELAY");
+	ukf->ukf_pos_q = param_find("Q_U_POS_Q");
+	ukf->ukf_pos_v = param_find("Q_U_POS_V");
+	ukf->ukf_pres_alt_q = param_find("Q_U_PRES_ALT_Q");
+	ukf->ukf_pres_alt_v = param_find("Q_U_PRES_ALT_V");
+    ukf->ukf_quat_q = param_find("Q_U_QUAT_Q");
+    ukf->ukf_rate_v = param_find("Q_U_RATE_V");
+    ukf->ukf_vel_alt_q = param_find("Q_U_VEL_ALT_Q");
+	ukf->ukf_pos_delay = param_find("Q_U_VEL_DELAY");
+	ukf->ukf_vel_q = param_find("Q_U_VEL_Q");
+	ukf->ukf_vel_v = param_find("Q_U_VEL_V");
 	return OK;
 }
 
-int parameters_update(const struct quat_position_control_UKF_param_handles *param, struct quat_position_control_UKF_params *paramDest)
+int parameters_update(const struct quat_position_control_NAV_param_handles *nav_handles, struct quat_position_control_NAV_params *nav_params,
+		const struct quat_position_control_UKF_param_handles *ukf_handles, struct quat_position_control_UKF_params *ukf_params)
 {
-	param_get(param->ukf_acc_bias_q, &(paramDest->ukf_acc_bias_q));
-	param_get(param->ukf_acc_bias_v, &(paramDest->ukf_acc_bias_v));
-	param_get(param->ukf_acc_n, &(paramDest->ukf_acc_n));
-	param_get(param->ukf_alt_n, &(paramDest->ukf_alt_n));
-	param_get(param->ukf_alt_pos_v, &(paramDest->ukf_alt_pos_v));
-	param_get(param->ukf_alt_vel_v, &(paramDest->ukf_alt_vel_v));
-	param_get(param->ukf_dist_n, &(paramDest->ukf_dist_n));
-	param_get(param->ukf_gps_alt_m_n, &(paramDest->ukf_gps_alt_m_n));
-	param_get(param->ukf_gps_alt_n, &(paramDest->ukf_gps_alt_n));
-	param_get(param->ukf_gps_pos_m_n, &(paramDest->ukf_gps_pos_m_n));
-	param_get(param->ukf_gps_pos_n, &(paramDest->ukf_gps_pos_n));
-	param_get(param->ukf_gps_vd_m_n, &(paramDest->ukf_gps_vd_m_n));
-	param_get(param->ukf_gps_vd_n, &(paramDest->ukf_gps_vd_n));
-	param_get(param->ukf_gps_vel_m_n, &(paramDest->ukf_gps_vd_m_n));
-	param_get(param->ukf_gps_vel_n, &(paramDest->ukf_gps_vel_n));
-	param_get(param->ukf_gyo_bias_q, &(paramDest->ukf_gyo_bias_q));
-	param_get(param->ukf_gyo_bias_v, &(paramDest->ukf_gyo_bias_v));
-	param_get(param->ukf_mag_n, &(paramDest->ukf_mag_n));
-	param_get(param->ukf_pos_alt_q, &(paramDest->ukf_pos_alt_q));
-	param_get(param->ukf_pos_delay, &(paramDest->ukf_pos_delay));
-	param_get(param->ukf_pos_q, &(paramDest->ukf_pos_q));
-	param_get(param->ukf_pos_v, &(paramDest->ukf_pos_v));
-	param_get(param->ukf_pres_alt_q, &(paramDest->ukf_pres_alt_q));
-	param_get(param->ukf_pres_alt_v, &(paramDest->ukf_pres_alt_v));
-	param_get(param->ukf_quat_q, &(paramDest->ukf_quat_q));
-	param_get(param->ukf_rate_v, &(paramDest->ukf_rate_v));
-	param_get(param->ukf_vel_alt_q, &(paramDest->ukf_vel_alt_q));
-	param_get(param->ukf_vel_delay, &(paramDest->ukf_vel_delay));
-	param_get(param->ukf_vel_q, &(paramDest->ukf_vel_q));
-	param_get(param->ukf_vel_v, &(paramDest->ukf_vel_v));
+	param_get(nav_handles->nav_max_speed, &(nav_params->nav_max_speed));
+	param_get(nav_handles->nav_max_decent, &(nav_params->nav_max_decent));
+	param_get(nav_handles->nav_speed_p, &(nav_params->nav_alt_speed_p));
+	param_get(nav_handles->nav_speed_i, &(nav_params->nav_speed_i));
+	param_get(nav_handles->nav_speed_pm, &(nav_params->nav_alt_speed_pm));
+	param_get(nav_handles->nav_speed_im, &(nav_params->nav_speed_im));
+	param_get(nav_handles->nav_speed_om, &(nav_params->nav_speed_om));
+	param_get(nav_handles->nav_dist_p, &(nav_params->nav_dist_p));
+	param_get(nav_handles->nav_dist_i, &(nav_params->nav_dist_i));
+	param_get(nav_handles->nav_dist_pm, &(nav_params->nav_dist_pm));
+	param_get(nav_handles->nav_dist_im, &(nav_params->nav_dist_im));
+	param_get(nav_handles->nav_dist_om, &(nav_params->nav_dist_om));
+	param_get(nav_handles->nav_alt_speed_p, &(nav_params->nav_alt_speed_p));
+	param_get(nav_handles->nav_alt_speed_i, &(nav_params->nav_alt_speed_i));
+	param_get(nav_handles->nav_alt_speed_pm, &(nav_params->nav_alt_speed_pm));
+	param_get(nav_handles->nav_alt_speed_im, &(nav_params->nav_alt_speed_im));
+	param_get(nav_handles->nav_alt_speed_om, &(nav_params->nav_alt_speed_om));
+	param_get(nav_handles->nav_alt_pos_p, &(nav_params->nav_alt_pos_p));
+	param_get(nav_handles->nav_alt_pos_i, &(nav_params->nav_alt_pos_i));
+	param_get(nav_handles->nav_alt_pos_pm, &(nav_params->nav_alt_pos_pm));
+	param_get(nav_handles->nav_alt_pos_im, &(nav_params->nav_alt_pos_im));
+	param_get(nav_handles->nav_alt_pos_om, &(nav_params->nav_alt_pos_om));
+
+	param_get(ukf_handles->ukf_acc_bias_q, &(ukf_params->ukf_acc_bias_q));
+	param_get(ukf_handles->ukf_acc_bias_v, &(ukf_params->ukf_acc_bias_v));
+	param_get(ukf_handles->ukf_acc_n, &(ukf_params->ukf_acc_n));
+	param_get(ukf_handles->ukf_alt_n, &(ukf_params->ukf_alt_n));
+	param_get(ukf_handles->ukf_alt_pos_v, &(ukf_params->ukf_alt_pos_v));
+	param_get(ukf_handles->ukf_alt_vel_v, &(ukf_params->ukf_alt_vel_v));
+	param_get(ukf_handles->ukf_dist_n, &(ukf_params->ukf_dist_n));
+	param_get(ukf_handles->ukf_gps_alt_m_n, &(ukf_params->ukf_gps_alt_m_n));
+	param_get(ukf_handles->ukf_gps_alt_n, &(ukf_params->ukf_gps_alt_n));
+	param_get(ukf_handles->ukf_gps_pos_m_n, &(ukf_params->ukf_gps_pos_m_n));
+	param_get(ukf_handles->ukf_gps_pos_n, &(ukf_params->ukf_gps_pos_n));
+	param_get(ukf_handles->ukf_gps_vd_m_n, &(ukf_params->ukf_gps_vd_m_n));
+	param_get(ukf_handles->ukf_gps_vd_n, &(ukf_params->ukf_gps_vd_n));
+	param_get(ukf_handles->ukf_gps_vel_m_n, &(ukf_params->ukf_gps_vd_m_n));
+	param_get(ukf_handles->ukf_gps_vel_n, &(ukf_params->ukf_gps_vel_n));
+	param_get(ukf_handles->ukf_gyo_bias_q, &(ukf_params->ukf_gyo_bias_q));
+	param_get(ukf_handles->ukf_gyo_bias_v, &(ukf_params->ukf_gyo_bias_v));
+	param_get(ukf_handles->ukf_mag_n, &(ukf_params->ukf_mag_n));
+	param_get(ukf_handles->ukf_pos_alt_q, &(ukf_params->ukf_pos_alt_q));
+	param_get(ukf_handles->ukf_pos_delay, &(ukf_params->ukf_pos_delay));
+	param_get(ukf_handles->ukf_pos_q, &(ukf_params->ukf_pos_q));
+	param_get(ukf_handles->ukf_pos_v, &(ukf_params->ukf_pos_v));
+	param_get(ukf_handles->ukf_pres_alt_q, &(ukf_params->ukf_pres_alt_q));
+	param_get(ukf_handles->ukf_pres_alt_v, &(ukf_params->ukf_pres_alt_v));
+	param_get(ukf_handles->ukf_quat_q, &(ukf_params->ukf_quat_q));
+	param_get(ukf_handles->ukf_rate_v, &(ukf_params->ukf_rate_v));
+	param_get(ukf_handles->ukf_vel_alt_q, &(ukf_params->ukf_vel_alt_q));
+	param_get(ukf_handles->ukf_vel_delay, &(ukf_params->ukf_vel_delay));
+	param_get(ukf_handles->ukf_vel_q, &(ukf_params->ukf_vel_q));
+	param_get(ukf_handles->ukf_vel_v, &(ukf_params->ukf_vel_v));
 
 	return OK;
 }

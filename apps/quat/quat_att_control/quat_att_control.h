@@ -32,6 +32,8 @@ void control_quadrotor_attitude(
 		const struct attitude_control_quat_params *control,
 		struct actuator_controls_s *actuators);
 
+void control_quadrotor_set_yaw(float yaw);
+
 typedef struct {
     float yawSetpoint;
 

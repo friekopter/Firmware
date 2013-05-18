@@ -210,7 +210,7 @@ int attitude_estimator_quat_thread_main(int argc, char *argv[])
 	// Subscribe to data updates
 	// Parameter
 	int sub_params = orb_subscribe(ORB_ID(parameter_update));
-	/* rate-limit raw data updates to 1Hz */
+	/* rate-limit parameter updates to 1Hz */
 	orb_set_interval(sub_params, 1000);
 
 	// System state
@@ -262,6 +262,30 @@ int attitude_estimator_quat_thread_main(int argc, char *argv[])
 		}
 		else
 		{
+			/* only update parameters if state changed */
+			if (fds[2].revents & POLLIN)
+			{
+				orb_copy(ORB_ID(vehicle_status), state_sub, &state);
+			}
+			/* only update parameters if they changed */
+			if (fds[1].revents & POLLIN)
+			{
+				/* read from param to clear updated flag */
+				struct parameter_update_s update;
+				orb_copy(ORB_ID(parameter_update), sub_params, &update);
+				/* update parameters */
+				param_update_result = parameters_update(&quat_param_handles, &quat_params);
+				if(param_update_result)
+				{
+					//printf("[attitude estimator quat] WARNING: Parameter update error!\n");
+					mavlink_log_critical(mavlink_fd,"[attitude estimator quat] WARNING: Parameter update error!\n");
+				}
+				else
+				{
+					//printf("[attitude estimator quat] parameter updated.\n");
+					mavlink_log_info(mavlink_fd,"[attitude estimator quat] parameter updated.\n");
+				}
+			}
 			/* only run filter if sensor values changed */
 			if (fds[0].revents & POLLIN)
 			{
@@ -269,7 +293,7 @@ int attitude_estimator_quat_thread_main(int argc, char *argv[])
 				orb_copy(ORB_ID(sensor_combined), sub_raw, &raw);
 
 				/* Calculate data time difference in seconds */
-				dt = (raw.timestamp - last_measurement) / 1000000.0f;
+				dt = ((float)(raw.timestamp - last_measurement)) / 1e6f;
 				last_measurement = raw.timestamp;
 				uint8_t update_vect[3] = {0, 0, 0};
 
@@ -277,10 +301,11 @@ int attitude_estimator_quat_thread_main(int argc, char *argv[])
 				if (sensor_last_count[0] != raw.gyro_counter) {
 					update_vect[0] = 1;
 					sensor_last_count[0] = raw.gyro_counter;
-					sensor_update_hz[0] = 1e6f / (raw.timestamp - sensor_last_timestamp[0]);
+					uint64_t sensor_dt = raw.timestamp - sensor_last_timestamp[0];
+					if(sensor_dt == 0) sensor_update_hz[0] = 0;
+					else sensor_update_hz[0] = 1e6f / sensor_dt;
 					sensor_last_timestamp[0] = raw.timestamp;
 				}
-
 				z_k[0] =  raw.gyro_rad_s[0];
 				z_k[1] =  raw.gyro_rad_s[1];
 				z_k[2] =  raw.gyro_rad_s[2];
@@ -289,7 +314,9 @@ int attitude_estimator_quat_thread_main(int argc, char *argv[])
 				if (sensor_last_count[1] != raw.accelerometer_counter) {
 					update_vect[1] = 1;
 					sensor_last_count[1] = raw.accelerometer_counter;
-					sensor_update_hz[1] = 1e6f / (raw.timestamp - sensor_last_timestamp[1]);
+					uint64_t sensor_dt = raw.timestamp - sensor_last_timestamp[1];
+					if(sensor_dt == 0) sensor_update_hz[1] = 0;
+					else sensor_update_hz[1] = 1e6f / sensor_dt;
 					sensor_last_timestamp[1] = raw.timestamp;
 				}
 				z_k[3] = raw.accelerometer_m_s2[0];
@@ -300,7 +327,9 @@ int attitude_estimator_quat_thread_main(int argc, char *argv[])
 				if (sensor_last_count[2] != raw.magnetometer_counter) {
 					update_vect[2] = 1;
 					sensor_last_count[2] = raw.magnetometer_counter;
-					sensor_update_hz[2] = 1e6f / (raw.timestamp - sensor_last_timestamp[2]);
+					uint64_t sensor_dt = raw.timestamp - sensor_last_timestamp[2];
+					if(sensor_dt == 0) sensor_update_hz[2] = 0;
+					else sensor_update_hz[2] = 1e6f / sensor_dt;
 					sensor_last_timestamp[2] = raw.timestamp;
 				}
 				z_k[6] = raw.magnetometer_ga[0];
@@ -326,8 +355,8 @@ int attitude_estimator_quat_thread_main(int argc, char *argv[])
 				quatUpdate(update_vect, dt, isFlying, z_k, &quat_params, &att );
 				uint64_t timing_diff = hrt_absolute_time() - timing_start;
 
-				// /* print debug information every 200th time */
-				if (debug == true && printcounter % 2000 == 0)
+				// /* print debug information every 500th time */
+				if (debug == true && printcounter % 500 == 0)
 				{
 					printf("sensor inputs: g: %8.4f\t%8.4f\t%8.4f\ta: %8.4f\t%8.4f\t%8.4f\t m: %8.4f\t%8.4f\t%8.4f\n", (double)z_k[0], (double)z_k[1], (double)z_k[2], (double)z_k[3], (double)z_k[4], (double)z_k[5], (double)z_k[6], (double)z_k[7], (double)z_k[8]);
 					printf("quat params: accdist: %8.4f\tka: %8.4f\t ki:%8.4f\tkm1: %8.4f\tkm2: %8.4f\t kp: %8.4f\n",(double)quat_params.accdist, (double)quat_params.ka, (double)quat_params.ki, (double)quat_params.km1, (double)quat_params.km2, (double)quat_params.kp);
@@ -339,31 +368,6 @@ int attitude_estimator_quat_thread_main(int argc, char *argv[])
 
 				// Broadcast
 				orb_publish(ORB_ID(vehicle_attitude), pub_att, &att);
-			}
-			/* only update parameters if state changed */
-			if (fds[2].revents & POLLIN)
-			{
-				orb_copy(ORB_ID(vehicle_status), state_sub, &state);
-			}
-
-			/* only update parameters if they changed */
-			if (fds[1].revents & POLLIN)
-			{
-				/* read from param to clear updated flag */
-				struct parameter_update_s update;
-				orb_copy(ORB_ID(parameter_update), sub_params, &update);
-				/* update parameters */
-				param_update_result = parameters_update(&quat_param_handles, &quat_params);
-				if(param_update_result)
-				{
-					//printf("[attitude estimator quat] WARNING: Parameter update error!\n");
-					mavlink_log_critical(mavlink_fd,"[attitude estimator quat] WARNING: Parameter update error!\n");
-				}
-				else
-				{
-					//printf("[attitude estimator quat] parameter updated.\n");
-					mavlink_log_info(mavlink_fd,"[attitude estimator quat] parameter updated.\n");
-				}
 			}
 		}
 

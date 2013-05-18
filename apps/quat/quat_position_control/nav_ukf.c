@@ -20,6 +20,9 @@
 #include <systemlib/conversions.h>
 #include <quat/utils/quat_constants.h>
 #include "nav.h"
+#include <float.h>
+#include <math.h>
+#include "aq_math.h"
 #include <../utils/util.h>
 
 navUkfStruct_t navUkfData;
@@ -48,7 +51,7 @@ void navUkfCalcEarthRadius(double lat) {
     sinLat2 = sinLat2 * sinLat2;
 
     navUkfData.r1 = NAV_EQUATORIAL_RADIUS * DEG_TO_RAD * (1.0f - NAV_E_2) / powf(1.0f - (NAV_E_2 * sinLat2), (3.0f / 2.0f));
-    navUkfData.r2 = NAV_EQUATORIAL_RADIUS * DEG_TO_RAD / __sqrtf(1.0f - (NAV_E_2 * sinLat2));
+    navUkfData.r2 = NAV_EQUATORIAL_RADIUS * DEG_TO_RAD / sqrtf(1.0f - (NAV_E_2 * sinLat2));
 }
 
 void navUkfCalcDistance(double lat, double lon, float *posNorth, float *posEast) {
@@ -91,7 +94,7 @@ void navUkfSetGlobalPositionTarget(double lat, double lon) {
 void navUkfNormalizeVec3(float *vr, float *v) {
     float norm;
 
-    norm = __sqrtf(v[0]*v[0] + v[1]*v[1] + v[2]*v[2]);
+    norm = sqrtf(v[0]*v[0] + v[1]*v[1] + v[2]*v[2]);
 
     vr[0] = v[0] / norm;
     vr[1] = v[1] / norm;
@@ -101,7 +104,7 @@ void navUkfNormalizeVec3(float *vr, float *v) {
 void navUkfNormalizeQuat(float *qr, float *q) {
     float norm;
 
-    norm = __sqrtf(q[0]*q[0] + q[1]*q[1] + q[2]*q[2] + q[3]*q[3]);
+    norm = sqrtf(q[0]*q[0] + q[1]*q[1] + q[2]*q[2] + q[3]*q[3]);
 
     qr[0] = q[0] / norm;
     qr[1] = q[1] / norm;
@@ -226,7 +229,7 @@ void navUkfRotateQuat(float *qr, float *q, float *rate, float dt) {
     float s, t, lg;
     float qMag;
 
-    s = __sqrtf(rate[0]*rate[0] + rate[1]*rate[1] + rate[2]*rate[2]) * 0.5f;
+    s = sqrtf(rate[0]*rate[0] + rate[1]*rate[1] + rate[2]*rate[2]) * 0.5f;
     t = -(0.5f * sinf(s) / s);
     rate[0] *= t;
     rate[1] *= t;
@@ -342,16 +345,25 @@ void navUkfFinish(void) {
     navUkfData.yawSin = sinf(navUkfData.yaw * DEG_TO_RAD);
 }
 
-void navUkfInertialUpdate(const float z[9], float dt) {
+float navUkfInertialUpdate(const struct sensor_combined_s* raw) {
+
+	/* Calculate data time difference in seconds */
+	static uint64_t last_inertialUpdate = 0;
+	float dt = 0;
+	if(last_inertialUpdate != 0) {
+		dt = ((float)(raw->timestamp - last_inertialUpdate)) / 1e6f;
+	}
+	last_inertialUpdate = raw->timestamp;
+
     float u[6];
 
-    u[0] = z[3];
-    u[1] = z[4];
-    u[2] = z[5];
+    u[0] = raw->accelerometer_m_s2[0];
+    u[1] = raw->accelerometer_m_s2[1];
+    u[2] = raw->accelerometer_m_s2[2];
 
-    u[3] = z[0];
-    u[4] = z[1];
-    u[5] = z[2];
+    u[3] = raw->gyro_rad_s[0];
+    u[4] = raw->gyro_rad_s[1];
+    u[5] = raw->gyro_rad_s[2];
 
     srcdkfTimeUpdate(navUkfData.kf, u, dt);
 
@@ -365,6 +377,7 @@ void navUkfInertialUpdate(const float z[9], float dt) {
     navUkfData.velD[navUkfData.navHistIndex] = UKF_VELD;
 
     navUkfData.navHistIndex = (navUkfData.navHistIndex + 1) % UKF_HIST;
+    return dt;
 }
 
 void navUkfZeroRate(float rate, int axis) {
@@ -408,7 +421,7 @@ void simDoAccUpdate(float accX, float accY, float accZ,
     accZ += UKF_ACC_BIAS_Z;
 
     // normalize vector
-    norm =  __sqrtf(accX*accX + accY*accY + accZ*accZ);
+    norm =  sqrtf(accX*accX + accY*accY + accZ*accZ);
     y[0] = accX / norm;
     y[1] = accY / norm;
     y[2] = accZ / norm;
@@ -442,7 +455,7 @@ void simDoMagUpdate(float magX, float magY, float magZ,
     noise[2] = noise[0];
 
     // normalize vector
-    norm = 1.0f / __sqrtf(magX*magX + magY*magY + magZ*magZ);
+    norm = 1.0f / sqrtf(magX*magX + magY*magY + magZ*magZ);
     y[0] = magX * norm;
     y[1] = magY * norm;
     y[2] = magZ * norm;
@@ -490,9 +503,9 @@ void navUkfGpsPosUpate(
 	    UKF_POSE = navUkfData.posE[histIndex];
 	    UKF_POSD = navUkfData.posD[histIndex];
 
-	    noise[0] = params->ukf_gps_pos_n + gps_position->eph_m * __sqrtf(gps_position->tDop*gps_position->tDop + gps_position->nDop*gps_position->nDop) * params->ukf_gps_pos_m_n;
-	    noise[1] = params->ukf_gps_pos_n + gps_position->eph_m * __sqrtf(gps_position->tDop*gps_position->tDop + gps_position->eDop*gps_position->eDop) * params->ukf_gps_pos_m_n;
-	    noise[2] = params->ukf_gps_alt_n + gps_position->epv_m * __sqrtf(gps_position->tDop*gps_position->tDop + gps_position->vDop*gps_position->vDop) * params->ukf_gps_alt_m_n;
+	    noise[0] = params->ukf_gps_pos_n + gps_position->eph_m * sqrtf(gps_position->tDop*gps_position->tDop + gps_position->nDop*gps_position->nDop) * params->ukf_gps_pos_m_n;
+	    noise[1] = params->ukf_gps_pos_n + gps_position->eph_m * sqrtf(gps_position->tDop*gps_position->tDop + gps_position->eDop*gps_position->eDop) * params->ukf_gps_pos_m_n;
+	    noise[2] = params->ukf_gps_alt_n + gps_position->epv_m * sqrtf(gps_position->tDop*gps_position->tDop + gps_position->vDop*gps_position->vDop) * params->ukf_gps_alt_m_n;
 
 	    srcdkfMeasurementUpdate(navUkfData.kf, 0, y, 3, 3, noise, navUkfPosUpdate);
 
@@ -544,6 +557,8 @@ void navUkfGpsVelUpate(
 		float dt,
 		const struct vehicle_status_s *current_status,
 		const struct quat_position_control_UKF_params* params) {
+	// Don't do anything for invalid dt
+	if(dt < FLT_MIN) return;
     float y[3];
     float noise[3];
     float velDelta[3];
@@ -572,9 +587,9 @@ void navUkfGpsVelUpate(
 	UKF_VELE = navUkfData.velE[histIndex];
 	UKF_VELD = navUkfData.velD[histIndex];
 
-	noise[0] = params->ukf_gps_vel_n + gps_position->sAcc * __sqrtf(gps_position->tDop*gps_position->tDop + gps_position->nDop*gps_position->nDop) * params->ukf_gps_vel_m_n;
-	noise[1] = params->ukf_gps_vel_n + gps_position->sAcc * __sqrtf(gps_position->tDop*gps_position->tDop + gps_position->eDop*gps_position->eDop) * params->ukf_gps_vel_m_n;
-	noise[2] = params->ukf_gps_vd_n  + gps_position->sAcc * __sqrtf(gps_position->tDop*gps_position->tDop + gps_position->vDop*gps_position->vDop) * params->ukf_gps_vd_m_n;
+	noise[0] = params->ukf_gps_vel_n + gps_position->sAcc * sqrtf(gps_position->tDop*gps_position->tDop + gps_position->nDop*gps_position->nDop) * params->ukf_gps_vel_m_n;
+	noise[1] = params->ukf_gps_vel_n + gps_position->sAcc * sqrtf(gps_position->tDop*gps_position->tDop + gps_position->eDop*gps_position->eDop) * params->ukf_gps_vel_m_n;
+	noise[2] = params->ukf_gps_vd_n  + gps_position->sAcc * sqrtf(gps_position->tDop*gps_position->tDop + gps_position->vDop*gps_position->vDop) * params->ukf_gps_vd_m_n;
 
 	srcdkfMeasurementUpdate(navUkfData.kf, 0, y, 3, 3, noise, navUkfVelUpdate);
 
@@ -664,7 +679,10 @@ void navUkfInitState(const struct sensor_combined_s* sensors) {
     UKF_PRES_ALT = sensors->baro_alt_meter;
 
     // wait for lack of movement
-    imuQuasiStatic(UKF_GYO_AVG_NUM);
+    utilQuasiStatic(UKF_GYO_AVG_NUM,
+    		sensors->accelerometer_m_s2[0],
+    		sensors->accelerometer_m_s2[1],
+    		sensors->accelerometer_m_s2[2]);
 
     // estimate initial orientation & gyo bias
     i = 0;
