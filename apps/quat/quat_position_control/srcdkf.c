@@ -19,6 +19,7 @@
 #include "srcdkf.h"
 #include "aq_math.h"
 #include <../utils/util.h>
+void srcdkfCalcSigmaPoints(srcdkf_t *f, arm_matrix_instance_f32 *Sn);
 
 float *srcdkfGetState(srcdkf_t *f) {
     return f->x.pData;
@@ -104,14 +105,14 @@ srcdkf_t *srcdkfInit(int s, int m, int v, int n, SRCDKFTimeUpdate_t *timeUpdate)
 	f->xNoise = (float32_t *)aqDataCalloc(maxN, sizeof(float32_t));
 	f->xIn = (float32_t *)aqDataCalloc(s, sizeof(float32_t));
 
-	f->h = SRCDKF_H;
+	f->h = (float32_t)SRCDKF_H;
 	f->hh = f->h*f->h;
 //	f->w0m = (f->hh - (float32_t)s) / f->hh;	// calculated in process
 	f->wim = 1.0f / (2.0f * f->hh);
-	f->wic1 = sqrtf(1.0f / (4.0f * f->hh));
-	f->wic2 = sqrtf((f->hh - 1.0f) / (4.0f * f->hh*f->hh));
+	f->wic1 = (float32_t)sqrtf(1.0f / (4.0f * f->hh));
+	f->wic2 = (float32_t)sqrtf((f->hh - 1.0f) / (4.0f * f->hh*f->hh));
 
-        f->timeUpdate = timeUpdate;
+    f->timeUpdate = timeUpdate;
 
 	return f;
 }
@@ -124,7 +125,7 @@ void srcdkfCalcSigmaPoints(srcdkf_t *f, arm_matrix_instance_f32 *Sn) {
 	int L = 1+A*2;			// number of sigma points
 	float32_t *x = f->x.pData;	// state
 	float32_t *Sx = f->Sx.pData;	// state covariance
-	float32_t *Xa = f->Xa.pData;	// augmented sigma points
+	float32_t *Xa = f->Xa.pData;	// calculaion result: augmented sigma points
 	int i, j;
 
 	// set the number of sigma points
@@ -136,10 +137,10 @@ void srcdkfCalcSigmaPoints(srcdkf_t *f, arm_matrix_instance_f32 *Sn) {
 
 	//	-	   -
 	// Sa =	| Sx	0  |
-	//	| 0	Sn |
+	//	    | 0	    Sn |
 	//	-	   -
-	// xa = [ x 	0  ]
-	// Xa = [ xa  (xa + h*Sa)  (xa - h*Sa) ]
+	// Augmented state: xa = [ x 	0  ]
+	// Sigma Points Xa = [ xa  (xa + h*Sa)  (xa - h*Sa) ]
 	//
 	for (i = 0; i < A; i++) {
 		int rOffset = i*L;
@@ -403,7 +404,7 @@ void paramsrcdkfSetVariance(srcdkf_t *f, float32_t *v, float32_t *n) {
 	srcdkfSetVariance(f, v, v, n, f->N);
 
 	for (i = 0; i < f->S; i++)
-		rDiag[i] = 0.0;
+		rDiag[i] = 0.0f;
 }
 
 void paramsrcdkfGetVariance(srcdkf_t *f, float32_t *v, float32_t *n) {

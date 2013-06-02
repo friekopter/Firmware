@@ -4,7 +4,7 @@
 #include <systemlib/param/param.h>
 
     struct quat_position_control_UKF_params {
-    	float ukf_vel_q,
+    	float ukf_vel_q, // state variance variables
     	ukf_vel_alt_q,
     	ukf_pos_q,
     	ukf_pos_alt_q,
@@ -12,7 +12,7 @@
     	ukf_gyo_bias_q,
     	ukf_quat_q,
     	ukf_pres_alt_q,
-    	ukf_acc_bias_v,
+    	ukf_acc_bias_v, // process variance variables
     	ukf_gyo_bias_v,
     	ukf_rate_v,
     	ukf_pres_alt_v,

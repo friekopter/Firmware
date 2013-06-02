@@ -121,6 +121,8 @@ static orb_advert_t		sensors_raw_topic;
 static orb_advert_t stat_pub;
 static orb_advert_t		manual_topic;
 struct manual_control_setpoint_s manual_report;
+static orb_advert_t		gps_topic;
+struct vehicle_gps_position_s gps_report;
 
 
 static int baudrate = 57600;
@@ -435,7 +437,8 @@ void handleMessage(mavlink_message_t *msg)
 		case MAV_MODE_GUIDED_ARMED:
 			// set vector flight mode valid, otherwise no guided mode is possible
 			quad_status.flag_vector_flight_mode_ok = true;
-			update_state_machine_mode_request(stat_pub,&quad_status,mavlink_fd,base_mode);
+			// This should work with the base_mode parameter, for some reason MAV_MODE_GUIDED_ARMED = 216 =  11011000
+			update_state_machine_mode_request(stat_pub,&quad_status,mavlink_fd,VEHICLE_MODE_FLAG_SAFETY_ARMED | VEHICLE_MODE_FLAG_GUIDED_ENABLED);
 			break;
 		case MAV_MODE_AUTO_ARMED:
 			update_state_machine_mode_request(stat_pub,&quad_status,mavlink_fd,base_mode);
@@ -459,6 +462,52 @@ void handleMessage(mavlink_message_t *msg)
 			manual_report.yaw = ((float)control.z)/1000.0f;
 			manual_report.throttle = ((float)control.r)/1000.0f;
 			orb_publish(ORB_ID(manual_control_setpoint), manual_topic, &manual_report);
+		}
+	}
+	else if (msg->msgid == MAVLINK_MSG_ID_GPS_RAW_INT)
+	{
+		if (gps_topic <= 0) {
+			memset(&gps_report, 0, sizeof(gps_report));
+			gps_topic = orb_advertise(ORB_ID(vehicle_gps_position), &gps_report);
+		} else {
+			mavlink_gps_raw_int_t gps_data;
+			mavlink_msg_gps_raw_int_decode(msg, &gps_data);
+			gps_report.alt = gps_data.alt;
+			gps_report.lat = gps_data.lat;
+			gps_report.lon = gps_data.lon;
+			gps_report.cAcc = 0;
+			gps_report.cog_rad = 0;
+			gps_report.eDop = 150.0f;
+			gps_report.eph_m = 3.0f;
+			gps_report.epv_m = 3.0f;
+			gps_report.fix_type = 3;
+			gps_report.hDop = gps_data.eph;
+			gps_report.nDop = 150.0f;
+			gps_report.p_variance_m = 0;
+			gps_report.sAcc = 1.5f;
+			gps_report.s_variance_m_s = 0;
+			//gps_report.satellite_azimuth = 0;
+			//gps_report.satellite_elevation = 0;
+			gps_report.satellite_info_available = 0;
+			//gps_report.satellite_prn = 0;
+			//gps_report.satellite_snr = 0;
+			//gps_report.satellite_used = 0;
+			gps_report.satellites_visible = 6;
+			gps_report.tDop = 150.0f;
+			gps_report.time_gps_usec = 0;
+			gps_report.timestamp_posdilution = 0;
+			gps_report.timestamp_position = hrt_absolute_time();
+			gps_report.timestamp_satellites = 0;
+			gps_report.timestamp_time = 0;
+			gps_report.timestamp_variance = 0;
+			gps_report.timestamp_velocity = hrt_absolute_time();
+			gps_report.vDop = gps_data.epv;
+			gps_report.vel_d_m_s = ((float)((int8_t)gps_data.fix_type))/10.0f;
+			gps_report.vel_e_m_s = ((float)((int16_t)gps_data.cog))/100.0f;
+			gps_report.vel_m_s = 0;
+			gps_report.vel_n_m_s = ((float)((int16_t)gps_data.vel))/100.0f;
+			gps_report.vel_ned_valid = 0;
+			orb_publish(ORB_ID(vehicle_gps_position), gps_topic, &gps_report);
 		}
 	}
 }

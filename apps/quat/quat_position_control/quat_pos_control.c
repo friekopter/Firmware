@@ -37,6 +37,15 @@
 
 
 runStruct_t runData __attribute__((section(".ccm")));
+// Struct for data output. Defined here to reduce stack frame size
+static struct vehicle_attitude_setpoint_s att_sp __attribute__((section(".ccm")));
+static struct vehicle_global_position_s global_position __attribute__((section(".ccm")));
+static struct vehicle_attitude_s att __attribute__((section(".ccm")));
+static struct manual_control_setpoint_s manual;
+static struct vehicle_status_s state;
+static struct sensor_combined_s raw;
+static struct vehicle_gps_position_s gps_data;
+
 static bool thread_should_exit = false;		/**< Deamon exit flag */
 static bool thread_running = false;		/**< Deamon status flag */
 static int deamon_task;				/**< Handle of deamon task / thread */
@@ -54,6 +63,7 @@ static int quat_pos_control_thread_main(int argc, char *argv[]);
  */
 static void usage(const char *reason);
 
+
 static void
 usage(const char *reason)
 {
@@ -61,6 +71,51 @@ usage(const char *reason)
 		fprintf(stderr, "%s\n", reason);
 	fprintf(stderr, "usage: deamon {start|stop|status} [-p <additional params>]\n\n");
 	exit(1);
+}
+
+static void quat_pos_runInit(const struct sensor_combined_s* sensors);
+
+static void quat_pos_runInit(const struct sensor_combined_s* sensors) {
+    float acc[3], mag[3];
+    float pres;
+    int i;
+
+    memset((void *)&runData, 0, sizeof(runData));
+
+    acc[0] = sensors->accelerometer_m_s2[0];
+    acc[1] = sensors->accelerometer_m_s2[1];
+    acc[2] = sensors->accelerometer_m_s2[2];
+
+    mag[0] = sensors->magnetometer_ga[0];
+    mag[1] = sensors->magnetometer_ga[1];
+    mag[2] = sensors->magnetometer_ga[2];
+
+    pres = sensors->baro_pres_mbar;
+
+    for (i = 0; i < RUN_SENSOR_HIST; i++) {
+	runData.accHist[0][i] = acc[0];
+	runData.accHist[1][i] = acc[1];
+	runData.accHist[2][i] = acc[2];
+	runData.magHist[0][i] = mag[0];
+	runData.magHist[1][i] = mag[1];
+	runData.magHist[2][i] = mag[2];
+	runData.presHist[i] = pres;
+
+	runData.sumAcc[0] += acc[0];
+	runData.sumAcc[1] += acc[1];
+	runData.sumAcc[2] += acc[2];
+	runData.sumMag[0] += mag[0];
+	runData.sumMag[1] += mag[1];
+	runData.sumMag[2] += mag[2];
+	runData.sumPres += pres;
+    }
+
+    runData.accHistIndex = 0;
+    runData.magHistIndex = 0;
+    runData.presHistIndex = 0;
+
+    runData.bestHacc = 99.9f;
+    runData.accMask = RUN_ACC_MASK;
 }
 
 /**
@@ -126,22 +181,31 @@ quat_pos_control_thread_main(int argc, char *argv[])
 
 	// Output
 	// Calculation result is the attitude setpoint
-	struct vehicle_attitude_setpoint_s att_sp;
 	/* publish attitude setpoint */
 	orb_advert_t att_sp_pub = orb_advertise(ORB_ID(vehicle_attitude_setpoint), &att_sp);
+	memset(&att_sp, 0, sizeof(att_sp));
 
 	// For control reasons we also publish the suspected position
-	struct vehicle_global_position_s global_position;
 	orb_advert_t global_position_pub = orb_advertise(ORB_ID(vehicle_global_position), &global_position);
+	memset(&global_position, 0, sizeof(global_position));
+
+	// Attitude
+	orb_advert_t pub_att = orb_advertise(ORB_ID(vehicle_attitude), &att);
+	memset(&att, 0, sizeof(att));
+
 
 	// Inputs
 	// manual control
-	struct manual_control_setpoint_s manual;
 	int manual_sub = orb_subscribe(ORB_ID(manual_control_setpoint));
+	memset(&manual, 0, sizeof(manual));
+	/* rate-limit parameter updates to 50Hz */
+	//orb_set_interval(manual_sub, 20);
 
 	// System state
-	struct vehicle_status_s state;
 	int state_sub = orb_subscribe(ORB_ID(vehicle_status));
+	memset(&state, 0, sizeof(state));
+	/* rate-limit parameter updates to 10Hz */
+	//orb_set_interval(state_sub, 100);
 
 	// Parameter
 	int sub_params = orb_subscribe(ORB_ID(parameter_update));
@@ -149,14 +213,16 @@ quat_pos_control_thread_main(int argc, char *argv[])
 	orb_set_interval(sub_params, 1000);
 
 	// Raw data
-	struct sensor_combined_s raw;
 	int sub_raw = orb_subscribe(ORB_ID(sensor_combined));
+	memset(&raw, 0, sizeof(raw));
 	/* rate-limit raw data updates to 200Hz */
 	orb_set_interval(sub_raw, 4);
 
 	// GPS Position
-	struct vehicle_gps_position_s gps_data;
 	int gps_sub = orb_subscribe(ORB_ID(vehicle_gps_position));
+	memset(&gps_data, 0, sizeof(gps_data));
+	/* rate-limit parameter updates to 5Hz */
+	//orb_set_interval(gps_sub, 200);
 
 	//Init parameters
 	struct quat_position_control_UKF_params ukf_params;
@@ -168,11 +234,11 @@ quat_pos_control_thread_main(int argc, char *argv[])
 
 	sleep(5);
 	/* register the perf counter */
-	perf_counter_t mc_loop_perf = perf_alloc(PC_ELAPSED, "quat_pos_control");
-	orb_copy(ORB_ID(sensor_combined), sub_raw, &raw);
-
-	navUkfInit(&ukf_params,&raw);
-	navInit(&nav_params,raw.baro_alt_meter,0.0f);//TODO FL find a better yaw to init hold
+	perf_counter_t quat_pos_loop_perf = perf_alloc(PC_ELAPSED, "quat_pos_control");
+	perf_counter_t quat_pos_sensor_perf = perf_alloc(PC_ELAPSED, "quat_pos_sensor_control");
+	perf_counter_t quat_pos_inertial_perf = perf_alloc(PC_ELAPSED, "quat_pos_inertial_control");
+	perf_counter_t quat_pos_gps_perf = perf_alloc(PC_ELAPSED, "quat_pos_gps_control");
+	perf_counter_t quat_pos_nav_perf = perf_alloc(PC_ELAPSED, "quat_pos_nav_control");
 
 	struct pollfd fds[5] = {
 		{ .fd = sub_raw,   .events = POLLIN },
@@ -181,11 +247,148 @@ quat_pos_control_thread_main(int argc, char *argv[])
 		{ .fd = sub_params, .events = POLLIN },
 		{ .fd = state_sub, .events = POLLIN }
 	};
+
+	quat_pos_runInit(&raw);
+	printf("[quat pos control] Init ukf\n");
+	navUkfInit(&ukf_params,&raw);
+	bool initCompleted = false;
+	while (!initCompleted) {
+		int ret = poll(fds, 1, 1000);
+
+		if (ret < 0)
+		{
+			/* XXX this is seriously bad - should be an emergency */
+			printf("[quat pos control] Poll error");
+		}
+		else if (ret == 0)
+		{
+			/* XXX this means no sensor data - should be critical or emergency */
+			printf("[quat pos control] WARNING: Not getting sensor data for init- sensor app running?\n");
+		}
+		else
+		{
+			if (fds[0].revents & POLLIN)
+			{
+				orb_copy(ORB_ID(sensor_combined), sub_raw, &raw);
+				// check for static position of imu
+			    float stdX, stdY, stdZ;
+			    static float accX[UKF_GYO_AVG_NUM];
+			    static float accY[UKF_GYO_AVG_NUM];
+			    static float accZ[UKF_GYO_AVG_NUM];
+			    static int i = 0;
+			    static int j = 0;
+
+			    accX[j] = raw.accelerometer_m_s2[0];
+			    accY[j] = raw.accelerometer_m_s2[1];
+			    accY[j] = raw.accelerometer_m_s2[2];
+				j = (j + 1) % UKF_GYO_AVG_NUM;
+
+				if (i >= UKF_GYO_AVG_NUM) {
+				    arm_std_f32(accX, UKF_GYO_AVG_NUM, &stdX);
+				    arm_std_f32(accY, UKF_GYO_AVG_NUM, &stdY);
+				    arm_std_f32(accZ, UKF_GYO_AVG_NUM, &stdZ);
+				}
+				i++;
+			    if (i <= UKF_GYO_AVG_NUM || (stdX + stdY + stdZ) > IMU_STATIC_STD) {
+			    	// imu not static
+			    	continue;
+			    }
+			    // imu static
+				float rotError[3];
+				float acc[3], mag[3], estAcc[3], estMag[3];
+				float m[3*3];
+				static int k = 0;
+				static int l = 0;
+			    static float gyX[UKF_GYO_AVG_NUM];
+			    static float gyY[UKF_GYO_AVG_NUM];
+			    static float gyZ[UKF_GYO_AVG_NUM];
+
+				gyX[k] = raw.gyro_rad_s[0];
+				gyY[k] = raw.gyro_rad_s[1];
+				gyZ[k] = raw.gyro_rad_s[2];
+
+				k = (k + 1) % UKF_GYO_AVG_NUM;
+
+				acc[0] = raw.accelerometer_m_s2[0];
+				acc[1] = raw.accelerometer_m_s2[1];
+				acc[2] = raw.accelerometer_m_s2[2];
+
+				mag[0] = raw.magnetometer_ga[0];
+				mag[1] = raw.magnetometer_ga[1];
+				mag[2] = raw.magnetometer_ga[2];
+
+				navUkfNormalizeVec3(acc, acc);
+				navUkfNormalizeVec3(mag, mag);
+
+				navUkfQuatToMatrix(m, &UKF_Q1, 1);
+
+				// rotate gravity to body frame of reference
+				navUkfRotateVecByRevMatrix(estAcc, navUkfData.v0a, m);
+
+				// rotate mags to body frame of reference
+				navUkfRotateVecByRevMatrix(estMag, navUkfData.v0m, m);
+
+				// measured error, starting with accel vector
+				rotError[0] = -(acc[2] * estAcc[1] - estAcc[2] * acc[1]) * 1.0f;
+				rotError[1] = -(acc[0] * estAcc[2] - estAcc[0] * acc[2]) * 1.0f;
+				rotError[2] = -(acc[1] * estAcc[0] - estAcc[1] * acc[0]) * 1.0f;
+
+				// add in mag vector
+				rotError[0] += -(mag[2] * estMag[1] - estMag[2] * mag[1]) * 0.50f;
+				rotError[1] += -(mag[0] * estMag[2] - estMag[0] * mag[2]) * 0.50f;
+				rotError[2] += -(mag[1] * estMag[0] - estMag[1] * mag[0]) * 0.50f;
+
+			    navUkfRotateQuat(&UKF_Q1, &UKF_Q1, rotError, 0.1f);
+
+				if (l >= UKF_GYO_AVG_NUM) {
+				    arm_std_f32(gyX, UKF_GYO_AVG_NUM, &stdX);
+				    arm_std_f32(gyY, UKF_GYO_AVG_NUM, &stdY);
+				    arm_std_f32(gyZ, UKF_GYO_AVG_NUM, &stdZ);
+				}
+				float std = stdX + stdY + stdZ;
+				printf("[quat pos control] Init %d:\t std: %8.4f\t errorX: %8.4f\t errorY: %8.4f\t errorZ: %8.4f\n", l, (double)std, (double)rotError[0], (double)rotError[1], (double)rotError[2]);
+
+				l++;
+			    if (l > UKF_GYO_AVG_NUM*5 && std < 0.004f) {
+			    	initCompleted = true;
+				    arm_mean_f32(gyX, UKF_GYO_AVG_NUM, &UKF_GYO_BIAS_X);
+				    arm_mean_f32(gyY, UKF_GYO_AVG_NUM, &UKF_GYO_BIAS_Y);
+				    arm_mean_f32(gyZ, UKF_GYO_AVG_NUM, &UKF_GYO_BIAS_Z);
+			    	printf("[quat pos control] Init finished. Gyo Bias: x: %8.4f\ty: %8.4f\tz:%8.4f\n", (double)UKF_GYO_BIAS_X, (double)UKF_GYO_BIAS_Y, (double)UKF_GYO_BIAS_Z);
+			    	printf("[quat pos control] Q1:%8.4f\tQ2:%8.4f\tQ3:%8.4f\tQ4:%8.4f\n", UKF_Q1, UKF_Q2, UKF_Q3, UKF_Q4);
+					navUkfFinish();
+					// Publish attitude
+					att.R_valid = false;
+					att.roll = navUkfData.roll;
+					att.pitch = navUkfData.pitch;
+					att.yaw = navUkfData.yaw;
+					att.rollspeed = raw.gyro_rad_s[0];
+					att.pitchspeed = raw.gyro_rad_s[1];
+					att.yawspeed = raw.gyro_rad_s[2];
+					att.q_valid = false;
+					printf("roll: %8.4f\tpitch: %8.4f\tyaw:%8.4f\n", (double)att.roll, (double)att.pitch, (double)att.yaw);
+					orb_publish(ORB_ID(vehicle_attitude), pub_att, &att);
+					printf("1:%8.4f\t2:%8.4f\t3:%8.4f\t4:%8.4f\t5:%8.4f\t6:%8.4f\t7:%8.4f\t8:%8.4f\t9:%8.4f\t10:%8.4f\t11:%8.4f\t12:%8.4f\t13:%8.4f\t14:%8.4f\t15:%8.4f\t16:%8.4f\t17:%8.4f\n",
+							navUkfData.x[0],navUkfData.x[1],navUkfData.x[2],navUkfData.x[3],navUkfData.x[4],
+							navUkfData.x[5],navUkfData.x[6],navUkfData.x[7],navUkfData.x[8],navUkfData.x[9],
+							navUkfData.x[10],navUkfData.x[11],navUkfData.x[12],navUkfData.x[13],navUkfData.x[14],
+							navUkfData.x[15],navUkfData.x[16]);
+
+			    }
+
+			}
+		}
+	}
+	printf("[quat pos control] Init nav\n");
+	navInit(&nav_params,raw.baro_alt_meter,0.0f);//TODO FL find a better yaw to init hold
+
+	printf("[quat pos control] Starting loop\n");
+
 	while (1) {
 		static uint64_t timestamp_position = 0;
 		static uint64_t timestamp_velocity = 0;
 
-		int ret = poll(fds, 3, 1000);
+		int ret = poll(fds, 5, 1000);
 
 		if (ret < 0)
 		{
@@ -194,12 +397,12 @@ quat_pos_control_thread_main(int argc, char *argv[])
 		else if (ret == 0)
 		{
 			/* XXX this means no sensor data - should be critical or emergency */
-			printf("[attitude estimator quat] WARNING: Not getting sensor data - sensor app running?\n");
+			printf("[quat pos control] WARNING: Not getting sensor data - sensor app running?\n");
 		}
 		else
 		{
-			float dt = 0;
-			perf_begin(mc_loop_perf);
+			static float dt = 0;
+			perf_begin(quat_pos_loop_perf);
 			/* only update parameters if state changed */
 			if (fds[4].revents & POLLIN)
 			{
@@ -220,12 +423,20 @@ quat_pos_control_thread_main(int argc, char *argv[])
 			}
 			if (fds[0].revents & POLLIN)
 			{
+				perf_begin(quat_pos_inertial_perf);
+				orb_copy(ORB_ID(sensor_combined), sub_raw, &raw);
 				// raw parameter changed
 				dt = navUkfInertialUpdate(&raw);
+				perf_end(quat_pos_inertial_perf);
+				if(dt < FLT_MIN) {
+					perf_end(quat_pos_loop_perf);
+					continue;
+				}
 
+				perf_begin(quat_pos_sensor_perf);
 				// record history for acc & mag & pressure readings for smoothing purposes
 				// acc
-				static uint64_t acc_counter = 0;
+				static uint32_t acc_counter = 0;
 				if(raw.accelerometer_counter > acc_counter)
 				{
 					acc_counter = raw.accelerometer_counter;
@@ -244,7 +455,7 @@ quat_pos_control_thread_main(int argc, char *argv[])
 				}
 
 				// mag
-				static uint64_t mag_counter = 0;
+				static uint32_t mag_counter = 0;
 				if(raw.magnetometer_counter > mag_counter)
 				{
 					mag_counter = raw.magnetometer_counter;
@@ -263,10 +474,10 @@ quat_pos_control_thread_main(int argc, char *argv[])
 				}
 
 				// pressure
-				static uint64_t baro_counter = 0;
+				static uint32_t baro_counter = 0;
 				if(raw.baro_counter > baro_counter)
 				{
-					mag_counter = raw.baro_counter;
+					baro_counter = raw.baro_counter;
 					runData.sumPres -= runData.presHist[runData.presHistIndex];
 					runData.presHist[runData.presHistIndex] = raw.baro_pres_mbar;
 					runData.sumPres += runData.presHist[runData.presHistIndex];
@@ -280,21 +491,38 @@ quat_pos_control_thread_main(int argc, char *argv[])
 						   	   	   	&ukf_params);
 				}
 				if (runData.presHistIndex == 6) {
-				   simDoPresUpdate(runData.sumPres*(1.0 / (float)RUN_SENSOR_HIST),
+					simDoPresUpdate(runData.sumPres*(1.0f / (float)RUN_SENSOR_HIST),
 				   	   	   			&state,
 				   	   	   			&ukf_params);
 				}
 				if (runData.magHistIndex == 9) {
-				   simDoMagUpdate(runData.sumMag[0]*(1.0 / (float)RUN_SENSOR_HIST),
+/*					simDoMagUpdate(runData.sumMag[0]*(1.0 / (float)RUN_SENSOR_HIST),
 						   	   	  runData.sumMag[1]*(1.0 / (float)RUN_SENSOR_HIST),
 						   	   	  runData.sumMag[2]*(1.0 / (float)RUN_SENSOR_HIST),
 						   	   	  &state,
-						   	   	  &ukf_params);
+						   	   	  &ukf_params);*/
 				}
+				navUkfFinish();
+				// Publish attitude
+				att.R_valid = false;
+				att.roll = navUkfData.roll;
+				att.pitch = navUkfData.pitch;
+				att.yaw = navUkfData.yaw;
+				att.rollspeed = raw.gyro_rad_s[0];
+				att.pitchspeed = raw.gyro_rad_s[1];
+				att.yawspeed = raw.gyro_rad_s[2];
+				att.q_valid = false;
+				orb_publish(ORB_ID(vehicle_attitude), pub_att, &att);
+				perf_end(quat_pos_sensor_perf);
 			}
 			if (fds[1].revents & POLLIN)
 			{
 				orb_copy(ORB_ID(vehicle_gps_position), gps_sub, &gps_data);
+				if(dt < FLT_MIN) {
+					perf_end(quat_pos_loop_perf);
+					continue;
+				}
+				perf_begin(quat_pos_gps_perf);
 				if (timestamp_position < gps_data.timestamp_position) {
 					timestamp_position = gps_data.timestamp_position;
 					float hAcc = gps_data.eph_m;
@@ -304,7 +532,7 @@ quat_pos_control_thread_main(int argc, char *argv[])
 					if (runData.accMask < 1.0f)
 					    runData.accMask = 1.0f;
 				    }
-				    navUkfGpsPosUpate(&gps_data,dt,&state,&ukf_params);
+				    //navUkfGpsPosUpate(&gps_data,dt,&state,&ukf_params);
 				    // refine static sea level pressure based on better GPS altitude fixes
 				    if (hAcc < runData.bestHacc && hAcc < NAV_MIN_GPS_ACC) {
 				    	UKFPressureAdjust((float)gps_data.alt * 1e3f);
@@ -313,8 +541,13 @@ quat_pos_control_thread_main(int argc, char *argv[])
 				}
 				if (timestamp_velocity < gps_data.timestamp_velocity) {
 					timestamp_velocity = gps_data.timestamp_velocity;
-				    navUkfGpsVelUpate(&gps_data,dt,&state,&ukf_params);
+				    //navUkfGpsVelUpate(&gps_data,dt,&state,&ukf_params);
 				}
+				perf_end(quat_pos_gps_perf);
+			}
+			if(dt < FLT_MIN) {
+				perf_end(quat_pos_loop_perf);
+				continue;
 			}
 			// observe that the rates are exactly 0 if not flying or moving
 			bool mightByFlying = state.flag_system_armed;
@@ -331,8 +564,9 @@ quat_pos_control_thread_main(int argc, char *argv[])
 			    }
 			}
 
-			navUkfFinish();
-			navNavigate(&gps_data,&state,&nav_params,&manual,hrt_absolute_time());
+			perf_begin(quat_pos_nav_perf);
+			//navNavigate(&gps_data,&state,&nav_params,&manual,hrt_absolute_time());
+			perf_end(quat_pos_nav_perf);
 
 			// rotate nav's NE frame of reference to our craft's local frame of reference
 			att_sp.pitch_body = navData.holdTiltN * navUkfData.yawCos - navData.holdTiltE * navUkfData.yawSin;
@@ -354,14 +588,20 @@ quat_pos_control_thread_main(int argc, char *argv[])
 				global_position.hdg = navUkfData.yaw;
 				orb_publish(ORB_ID(vehicle_global_position), global_position_pub, &global_position);
 			}
-			perf_end(mc_loop_perf);
-			// /* print debug information every 500th time */
-			if (debug == true && printcounter % 500 == 0)
+			perf_end(quat_pos_loop_perf);
+			// print debug information every 1000th time
+			if (debug == true && printcounter % 1000 == 0)
 			{
-				printf("GPS trust: hAcc:%8.4f dt:%8.4f", gps_data.eph_m, dt);
-				printf("GPS input: alt:%d lat:%d, lon:%d ", gps_data.alt, gps_data.lat, gps_data.lon);
-				printf("setpoint: pitch:%8.4f roll:%8.4f thrust:%8.4f yaw:%8.4f", att_sp.pitch_body, att_sp.roll_body, att_sp.thrust, att_sp.yaw_body);
-				printf("Global position alt;%8.4f lat:%8.4f lon:%8.4f vx:%8.4f vy:%8.4f vz:%8.4f yaw:%8.4f ", global_position.alt, global_position.lat, global_position.lon, global_position.vx, global_position.vy, global_position.vz, global_position.hdg);
+				printf("1:%8.4f\t2:%8.4f\t3:%8.4f\t4:%8.4f\t5:%8.4f\t6:%8.4f\t7:%8.4f\t8:%8.4f\t9:%8.4f\t10:%8.4f\t11:%8.4f\t12:%8.4f\t13:%8.4f\t14:%8.4f\t15:%8.4f\t16:%8.4f\t17:%8.4f\n",
+					navUkfData.x[0],navUkfData.x[1],navUkfData.x[2],navUkfData.x[3],navUkfData.x[4],
+					navUkfData.x[5],navUkfData.x[6],navUkfData.x[7],navUkfData.x[8],navUkfData.x[9],
+					navUkfData.x[10],navUkfData.x[11],navUkfData.x[12],navUkfData.x[13],navUkfData.x[14],
+					navUkfData.x[15],navUkfData.x[16]);
+				printf("roll: %8.4f\tpitch: %8.4f\tyaw:%8.4f\n", (double)att.roll, (double)att.pitch, (double)att.yaw);
+				//printf("GPS trust: hAcc:%8.4f dt:%8.4f\n", gps_data.eph_m, dt);
+				//printf("GPS input: alt:%d lat:%d, lon:%d velE:%8.4f velN:%8.4f velD:%8.4f\n", gps_data.alt, gps_data.lat, gps_data.lon, gps_data.vel_e_m_s, gps_data.vel_n_m_s, gps_data.vel_d_m_s);
+				//printf("Setpoints: holdTiltN:%8.4f holdTiltE:%8.4f sp pitch:%8.4f sp roll:%8.4f thrust:%8.4f sp yaw:%8.4f\n", navData.holdTiltN, navData.holdTiltE, att_sp.pitch_body, att_sp.roll_body, att_sp.thrust, att_sp.yaw_body);
+				//printf("Global position: alt:%8.4f lat:%8.4f lon:%8.4f vx:%8.4f vy:%8.4f vz:%8.4f yaw:%8.4f\n", global_position.alt, global_position.lat, global_position.lon, global_position.vx, global_position.vy, global_position.vz, global_position.hdg);
 			}
 			printcounter++;
 		}
@@ -372,4 +612,6 @@ quat_pos_control_thread_main(int argc, char *argv[])
 	fflush(stdout);
 	return 0;
 }
+
+
 

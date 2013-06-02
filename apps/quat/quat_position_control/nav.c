@@ -24,6 +24,7 @@
 #include "nav_ukf.h"
 #include <string.h>
 #include <math.h>
+#include <float.h>
 #include "aq_math.h"
 #include <stdio.h>
 #include <uORB/topics/manual_control_setpoint.h>
@@ -360,11 +361,13 @@ void navNavigate(
 		navData.holdSpeedE = pidUpdate(navData.distanceEPID, 0.0f, UKF_POSE);
     }
 
-    // normalize N/E speed requests to fit below max nav speed
-    tmp = sqrtf(navData.holdSpeedN*navData.holdSpeedN + navData.holdSpeedE*navData.holdSpeedE);
-    if (tmp > navData.holdMaxHorizSpeed) {
-		navData.holdSpeedN = (navData.holdSpeedN / tmp) * navData.holdMaxHorizSpeed;
-		navData.holdSpeedE = (navData.holdSpeedE / tmp) * navData.holdMaxHorizSpeed;
+    if (abs(navData.holdSpeedE) > FLT_MIN || abs(navData.holdSpeedE) > FLT_MIN) {
+        // normalize N/E speed requests to fit below max nav speed
+        tmp = sqrtf(navData.holdSpeedN*navData.holdSpeedN + navData.holdSpeedE*navData.holdSpeedE);
+        if (tmp > navData.holdMaxHorizSpeed) {
+    		navData.holdSpeedN = (navData.holdSpeedN / tmp) * navData.holdMaxHorizSpeed;
+    		navData.holdSpeedE = (navData.holdSpeedE / tmp) * navData.holdMaxHorizSpeed;
+        }
     }
 
     // velocity => tilt
