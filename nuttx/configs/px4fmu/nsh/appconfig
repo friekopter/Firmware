@@ -144,4 +144,5 @@ CONFIGURED_APPS += quat/hil_test_quat
 CONFIGURED_APPS += quat/quat_att_control
 CONFIGURED_APPS += quat/quat_interface
 CONFIGURED_APPS += quat/quat_position_control
+CONFIGURED_APPS += quat/quat_log
 

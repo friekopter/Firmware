@@ -32,7 +32,7 @@ typedef struct {
     float z1;
 } utilFilter_t;
 
-void *aqCalloc(size_t count, size_t size);
+__EXPORT void *aqCalloc(size_t count, size_t size);
 __EXPORT void *aqDataCalloc(uint16_t count, uint16_t size);
 __EXPORT int constrainInt(int i, int lo, int hi);
 __EXPORT float constrainFloat(float i, float lo, float hi);

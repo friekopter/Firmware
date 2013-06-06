@@ -232,7 +232,7 @@ quat_pos_control_thread_main(int argc, char *argv[])
 	parameters_init(&nav_handles, &ukf_handles);
 	parameters_update(&nav_handles, &nav_params, &ukf_handles, &ukf_params);
 
-	sleep(5);
+	sleep(2);
 	/* register the perf counter */
 	perf_counter_t quat_pos_loop_perf = perf_alloc(PC_ELAPSED, "quat_pos_control");
 	perf_counter_t quat_pos_sensor_perf = perf_alloc(PC_ELAPSED, "quat_pos_sensor_control");
