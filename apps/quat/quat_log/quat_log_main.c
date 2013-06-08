@@ -257,7 +257,7 @@ int quat_log_thread_main(int argc, char *argv[])
 
 
 	/* set up file path: e.g. /mnt/sdcard/session0001/blackbox.txt */
-	sprintf(path_buf, "%s/%s.txt", folder_path, "sensor_log");
+	sprintf(path_buf, "%s/%s.log", folder_path, "sensor_log");
 /*
 	if (0 == (logging_file = open(path_buf, O_CREAT | O_WRONLY | O_DSYNC))) {
 		errx(1, "opening %s failed.\n", path_buf);
@@ -371,7 +371,7 @@ int quat_log_thread_main(int argc, char *argv[])
 				if (!(loops % 200)) {
 				    logDoHeader();
 				}
-					logDo();
+				logDo();
 				perf_end(quat_log_do_perf);
 				perf_begin(quat_log_write_perf);
 				size_t writtenBytes = logWrite(logging_file);
@@ -382,7 +382,11 @@ int quat_log_thread_main(int argc, char *argv[])
 					perf_begin(quat_log_sync_perf);
 					fsync(logging_file_no);
 					perf_end(quat_log_sync_perf);
-					printf("[quat log] written: %d\n", writtenBytes);
+					static uint64_t lastTime = 0;
+					uint64_t currentTime = hrt_absolute_time();
+					float diff = (float)(currentTime - lastTime)/1000.0f;
+					printf("[quat log] %8.4fms\t written: %dbytes packet: %d\n", diff, writtenBytes, logData.packetSize);
+					lastTime = currentTime;
 				}
 			}
 		}
