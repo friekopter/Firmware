@@ -59,6 +59,13 @@
 
 #define UBX_CONFIG_TIMEOUT 100
 
+// Declarations for the ubx timepulse
+static int hrt_tp_isr(int irq, void *context);
+static int32_t ubxMicrosPerSecond = 1000000;
+static uint64_t lastTimepulse = 0;
+static uint32_t lastReceivedTPtowMS = 0;
+static uint32_t currentTPtowMS = 0;
+
 UBX::UBX(const int &fd, struct vehicle_gps_position_s *gps_position) :
 _fd(fd),
 _gps_position(gps_position),
@@ -522,7 +529,7 @@ UBX::handle_message()
 				_gps_position->epv_m = (float)packet->vAcc * 1e-3f; // from mm to m
 
 				/* Add timestamp to finish the report */
-				_gps_position->timestamp_position = hrt_absolute_time();
+				_gps_position->timestamp_position = lastTimepulse + (packet->time_milliseconds - currentTPtowMS) * 1000;
 				/* only return 1 when new position is available */
 				ret = 1;
 			}
@@ -681,8 +688,7 @@ UBX::handle_message()
 				_gps_position->sAcc      = (float)packet->sAcc *  0.01f;	    // cm/s => m/s
 				_gps_position->cAcc      = (float)packet->cAcc *  1e-5f;
 				_gps_position->vel_ned_valid = true;
-				_gps_position->timestamp_velocity = hrt_absolute_time();
-			}
+				_gps_position->timestamp_velocity = lastTimepulse + (packet->time_milliseconds - currentTPtowMS) * 1000;			}
 
 			break;
 		}
@@ -724,7 +730,8 @@ UBX::handle_message()
 			if (!_waiting_for_ack) {
 				printf("GOT TIM_TP\n");
 				gps_bin_nav_timedate_packet_t *packet = (gps_bin_nav_timedate_packet_t *) _rx_buffer;
-				//TODO FL
+				lastReceivedTPtowMS = packet->towMS;
+				_gps_position->time_micros_per_second = ubxMicrosPerSecond;
 			}
 			ret = 1;
 			break;
@@ -793,25 +800,27 @@ UBX::send_config_packet(const int &fd, uint8_t *packet, const unsigned length)
 		warnx("ubx: config write fail");
 }
 
-static int
-hrt_tp_isr(int irq, void *context)
-{
-	uint64_t tp = hrt_absolute_time();
-	uint64_t diff = (tp - 0);//lastTimepulse);
-	if (diff > 950000 && diff < 1050000)
-	{
-		//gpsData.microsPerSecond -= (gpsData.microsPerSecond - (int32_t)(diff))>>5;
-	}
-	//astTimepulse = tp;
-	//gpsData.TPtowMS = gpsData.lastReceivedTPtowMS;
-	return OK;
-}
 
 void
 UBX::config_tp_port(void)
 {
 	stm32_configgpio(GPIO_UBX_TP_IN);
 	stm32_gpiosetevent(GPIO_UBX_TP_IN,true,false,false,hrt_tp_isr);
+}
+
+
+static int
+hrt_tp_isr(int irq, void *context)
+{
+	uint64_t tp = hrt_absolute_time();
+	uint64_t diff = (tp - lastTimepulse);
+	if (diff > 950000 && diff < 1050000)
+	{
+		ubxMicrosPerSecond -= (ubxMicrosPerSecond - (int32_t)(diff))>>5;
+	}
+	lastTimepulse = tp;
+	currentTPtowMS = lastReceivedTPtowMS;
+	return OK;
 }
 
 
