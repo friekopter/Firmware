@@ -690,6 +690,8 @@ L3GD20::measure()
 	report->x_raw = raw_report.y;
 	report->y_raw = ((raw_report.x == -32768) ? 32767 : -raw_report.x);
 	report->z_raw = raw_report.z;
+	report->temperature_raw = (int16_t)raw_report.temp;
+	report->temperature = (float)raw_report.temp;
 
 	report->x = ((report->x_raw * _gyro_range_scale) - _gyro_scale.x_offset) * _gyro_scale.x_scale;
 	report->y = ((report->y_raw * _gyro_range_scale) - _gyro_scale.y_offset) * _gyro_scale.y_scale;

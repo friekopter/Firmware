@@ -343,7 +343,7 @@ int quat_log_thread_main(int argc, char *argv[])
 	thread_running = true;
 
 	starttime = hrt_absolute_time();
-	printf("[quat log] initialized");
+	printf("[quat log] initialized, packet size: %d\n",logData.packetSize);
 
 	while (!thread_should_exit) {
 
@@ -385,7 +385,11 @@ int quat_log_thread_main(int argc, char *argv[])
 					static uint64_t lastTime = 0;
 					uint64_t currentTime = hrt_absolute_time();
 					float diff = (float)(currentTime - lastTime)/1000.0f;
-					printf("[quat log] %8.4fms\t written: %dbytes packet: %d\n", diff, writtenBytes, logData.packetSize);
+					unsigned bytes = quat_log_bytes;
+					float mebibytes = (float)bytes / 1024.0f / 1024.0f;
+					if(mebibytes > 300.0f) thread_should_exit = true;
+					printf("[quat log] %8.4fms\t written: %dbytes\ttotal: %8.4fMegabytes\ttemp: %8.4fC\n",
+							diff, writtenBytes, mebibytes, buf.gyro_report.temperature);
 					lastTime = currentTime;
 				}
 			}

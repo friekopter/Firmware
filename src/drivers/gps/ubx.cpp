@@ -34,6 +34,9 @@
  ****************************************************************************/
 
 /* @file U-Blox protocol implementation */
+#include <nuttx/config.h>
+#include <nuttx/arch.h>
+#include <nuttx/irq.h>
 
 #include <unistd.h>
 #include <stdio.h>
@@ -44,7 +47,13 @@
 #include <systemlib/err.h>
 #include <uORB/uORB.h>
 #include <uORB/topics/vehicle_gps_position.h>
+
+#include <arch/board/board.h>
 #include <drivers/drv_hrt.h>
+#include <drivers/drv_adc.h>
+
+#include <arch/stm32/chip.h>
+#include <stm32_gpio.h>
 
 #include "ubx.h"
 
@@ -56,6 +65,7 @@ _gps_position(gps_position),
 _waiting_for_ack(false)
 {
 	decode_init();
+	config_tp_port();
 }
 
 UBX::~UBX()
@@ -174,6 +184,15 @@ UBX::configure(unsigned &baudrate)
 
 		cfg_msg_packet.msgClass_payload = UBX_CLASS_NAV;
 		cfg_msg_packet.msgID_payload = UBX_MESSAGE_NAV_POSLLH;
+
+		send_config_packet(_fd, (uint8_t*)&cfg_msg_packet, sizeof(cfg_msg_packet));
+		if (receive(UBX_CONFIG_TIMEOUT) < 0) {
+			/* try next baudrate */
+			continue;
+		}
+
+		cfg_msg_packet.msgClass_payload = UBX_CLASS_TIM;
+		cfg_msg_packet.msgID_payload = UBX_MESSAGE_TIM_TP;
 
 		send_config_packet(_fd, (uint8_t*)&cfg_msg_packet, sizeof(cfg_msg_packet));
 		if (receive(UBX_CONFIG_TIMEOUT) < 0) {
@@ -326,6 +345,11 @@ UBX::parse_char(uint8_t b)
 					_message_class = NAV;
 					break;
 
+				case UBX_CLASS_TIM:
+					_decode_state = UBX_DECODE_GOT_CLASS;
+					_message_class = NAV;
+					break;
+
 //				case UBX_CLASS_RXM:
 //					_decode_state = UBX_DECODE_GOT_CLASS;
 //					_message_class = RXM;
@@ -421,6 +445,14 @@ UBX::parse_char(uint8_t b)
 						break;
 					}
 					break;
+				case TIM:
+					switch (b) {
+					case UBX_MESSAGE_TIM_TP:
+						_decode_state = UBX_DECODE_GOT_MESSAGEID;
+						_message_id = TIM_TP;
+						break;
+					}
+					break;
 				default: //should not happen because we set the class
 					warnx("UBX Error, we set a class that we don't know");
 					decode_init();
@@ -513,19 +545,20 @@ UBX::handle_message()
 
 //		case NAV_DOP: {
 ////		printf("GOT NAV_DOP MESSAGE\n");
-			gps_bin_nav_dop_packet_t *packet = (gps_bin_nav_dop_packet_t *) _rx_buffer;
+			if (!_waiting_for_ack) {
+				gps_bin_nav_dop_packet_t *packet = (gps_bin_nav_dop_packet_t *) _rx_buffer;
 
-			_gps_position->pDop =  packet->pDOP;
-			_gps_position->hDop =  packet->hDOP;
-			_gps_position->vDop =  packet->vDOP;
-			_gps_position->tDop =  packet->tDOP;
-			_gps_position->eDop =  packet->eDOP;
-			_gps_position->nDop =  packet->nDOP;
+				_gps_position->pDop =  packet->pDOP;
+				_gps_position->hDop =  packet->hDOP;
+				_gps_position->vDop =  packet->vDOP;
+				_gps_position->tDop =  packet->tDOP;
+				_gps_position->eDop =  packet->eDOP;
+				_gps_position->nDop =  packet->nDOP;
 
-			_gps_position->timestamp_posdilution = hrt_absolute_time();
+				_gps_position->timestamp_posdilution = hrt_absolute_time();
 
-			//_new_nav_dop = true;
-
+				//_new_nav_dop = true;
+			}
 			break;
 		}
 
@@ -687,6 +720,16 @@ UBX::handle_message()
 			break;
 		}
 
+		case TIM_TP: {
+			if (!_waiting_for_ack) {
+				printf("GOT TIM_TP\n");
+				gps_bin_nav_timedate_packet_t *packet = (gps_bin_nav_timedate_packet_t *) _rx_buffer;
+				//TODO FL
+			}
+			ret = 1;
+			break;
+		}
+
 		default: //we don't know the message
 			warnx("UBX: Unknown message received: %d-%d\n",_message_class,_message_id);
 			ret = -1;
@@ -749,3 +792,27 @@ UBX::send_config_packet(const int &fd, uint8_t *packet, const unsigned length)
 	if (ret != (int)length + (int)sizeof(sync_bytes)) // XXX is there a neater way to get rid of the unsigned signed warning?
 		warnx("ubx: config write fail");
 }
+
+static int
+hrt_tp_isr(int irq, void *context)
+{
+	uint64_t tp = hrt_absolute_time();
+	uint64_t diff = (tp - 0);//lastTimepulse);
+	if (diff > 950000 && diff < 1050000)
+	{
+		//gpsData.microsPerSecond -= (gpsData.microsPerSecond - (int32_t)(diff))>>5;
+	}
+	//astTimepulse = tp;
+	//gpsData.TPtowMS = gpsData.lastReceivedTPtowMS;
+	return OK;
+}
+
+void
+UBX::config_tp_port(void)
+{
+	stm32_configgpio(GPIO_UBX_TP_IN);
+	stm32_gpiosetevent(GPIO_UBX_TP_IN,true,false,false,hrt_tp_isr);
+}
+
+
+
