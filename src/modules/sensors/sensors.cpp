@@ -199,6 +199,7 @@ private:
 		float gyro_align_zy;
 		float gyro_scale[3];
 
+		float acc_bias[3];
 		float acc_bias1[3];
 		float acc_bias2[3];
 		float acc_bias3[3];
@@ -213,6 +214,7 @@ private:
 		float acc_scale2[3];
 		float acc_scale3[3];
 
+		float mag_bias[3];
 		float mag_bias1[3];
 		float mag_bias2[3];
 		float mag_bias3[3];
@@ -282,6 +284,7 @@ private:
 		param_t gyro_align_zy;
 		param_t gyro_scale[3];
 
+		param_t acc_bias[3];
 		param_t acc_bias1[3];
 		param_t acc_bias2[3];
 		param_t acc_bias3[3];
@@ -296,6 +299,7 @@ private:
 		param_t acc_scale2[3];
 		param_t acc_scale3[3];
 
+		param_t mag_bias[3];
 		param_t mag_bias1[3];
 		param_t mag_bias2[3];
 		param_t mag_bias3[3];
@@ -587,6 +591,9 @@ Sensors::Sensors() :
 	_parameter_handles.acc_scale3[0] = param_find("IMU_ACC_SCAL3_X");
 	_parameter_handles.acc_scale3[1] = param_find("IMU_ACC_SCAL3_Y");
 	_parameter_handles.acc_scale3[2] = param_find("IMU_ACC_SCAL3_Z");
+	_parameter_handles.acc_bias[0] = param_find("IMU_ACC_BIAS_X");
+	_parameter_handles.acc_bias[1] = param_find("IMU_ACC_BIAS_Y");
+	_parameter_handles.acc_bias[2] = param_find("IMU_ACC_BIAS_Z");
 	_parameter_handles.acc_bias1[0] = param_find("IMU_ACC_BIAS1_X");
 	_parameter_handles.acc_bias1[1] = param_find("IMU_ACC_BIAS1_Y");
 	_parameter_handles.acc_bias1[2] = param_find("IMU_ACC_BIAS1_Z");
@@ -616,6 +623,9 @@ Sensors::Sensors() :
 	_parameter_handles.mag_scale3[0] = param_find("IMU_MAG_SCAL3_X");
 	_parameter_handles.mag_scale3[1] = param_find("IMU_MAG_SCAL3_Y");
 	_parameter_handles.mag_scale3[2] = param_find("IMU_MAG_SCAL3_Z");
+	_parameter_handles.mag_bias[0] = param_find("IMU_MAG_BIAS_X");
+	_parameter_handles.mag_bias[1] = param_find("IMU_MAG_BIAS_Y");
+	_parameter_handles.mag_bias[2] = param_find("IMU_MAG_BIAS_Z");
 	_parameter_handles.mag_bias1[0] = param_find("IMU_MAG_BIAS1_X");
 	_parameter_handles.mag_bias1[1] = param_find("IMU_MAG_BIAS1_Y");
 	_parameter_handles.mag_bias1[2] = param_find("IMU_MAG_BIAS1_Z");
@@ -841,6 +851,9 @@ Sensors::parameters_update()
 	param_get(_parameter_handles.gyro_scale[2], &(_parameters.gyro_scale[2]));
 
 	/* accel offsets */
+	param_get(_parameter_handles.acc_bias[0], &(_parameters.acc_bias[0]));
+	param_get(_parameter_handles.acc_bias[1], &(_parameters.acc_bias[1]));
+	param_get(_parameter_handles.acc_bias[2], &(_parameters.acc_bias[2]));
 	param_get(_parameter_handles.acc_bias1[0], &(_parameters.acc_bias1[0]));
 	param_get(_parameter_handles.acc_bias1[1], &(_parameters.acc_bias1[1]));
 	param_get(_parameter_handles.acc_bias1[2], &(_parameters.acc_bias1[2]));
@@ -871,6 +884,9 @@ Sensors::parameters_update()
 
 
 	/* mag offsets */
+	param_get(_parameter_handles.mag_bias[0], &(_parameters.mag_bias[0]));
+	param_get(_parameter_handles.mag_bias[1], &(_parameters.mag_bias[1]));
+	param_get(_parameter_handles.mag_bias[2], &(_parameters.mag_bias[2]));
 	param_get(_parameter_handles.mag_bias1[0], &(_parameters.mag_bias1[0]));
 	param_get(_parameter_handles.mag_bias1[1], &(_parameters.mag_bias1[1]));
 	param_get(_parameter_handles.mag_bias1[2], &(_parameters.mag_bias1[2]));
@@ -1028,6 +1044,72 @@ Sensors::accel_poll(struct sensor_combined_s &raw)
 
 		raw.accelerometer_counter++;
 	}
+}
+
+void
+Sensors::correctAccMeasurement(struct accel_report &acc_report)
+{
+	float x,y,z, a,b,c;
+	// rates
+	x = -(acc_report.x + _parameters.acc_bias1[0]*temp + _parameters.acc_bias2[0]*temp2 + _parameters.acc_bias3[0]*temp3);
+	y = +(acc_report.y + _parameters.acc_bias1[1]*temp + _parameters.acc_bias2[1]*temp2 + _parameters.acc_bias3[1]*temp3);
+	z = -(acc_report.z + _parameters.acc_bias1[2]*temp + _parameters.acc_bias2[2]*temp2 + _parameters.acc_bias3[2]*temp3);
+
+	a = x + y*_parameters.acc_align_xy + z*_parameters.acc_align_xz;
+	b = x*_parameters.acc_align_yx + y + z*_parameters.acc_align_yz;
+	c = x*_parameters.acc_align_zx + y*_parameters.acc_align_zy + z;
+
+	a /= _parameters.acc_scale[0] + _parameters.acc_scale1[0]*temp + _parameters.acc_scale2[0]*temp2 + _parameters.acc_scale3[0]*temp3;
+	b /= _parameters.acc_scale[1] + _parameters.acc_scale1[1]*temp + _parameters.acc_scale2[1]*temp2 + _parameters.acc_scale3[1]*temp3;
+	c /= _parameters.acc_scale[2] + _parameters.acc_scale1[2]*temp + _parameters.acc_scale2[2]*temp2 + _parameters.acc_scale3[2]*temp3;
+
+	acc_report.x = a;
+	acc_report.y = b;
+	acc_report.z = c;
+}
+
+void
+Sensors::correctMagMeasurement(struct mag_report &mag_report)
+{
+	float x,y,z, a,b,c;
+	// rates
+	x = -(mag_report.x + _parameters.mag_bias1[0]*temp + _parameters.mag_bias2[0]*temp2 + _parameters.mag_bias3[0]*temp3);
+	y = +(mag_report.y + _parameters.mag_bias1[1]*temp + _parameters.mag_bias2[1]*temp2 + _parameters.mag_bias3[1]*temp3);
+	z = -(mag_report.z + _parameters.mag_bias1[2]*temp + _parameters.mag_bias2[2]*temp2 + _parameters.mag_bias3[2]*temp3);
+
+	a = x + y*_parameters.mag_align_xy + z*_parameters.mag_align_xz;
+	b = x*_parameters.mag_align_yx + y + z*_parameters.mag_align_yz;
+	c = x*_parameters.mag_align_zx + y*_parameters.mag_align_zy + z;
+
+	a /= _parameters.mag_scale[0] + _parameters.mag_scale1[0]*temp + _parameters.mag_scale2[0]*temp2 + _parameters.mag_scale3[0]*temp3;
+	b /= _parameters.mag_scale[1] + _parameters.mag_scale1[1]*temp + _parameters.mag_scale2[1]*temp2 + _parameters.mag_scale3[1]*temp3;
+	c /= _parameters.mag_scale[2] + _parameters.mag_scale1[2]*temp + _parameters.mag_scale2[2]*temp2 + _parameters.mag_scale3[2]*temp3;
+
+	mag_report.x = a;
+	mag_report.y = b;
+	mag_report.z = c;
+}
+
+void
+Sensors::correctGyroMeasurement(struct  gyro_report &gyro_report)
+{
+	float x,y,z, a,b,c;
+	// rates
+	x = +(gyro_report.x + _parameters.gyro_bias1[0]*temp + _parameters.gyro_bias2[0]*temp2 + _parameters.gyro_bias3[0]*temp3);
+	y = -(gyro_report.y + _parameters.gyro_bias1[1]*temp + _parameters.gyro_bias2[1]*temp2 + _parameters.gyro_bias3[1]*temp3);
+	z = -(gyro_report.z + _parameters.gyro_bias1[2]*temp + _parameters.gyro_bias2[2]*temp2 + _parameters.gyro_bias3[2]*temp3);
+
+	a = x + y*_parameters.gyro_align_xy + z*_parameters.gyro_align_xz;
+	b = x*_parameters.gyro_align_yx + y + z*_parameters.gyro_align_yz;
+	c = x*_parameters.gyro_align_zx + y*_parameters.gyro_align_zy + z;
+
+	a /= _parameters.gyro_scale[0];
+	b /= _parameters.gyro_scale[1];
+	c /= _parameters.gyro_scale[2];
+
+	gyro_report.x = a;
+	gyro_report.y = b;
+	gyro_report.z = c;
 }
 
 void
