@@ -211,7 +211,7 @@ quat_att_control_thread_main(int argc, char *argv[])
 
 		/* wait for an attitude update, check for exit condition every 500 ms */
 		poll(fds, 1, 500);
-
+		//TODO FL might be a good idea to poll for gyro because that is faster
 		perf_begin(mc_loop_perf);
 
 		/* get a local copy of system state */

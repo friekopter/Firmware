@@ -92,13 +92,16 @@ void qrDecompositionT_f32(arm_matrix_instance_f32 *A, arm_matrix_instance_f32 *Q
                 for (row = minor; row < m; row++)
                         xNormSqr += A->pData[minor*m + row]*A->pData[minor*m + row];
 
-		a = sqrtf(xNormSqr);
+                a = aq_sqrtf(xNormSqr);
+
                 if (A->pData[minor*m + minor] > 0.0f)
                         a = -a;
 
                 R->pData[minor*R->numCols + minor] = a;
 
                 if (a != 0.0f) {
+        		    	R->pData[minor*R->numCols + minor] = a;
+
                         /*
                         * Calculate the normalized reflection vector v and transform
                         * the first column. We know the norm of v beforehand: v = x-ae
@@ -134,6 +137,9 @@ void qrDecompositionT_f32(arm_matrix_instance_f32 *A, arm_matrix_instance_f32 *Q
                                         A->pData[col*m + row] -= alpha*A->pData[minor*m + row];
                         }
                 }
+        	    // rank deficient
+        	    else
+        		return 0;
         }
 
         // Form the matrix R of the QR-decomposition.

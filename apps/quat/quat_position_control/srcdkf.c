@@ -34,12 +34,12 @@ void srcdkfSetVariance(srcdkf_t *f, float32_t *q, float32_t *v, float32_t *n, in
 	// state variance
 	if (q)
 		for (i = 0; i < f->S; i++)
-			Sx[i*f->S + i] = sqrtf(fabsf(q[i]));
+			Sx[i*f->S + i] = aq_sqrtf(fabsf(q[i]));
 
 	// process noise
 	if (v)
 		for (i = 0; i < f->V; i++)
-			Sv[i*f->V + i] = sqrtf(fabsf(v[i]));
+			Sv[i*f->V + i] = aq_sqrtf(fabsf(v[i]));
 
 	// observation noise
 	if (n && nn) {
@@ -48,7 +48,7 @@ void srcdkfSetVariance(srcdkf_t *f, float32_t *q, float32_t *v, float32_t *n, in
 		f->Sn.numCols = nn;
 
 		for (i = 0; i < nn; i++)
-			Sn[i*nn + i] = sqrtf(fabsf(n[i]));
+			Sn[i*nn + i] = aq_sqrtf(fabsf(n[i]));
 	}
 }
 
@@ -109,8 +109,8 @@ srcdkf_t *srcdkfInit(int s, int m, int v, int n, SRCDKFTimeUpdate_t *timeUpdate)
 	f->hh = f->h*f->h;
 //	f->w0m = (f->hh - (float32_t)s) / f->hh;	// calculated in process
 	f->wim = 1.0f / (2.0f * f->hh);
-	f->wic1 = (float32_t)sqrtf(1.0f / (4.0f * f->hh));
-	f->wic2 = (float32_t)sqrtf((f->hh - 1.0f) / (4.0f * f->hh*f->hh));
+	f->wic1 = (float32_t)aq_sqrtf(1.0f / (4.0f * f->hh));
+	f->wic2 = (float32_t)aq_sqrtf((f->hh - 1.0f) / (4.0f * f->hh*f->hh));
 
     f->timeUpdate = timeUpdate;
 

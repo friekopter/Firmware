@@ -216,7 +216,7 @@ quat_pos_control_thread_main(int argc, char *argv[])
 	int sub_raw = orb_subscribe(ORB_ID(sensor_combined));
 	memset(&raw, 0, sizeof(raw));
 	/* rate-limit raw data updates to 200Hz */
-	orb_set_interval(sub_raw, 4);
+	orb_set_interval(sub_raw, 5);
 
 	// GPS Position
 	int gps_sub = orb_subscribe(ORB_ID(vehicle_gps_position));
@@ -254,7 +254,6 @@ quat_pos_control_thread_main(int argc, char *argv[])
 	bool initCompleted = false;
 	while (!initCompleted) {
 		int ret = poll(fds, 1, 1000);
-
 		if (ret < 0)
 		{
 			/* XXX this is seriously bad - should be an emergency */
@@ -381,15 +380,13 @@ quat_pos_control_thread_main(int argc, char *argv[])
 	}
 	printf("[quat pos control] Init nav\n");
 	navInit(&nav_params,raw.baro_alt_meter,0.0f);//TODO FL find a better yaw to init hold
-
 	printf("[quat pos control] Starting loop\n");
 
 	while (1) {
 		static uint64_t timestamp_position = 0;
 		static uint64_t timestamp_velocity = 0;
 
-		int ret = poll(fds, 5, 1000);
-
+		int ret = poll(fds, 2, 1000);
 		if (ret < 0)
 		{
 			/* XXX this is seriously bad - should be an emergency */
@@ -404,12 +401,15 @@ quat_pos_control_thread_main(int argc, char *argv[])
 			static float dt = 0;
 			perf_begin(quat_pos_loop_perf);
 			/* only update parameters if state changed */
-			if (fds[4].revents & POLLIN)
+			bool updated = false;
+			orb_check(fds[4].fd, &updated);
+			if (updated)
 			{
 				orb_copy(ORB_ID(vehicle_status), state_sub, &state);
 			}
 			/* only update parameters if they changed */
-			if (fds[3].revents & POLLIN)
+			orb_check(fds[3].fd, &updated);
+			if (updated)
 			{
 				/* read from param to clear updated flag */
 				struct parameter_update_s update;
@@ -417,7 +417,8 @@ quat_pos_control_thread_main(int argc, char *argv[])
 				/* update parameters */
 				parameters_update(&nav_handles, &nav_params, &ukf_handles, &ukf_params);
 			}
-			if (fds[2].revents & POLLIN)
+			orb_check(fds[2].fd, &updated);
+			if (updated)
 			{
 				orb_copy(ORB_ID(manual_control_setpoint), manual_sub, &manual);
 			}
@@ -483,20 +484,21 @@ quat_pos_control_thread_main(int argc, char *argv[])
 					runData.sumPres += runData.presHist[runData.presHistIndex];
 					runData.presHistIndex = (runData.presHistIndex + 1) % RUN_SENSOR_HIST;
 				}
-				if (runData.accHistIndex == 3) {
+
+				if (!(loopcounter % 20)) {
 				   simDoAccUpdate(	runData.sumAcc[0]*(1.0f / (float)RUN_SENSOR_HIST),
 						   	   	   	runData.sumAcc[1]*(1.0f / (float)RUN_SENSOR_HIST),
 						   	   	   	runData.sumAcc[2]*(1.0f / (float)RUN_SENSOR_HIST),
 						   	   	   	&state,
 						   	   	   	&ukf_params);
 				}
-				if (runData.presHistIndex == 6) {
+				else if (!((loopcounter+7) % 20)) {
 					simDoPresUpdate(runData.sumPres*(1.0f / (float)RUN_SENSOR_HIST),
 				   	   	   			&state,
 				   	   	   			&ukf_params);
 				}
-				if (runData.magHistIndex == 9) {
-/*					simDoMagUpdate(runData.sumMag[0]*(1.0 / (float)RUN_SENSOR_HIST),
+				else if (!((loopcounter+14) % 20)) {
+					/*simDoMagUpdate(runData.sumMag[0]*(1.0 / (float)RUN_SENSOR_HIST),
 						   	   	  runData.sumMag[1]*(1.0 / (float)RUN_SENSOR_HIST),
 						   	   	  runData.sumMag[2]*(1.0 / (float)RUN_SENSOR_HIST),
 						   	   	  &state,
@@ -535,7 +537,7 @@ quat_pos_control_thread_main(int argc, char *argv[])
 				    //navUkfGpsPosUpate(&gps_data,dt,&state,&ukf_params);
 				    // refine static sea level pressure based on better GPS altitude fixes
 				    if (hAcc < runData.bestHacc && hAcc < NAV_MIN_GPS_ACC) {
-				    	UKFPressureAdjust((float)gps_data.alt * 1e3f);
+				    	//UKFPressureAdjust((float)gps_data.alt * 1e3f);
 				    	runData.bestHacc = hAcc;
 				    }
 				}
@@ -551,7 +553,7 @@ quat_pos_control_thread_main(int argc, char *argv[])
 			}
 			// observe that the rates are exactly 0 if not flying or moving
 			bool mightByFlying = state.flag_system_armed;
-			if (!loopcounter % 100 && !mightByFlying ) {
+			if (!(loopcounter % 100) && !mightByFlying ) {
 			    static uint32_t axis = 0;
 			    float stdX, stdY, stdZ;
 
@@ -592,12 +594,18 @@ quat_pos_control_thread_main(int argc, char *argv[])
 			// print debug information every 1000th time
 			if (debug == true && printcounter % 1000 == 0)
 			{
+				float frequence = 0;
+				static uint32_t last_measure = 0;
+				uint32_t current = hrt_absolute_time();
+				frequence = 1000.0f*1000000.0f/(float)(current - last_measure);
+				last_measure = current;
 				printf("1:%8.4f\t2:%8.4f\t3:%8.4f\t4:%8.4f\t5:%8.4f\t6:%8.4f\t7:%8.4f\t8:%8.4f\t9:%8.4f\t10:%8.4f\t11:%8.4f\t12:%8.4f\t13:%8.4f\t14:%8.4f\t15:%8.4f\t16:%8.4f\t17:%8.4f\n",
 					navUkfData.x[0],navUkfData.x[1],navUkfData.x[2],navUkfData.x[3],navUkfData.x[4],
 					navUkfData.x[5],navUkfData.x[6],navUkfData.x[7],navUkfData.x[8],navUkfData.x[9],
 					navUkfData.x[10],navUkfData.x[11],navUkfData.x[12],navUkfData.x[13],navUkfData.x[14],
 					navUkfData.x[15],navUkfData.x[16]);
 				printf("roll: %8.4f\tpitch: %8.4f\tyaw:%8.4f\n", (double)att.roll, (double)att.pitch, (double)att.yaw);
+				printf("Frequence: %8.4f\n", (double)frequence);
 				//printf("GPS trust: hAcc:%8.4f dt:%8.4f\n", gps_data.eph_m, dt);
 				//printf("GPS input: alt:%d lat:%d, lon:%d velE:%8.4f velN:%8.4f velD:%8.4f\n", gps_data.alt, gps_data.lat, gps_data.lon, gps_data.vel_e_m_s, gps_data.vel_n_m_s, gps_data.vel_d_m_s);
 				//printf("Setpoints: holdTiltN:%8.4f holdTiltE:%8.4f sp pitch:%8.4f sp roll:%8.4f thrust:%8.4f sp yaw:%8.4f\n", navData.holdTiltN, navData.holdTiltE, att_sp.pitch_body, att_sp.roll_body, att_sp.thrust, att_sp.yaw_body);

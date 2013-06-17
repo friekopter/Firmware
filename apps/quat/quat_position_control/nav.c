@@ -278,7 +278,7 @@ void navNavigate(
 
     if (UKF_POSN != 0.0f || UKF_POSE != 0.0f) {
 		navData.holdCourse = compassNormalize(atan2f(-UKF_POSE, -UKF_POSN) * RAD_TO_DEG);
-		navData.holdDistance = sqrtf(UKF_POSN*UKF_POSN + UKF_POSE*UKF_POSE);
+		navData.holdDistance = aq_sqrtf(UKF_POSN*UKF_POSN + UKF_POSE*UKF_POSE);
     }
     else {
 		navData.holdCourse = 0.0f;
@@ -363,7 +363,7 @@ void navNavigate(
 
     if (abs(navData.holdSpeedE) > FLT_MIN || abs(navData.holdSpeedE) > FLT_MIN) {
         // normalize N/E speed requests to fit below max nav speed
-        tmp = sqrtf(navData.holdSpeedN*navData.holdSpeedN + navData.holdSpeedE*navData.holdSpeedE);
+        tmp = aq_sqrtf(navData.holdSpeedN*navData.holdSpeedN + navData.holdSpeedE*navData.holdSpeedE);
         if (tmp > navData.holdMaxHorizSpeed) {
     		navData.holdSpeedN = (navData.holdSpeedN / tmp) * navData.holdMaxHorizSpeed;
     		navData.holdSpeedE = (navData.holdSpeedE / tmp) * navData.holdMaxHorizSpeed;

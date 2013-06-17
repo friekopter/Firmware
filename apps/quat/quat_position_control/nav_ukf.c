@@ -72,7 +72,7 @@ void navUkfCalcEarthRadius(double lat) {
     sinLat2 = sinLat2 * sinLat2;
 
     navUkfData.r1 = NAV_EQUATORIAL_RADIUS * DEG_TO_RAD * (1.0f - NAV_E_2) / powf(1.0f - (NAV_E_2 * sinLat2), (3.0f / 2.0f));
-    navUkfData.r2 = NAV_EQUATORIAL_RADIUS * DEG_TO_RAD / sqrtf(1.0f - (NAV_E_2 * sinLat2));
+    navUkfData.r2 = NAV_EQUATORIAL_RADIUS * DEG_TO_RAD / aq_sqrtf(1.0f - (NAV_E_2 * sinLat2));
 }
 
 void navUkfCalcDistance(double lat, double lon, float *posNorth, float *posEast) {
@@ -115,7 +115,7 @@ void navUkfSetGlobalPositionTarget(double lat, double lon) {
 void navUkfNormalizeVec3(float *vr, float *v) {
     float norm;
 
-    norm = sqrtf(v[0]*v[0] + v[1]*v[1] + v[2]*v[2]);
+    norm = aq_sqrtf(v[0]*v[0] + v[1]*v[1] + v[2]*v[2]);
 
     vr[0] = v[0] / norm;
     vr[1] = v[1] / norm;
@@ -125,7 +125,7 @@ void navUkfNormalizeVec3(float *vr, float *v) {
 void navUkfNormalizeQuat(float *qr, float *q) {
     float norm;
 
-    norm = sqrtf(q[0]*q[0] + q[1]*q[1] + q[2]*q[2] + q[3]*q[3]);
+    norm = aq_sqrtf(q[0]*q[0] + q[1]*q[1] + q[2]*q[2] + q[3]*q[3]);
 
     qr[0] = q[0] / norm;
     qr[1] = q[1] / norm;
@@ -263,7 +263,7 @@ void navUkfRotateQuat(float *qr, float *q, float *rate, float dt) {
     float s, t, lg;
     float qMag;
 
-    s = sqrtf(rate[0]*rate[0] + rate[1]*rate[1] + rate[2]*rate[2]) * 0.5f;
+    s = aq_sqrtf(rate[0]*rate[0] + rate[1]*rate[1] + rate[2]*rate[2]) * 0.5f;
     if(s < FLT_MIN) {
         qr[0] = q[0];
         qr[1] = q[1];
@@ -467,7 +467,7 @@ void simDoAccUpdate(float accX, float accY, float accZ,
     accZ += UKF_ACC_BIAS_Z;
 
     // normalize vector
-    norm =  sqrtf(accX*accX + accY*accY + accZ*accZ);
+    norm =  aq_sqrtf(accX*accX + accY*accY + accZ*accZ);
     y[0] = accX / norm;
     y[1] = accY / norm;
     y[2] = accZ / norm;
@@ -501,7 +501,7 @@ void simDoMagUpdate(float magX, float magY, float magZ,
     noise[2] = noise[0];
 
     // normalize vector
-    norm = 1.0f / sqrtf(magX*magX + magY*magY + magZ*magZ);
+    norm = 1.0f / aq_sqrtf(magX*magX + magY*magY + magZ*magZ);
     y[0] = magX * norm;
     y[1] = magY * norm;
     y[2] = magZ * norm;
@@ -549,9 +549,9 @@ void navUkfGpsPosUpate(
 			UKF_POSE = navUkfData.posE[histIndex];
 			UKF_POSD = navUkfData.posD[histIndex];
 
-			noise[0] = params->ukf_gps_pos_n + gps_position->eph_m * sqrtf(gps_position->tDop*gps_position->tDop + gps_position->nDop*gps_position->nDop) * params->ukf_gps_pos_m_n;
-			noise[1] = params->ukf_gps_pos_n + gps_position->eph_m * sqrtf(gps_position->tDop*gps_position->tDop + gps_position->eDop*gps_position->eDop) * params->ukf_gps_pos_m_n;
-			noise[2] = params->ukf_gps_alt_n + gps_position->epv_m * sqrtf(gps_position->tDop*gps_position->tDop + gps_position->vDop*gps_position->vDop) * params->ukf_gps_alt_m_n;
+			noise[0] = params->ukf_gps_pos_n + gps_position->eph_m * aq_sqrtf(gps_position->tDop*gps_position->tDop + gps_position->nDop*gps_position->nDop) * params->ukf_gps_pos_m_n;
+			noise[1] = params->ukf_gps_pos_n + gps_position->eph_m * aq_sqrtf(gps_position->tDop*gps_position->tDop + gps_position->eDop*gps_position->eDop) * params->ukf_gps_pos_m_n;
+			noise[2] = params->ukf_gps_alt_n + gps_position->epv_m * aq_sqrtf(gps_position->tDop*gps_position->tDop + gps_position->vDop*gps_position->vDop) * params->ukf_gps_alt_m_n;
 
 			srcdkfMeasurementUpdate(navUkfData.kf, 0, y, 3, 3, noise, navUkfPosUpdate);
 
@@ -633,9 +633,9 @@ void navUkfGpsVelUpate(
 	UKF_VELE = navUkfData.velE[histIndex];
 	UKF_VELD = navUkfData.velD[histIndex];
 
-	noise[0] = params->ukf_gps_vel_n + gps_position->sAcc * sqrtf(gps_position->tDop*gps_position->tDop + gps_position->nDop*gps_position->nDop) * params->ukf_gps_vel_m_n;
-	noise[1] = params->ukf_gps_vel_n + gps_position->sAcc * sqrtf(gps_position->tDop*gps_position->tDop + gps_position->eDop*gps_position->eDop) * params->ukf_gps_vel_m_n;
-	noise[2] = params->ukf_gps_vd_n  + gps_position->sAcc * sqrtf(gps_position->tDop*gps_position->tDop + gps_position->vDop*gps_position->vDop) * params->ukf_gps_vd_m_n;
+	noise[0] = params->ukf_gps_vel_n + gps_position->sAcc * aq_sqrtf(gps_position->tDop*gps_position->tDop + gps_position->nDop*gps_position->nDop) * params->ukf_gps_vel_m_n;
+	noise[1] = params->ukf_gps_vel_n + gps_position->sAcc * aq_sqrtf(gps_position->tDop*gps_position->tDop + gps_position->eDop*gps_position->eDop) * params->ukf_gps_vel_m_n;
+	noise[2] = params->ukf_gps_vd_n  + gps_position->sAcc * aq_sqrtf(gps_position->tDop*gps_position->tDop + gps_position->vDop*gps_position->vDop) * params->ukf_gps_vd_m_n;
 
 	srcdkfMeasurementUpdate(navUkfData.kf, 0, y, 3, 3, noise, navUkfVelUpdate);
 
