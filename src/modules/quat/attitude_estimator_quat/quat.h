@@ -1,8 +1,9 @@
 
 #ifndef _quat_h
 #define _quat_h
-#include <attitude_estimator_quat_params.h>
 #include <uORB/topics/vehicle_attitude.h>
+
+#include "attitude_estimator_quat_params.h"
 
 
 #define QUAT_N                  1.0f		// factor that determines the convergence speed of the quat's numerical error: (n * dt) < 1

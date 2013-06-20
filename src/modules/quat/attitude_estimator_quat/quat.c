@@ -1,13 +1,14 @@
 
 #include "quat.h"
 #include <quat/utils/compass_utils.h>
-#include "aq.h"
-#include <attitude_estimator_quat_params.h>
 #include <unistd.h>
 #include <string.h>
 #include <math.h>
 #include <systemlib/conversions.h>
-#include <quat/utils/quat_constants.h>
+
+#include "quat/utils/quat_constants.h"
+#include "attitude_estimator_quat_params.h"
+#include "aq.h"
 
 quatStruct_t quatData;
 

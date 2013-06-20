@@ -20,11 +20,11 @@
 #define _nav_h
 
 //#include <CoOS.h>
-#include <../utils/pid.h>
 #include <uORB/topics/vehicle_gps_position.h>
 #include <uORB/topics/vehicle_status.h>
 #include <uORB/topics/manual_control_setpoint.h>
-#include <quat_pos_control_params.h>
+#include "quat_pos_control_params.h"
+#include <quat/utils/pid.h>
 
 #define NAV_MIN_GPS_ACC		3.0f
 #define NAV_MAX_FIX_AGE		((int)1e6f)				    // 1 second

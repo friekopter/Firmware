@@ -550,7 +550,7 @@ UBX::handle_message()
 			break;
 		}
 
-//		case NAV_DOP: {
+		case NAV_DOP: {
 ////		printf("GOT NAV_DOP MESSAGE\n");
 			if (!_waiting_for_ack) {
 				gps_bin_nav_dop_packet_t *packet = (gps_bin_nav_dop_packet_t *) _rx_buffer;

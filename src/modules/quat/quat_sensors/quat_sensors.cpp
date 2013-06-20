@@ -1,44 +1,3 @@
-/****************************************************************************
- *
- *   Copyright (C) 2012 PX4 Development Team. All rights reserved.
- *   Author: Lorenz Meier <lm@inf.ethz.ch>
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- *
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
- * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in
- *    the documentation and/or other materials provided with the
- *    distribution.
- * 3. Neither the name PX4 nor the names of its contributors may be
- *    used to endorse or promote products derived from this software
- *    without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
- * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
- * COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
- * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
- * BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS
- * OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED
- * AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
- * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
- * ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- * POSSIBILITY OF SUCH DAMAGE.
- *
- ****************************************************************************/
-
-/**
- * @file sensors.cpp
- * Sensor readout process.
- *
- * @author Lorenz Meier <lm@inf.ethz.ch>
- */
-
 #include <nuttx/config.h>
 
 #include <fcntl.h>
@@ -79,6 +38,8 @@
 #include <uORB/topics/differential_pressure.h>
 #include <uORB/topics/airspeed.h>
 
+#include <mathlib/CMSIS/Include/arm_math.h>
+
 #define GYRO_HEALTH_COUNTER_LIMIT_ERROR 20   /* 40 ms downtime at 500 Hz update rate   */
 #define ACC_HEALTH_COUNTER_LIMIT_ERROR  20   /* 40 ms downtime at 500 Hz update rate   */
 #define MAGN_HEALTH_COUNTER_LIMIT_ERROR 100  /* 1000 ms downtime at 100 Hz update rate  */
@@ -99,12 +60,6 @@
 #define BAT_VOL_LOWPASS_2 0.01f
 #define VOLTAGE_BATTERY_IGNORE_THRESHOLD_VOLTS 3.5f
 
-/**
- * HACK - true temperature is much less than indicated temperature in baro,
- * subtract 5 degrees in an attempt to account for the electrical upheating of the PCB
- */
-#define PCB_TEMP_ESTIMATE_DEG 5.0f
-
 #define PPM_INPUT_TIMEOUT_INTERVAL	50000 /**< 50 ms timeout / 20 Hz */
 
 #define limit_minus_one_to_one(arg) (arg < -1.0f) ? -1.0f : ((arg > 1.0f) ? 1.0f : arg)
@@ -114,20 +69,20 @@
  *
  * @ingroup apps
  */
-extern "C" __EXPORT int sensors_main(int argc, char *argv[]);
+extern "C" __EXPORT int quat_sensors_main(int argc, char *argv[]);
 
-class Sensors
+class Quat_Sensors
 {
 public:
 	/**
 	 * Constructor
 	 */
-	Sensors();
+	Quat_Sensors();
 
 	/**
 	 * Destructor, also kills the sensors task.
 	 */
-	~Sensors();
+	~Quat_Sensors();
 
 	/**
 	 * Start the sensors task.
@@ -153,7 +108,7 @@ private:
 	hrt_abstime	_last_adc;			/**< last time we took input from the ADC */
 
 	bool 		_task_should_exit;		/**< if true, sensor task should exit */
-	int 		_sensors_task;			/**< task handle for sensor task */
+	int 		_quat_sensors_task;			/**< task handle for sensor task */
 
 	bool		_hil_enabled;			/**< if true, HIL is active */
 	bool		_publishing;			/**< if true, we are publishing sensor data */
@@ -163,8 +118,6 @@ private:
 	int		_mag_sub;			/**< raw mag data subscription */
 	int 		_rc_sub;			/**< raw rc channels data subscription */
 	int		_baro_sub;			/**< raw baro data subscription */
-	int     _airspeed_sub;		/**< airspeed subscription */
-	int		_diff_pres_sub;		/**< raw differential pressure subscription */
 	int		_vstatus_sub;			/**< vehicle status subscription */
 	int 		_params_sub;			/**< notification of parameter updates */
 	int 		_manual_control_sub;			/**< notification of manual control updates */
@@ -184,6 +137,10 @@ private:
 	struct differential_pressure_s _diff_pres;
 	struct airspeed_s _airspeed;
 
+	float temp; /**< temperature for sensor correction */
+	float temp2;/**< temperature² for sensor correction */
+	float temp3;/**< temperature³ for sensor correction */
+
 	struct {
 		float min[_rc_max_chan_count];
 		float trim[_rc_max_chan_count];
@@ -193,11 +150,47 @@ private:
 		// float ex[_rc_max_chan_count];
 		float scaling_factor[_rc_max_chan_count];
 
-		float gyro_offset[3];
-		float mag_offset[3];
+		float gyro_bias1[3];
+		float gyro_bias2[3];
+		float gyro_bias3[3];
+		float gyro_align_xy;
+		float gyro_align_xz;
+		float gyro_align_yx;
+		float gyro_align_yz;
+		float gyro_align_zx;
+		float gyro_align_zy;
+		float gyro_scale[3];
+
+		float acc_bias[3];
+		float acc_bias1[3];
+		float acc_bias2[3];
+		float acc_bias3[3];
+		float acc_align_xy;
+		float acc_align_xz;
+		float acc_align_yx;
+		float acc_align_yz;
+		float acc_align_zx;
+		float acc_align_zy;
+		float acc_scale[3];
+		float acc_scale1[3];
+		float acc_scale2[3];
+		float acc_scale3[3];
+
+		float mag_bias[3];
+		float mag_bias1[3];
+		float mag_bias2[3];
+		float mag_bias3[3];
+		float mag_align_xy;
+		float mag_align_xz;
+		float mag_align_yx;
+		float mag_align_yz;
+		float mag_align_zx;
+		float mag_align_zy;
 		float mag_scale[3];
-		float accel_offset[3];
-		float accel_scale[3];
+		float mag_scale1[3];
+		float mag_scale2[3];
+		float mag_scale3[3];
+
 		int diff_pres_offset_pa;
 
 		int rc_type;
@@ -242,11 +235,47 @@ private:
 
 		param_t rc_demix;
 
-		param_t gyro_offset[3];
-		param_t accel_offset[3];
-		param_t accel_scale[3];
-		param_t mag_offset[3];
+		param_t gyro_bias1[3];
+		param_t gyro_bias2[3];
+		param_t gyro_bias3[3];
+		param_t gyro_align_xy;
+		param_t gyro_align_xz;
+		param_t gyro_align_yx;
+		param_t gyro_align_yz;
+		param_t gyro_align_zx;
+		param_t gyro_align_zy;
+		param_t gyro_scale[3];
+
+		param_t acc_bias[3];
+		param_t acc_bias1[3];
+		param_t acc_bias2[3];
+		param_t acc_bias3[3];
+		param_t acc_align_xy;
+		param_t acc_align_xz;
+		param_t acc_align_yx;
+		param_t acc_align_yz;
+		param_t acc_align_zx;
+		param_t acc_align_zy;
+		param_t acc_scale[3];
+		param_t acc_scale1[3];
+		param_t acc_scale2[3];
+		param_t acc_scale3[3];
+
+		param_t mag_bias[3];
+		param_t mag_bias1[3];
+		param_t mag_bias2[3];
+		param_t mag_bias3[3];
+		param_t mag_align_xy;
+		param_t mag_align_xz;
+		param_t mag_align_yx;
+		param_t mag_align_yz;
+		param_t mag_align_zx;
+		param_t mag_align_zy;
 		param_t mag_scale[3];
+		param_t mag_scale1[3];
+		param_t mag_scale2[3];
+		param_t mag_scale3[3];
+
 		param_t diff_pres_offset_pa;
 
 		param_t rc_map_roll;
@@ -342,14 +371,6 @@ private:
 	void		baro_poll(struct sensor_combined_s &raw);
 
 	/**
-	 * Poll the differential pressure sensor for updated data.
-	 *
-	 * @param raw			Combined sensor data structure into which
-	 *				data should be returned.
-	 */
-	void		diff_pres_poll(struct sensor_combined_s &raw);
-
-	/**
 	 * Check for changes in vehicle status.
 	 */
 	void		vehicle_status_poll();
@@ -376,9 +397,29 @@ private:
 	 * Main sensor collection task.
 	 */
 	void		task_main() __attribute__((noreturn));
+
+	/**
+	 * Correct the gyro values by the temperature
+	 */
+	void	correctGyroMeasurement(struct  gyro_report &gyro_report);
+
+	/**
+	 * Correct the acc values by the temperature
+     */
+	void	correctAccMeasurement(struct accel_report &acc_report);
+
+	/**
+	 * Correct the mag values by the temperature
+     */
+	void	correctMagMeasurement(struct mag_report &mag_report);
+
+	/**
+	 * Calibrate gyro measurements
+	 */
+	void	gyro_calibrate();
 };
 
-namespace sensors
+namespace quat_sensors
 {
 
 /* oddly, ERROR is not defined for c++ */
@@ -387,19 +428,17 @@ namespace sensors
 #endif
 static const int ERROR = -1;
 
-Sensors	*g_sensors;
+Quat_Sensors	*g_quat_sensors;
 }
 
-Sensors::Sensors() :
-#ifdef CONFIG_HRT_PPM
+Quat_Sensors::Quat_Sensors() :
 	_ppm_last_valid(0),
-#endif
 
 	_fd_adc(-1),
 	_last_adc(0),
 
 	_task_should_exit(false),
-	_sensors_task(-1),
+	_quat_sensors_task(-1),
 	_hil_enabled(false),
 	_publishing(true),
 
@@ -419,7 +458,6 @@ Sensors::Sensors() :
 	_rc_pub(-1),
 	_battery_pub(-1),
 	_airspeed_pub(-1),
-	_diff_pres_pub(-1),
 
 /* performance counters */
 	_loop_perf(perf_alloc(PC_ELAPSED, "sensor task update"))
@@ -483,26 +521,88 @@ Sensors::Sensors() :
 	_parameter_handles.rc_scale_flaps = param_find("RC_SCALE_FLAPS");
 
 	/* gyro offsets */
-	_parameter_handles.gyro_offset[0] = param_find("SENS_GYRO_XOFF");
-	_parameter_handles.gyro_offset[1] = param_find("SENS_GYRO_YOFF");
-	_parameter_handles.gyro_offset[2] = param_find("SENS_GYRO_ZOFF");
+	_parameter_handles.gyro_scale[0] = param_find("IMU_GYO_SCAL_X");
+	_parameter_handles.gyro_scale[1] = param_find("IMU_GYO_SCAL_Y");
+	_parameter_handles.gyro_scale[2] = param_find("IMU_GYO_SCAL_Z");
+	_parameter_handles.gyro_bias1[0] = param_find("IMU_GYO_BIAS1_X");
+	_parameter_handles.gyro_bias1[1] = param_find("IMU_GYO_BIAS1_Y");
+	_parameter_handles.gyro_bias1[2] = param_find("IMU_GYO_BIAS1_Z");
+	_parameter_handles.gyro_bias2[0] = param_find("IMU_GYO_BIAS2_X");
+	_parameter_handles.gyro_bias2[1] = param_find("IMU_GYO_BIAS2_Y");
+	_parameter_handles.gyro_bias2[2] = param_find("IMU_GYO_BIAS2_Z");
+	_parameter_handles.gyro_bias3[0] = param_find("IMU_GYO_BIAS3_X");
+	_parameter_handles.gyro_bias3[1] = param_find("IMU_GYO_BIAS3_Y");
+	_parameter_handles.gyro_bias3[2] = param_find("IMU_GYO_BIAS3_Z");
+	_parameter_handles.gyro_align_xy = param_find("IMU_GYO_ALGN_XY");
+	_parameter_handles.gyro_align_xz = param_find("IMU_GYO_ALGN_XZ");
+	_parameter_handles.gyro_align_yx = param_find("IMU_GYO_ALGN_YX");
+	_parameter_handles.gyro_align_yz = param_find("IMU_GYO_ALGN_YZ");
+	_parameter_handles.gyro_align_zx = param_find("IMU_GYO_ALGN_ZX");
+	_parameter_handles.gyro_align_zy = param_find("IMU_GYO_ALGN_ZY");
 
 	/* accel offsets */
-	_parameter_handles.accel_offset[0] = param_find("SENS_ACC_XOFF");
-	_parameter_handles.accel_offset[1] = param_find("SENS_ACC_YOFF");
-	_parameter_handles.accel_offset[2] = param_find("SENS_ACC_ZOFF");
-	_parameter_handles.accel_scale[0] = param_find("SENS_ACC_XSCALE");
-	_parameter_handles.accel_scale[1] = param_find("SENS_ACC_YSCALE");
-	_parameter_handles.accel_scale[2] = param_find("SENS_ACC_ZSCALE");
+	_parameter_handles.acc_scale[0] = param_find("IMU_ACC_SCAL_X");
+	_parameter_handles.acc_scale[1] = param_find("IMU_ACC_SCAL_Y");
+	_parameter_handles.acc_scale[2] = param_find("IMU_ACC_SCAL_Z");
+	_parameter_handles.acc_scale1[0] = param_find("IMU_ACC_SCAL1_X");
+	_parameter_handles.acc_scale1[1] = param_find("IMU_ACC_SCAL1_Y");
+	_parameter_handles.acc_scale1[2] = param_find("IMU_ACC_SCAL1_Z");
+	_parameter_handles.acc_scale2[0] = param_find("IMU_ACC_SCAL2_X");
+	_parameter_handles.acc_scale2[1] = param_find("IMU_ACC_SCAL2_Y");
+	_parameter_handles.acc_scale2[2] = param_find("IMU_ACC_SCAL2_Z");
+	_parameter_handles.acc_scale3[0] = param_find("IMU_ACC_SCAL3_X");
+	_parameter_handles.acc_scale3[1] = param_find("IMU_ACC_SCAL3_Y");
+	_parameter_handles.acc_scale3[2] = param_find("IMU_ACC_SCAL3_Z");
+	_parameter_handles.acc_bias[0] = param_find("IMU_ACC_BIAS_X");
+	_parameter_handles.acc_bias[1] = param_find("IMU_ACC_BIAS_Y");
+	_parameter_handles.acc_bias[2] = param_find("IMU_ACC_BIAS_Z");
+	_parameter_handles.acc_bias1[0] = param_find("IMU_ACC_BIAS1_X");
+	_parameter_handles.acc_bias1[1] = param_find("IMU_ACC_BIAS1_Y");
+	_parameter_handles.acc_bias1[2] = param_find("IMU_ACC_BIAS1_Z");
+	_parameter_handles.acc_bias2[0] = param_find("IMU_ACC_BIAS2_X");
+	_parameter_handles.acc_bias2[1] = param_find("IMU_ACC_BIAS2_Y");
+	_parameter_handles.acc_bias2[2] = param_find("IMU_ACC_BIAS2_Z");
+	_parameter_handles.acc_bias3[0] = param_find("IMU_ACC_BIAS3_X");
+	_parameter_handles.acc_bias3[1] = param_find("IMU_ACC_BIAS3_Y");
+	_parameter_handles.acc_bias3[2] = param_find("IMU_ACC_BIAS3_Z");
+	_parameter_handles.acc_align_xy = param_find("IMU_ACC_ALGN_XY");
+	_parameter_handles.acc_align_xz = param_find("IMU_ACC_ALGN_XZ");
+	_parameter_handles.acc_align_yx = param_find("IMU_ACC_ALGN_YX");
+	_parameter_handles.acc_align_yz = param_find("IMU_ACC_ALGN_YZ");
+	_parameter_handles.acc_align_zx = param_find("IMU_ACC_ALGN_ZX");
+	_parameter_handles.acc_align_zy = param_find("IMU_ACC_ALGN_ZY");
 
 	/* mag offsets */
-	_parameter_handles.mag_offset[0] = param_find("SENS_MAG_XOFF");
-	_parameter_handles.mag_offset[1] = param_find("SENS_MAG_YOFF");
-	_parameter_handles.mag_offset[2] = param_find("SENS_MAG_ZOFF");
-
-	_parameter_handles.mag_scale[0] = param_find("SENS_MAG_XSCALE");
-	_parameter_handles.mag_scale[1] = param_find("SENS_MAG_YSCALE");
-	_parameter_handles.mag_scale[2] = param_find("SENS_MAG_ZSCALE");
+	_parameter_handles.mag_scale[0] = param_find("IMU_MAG_SCAL_X");
+	_parameter_handles.mag_scale[1] = param_find("IMU_MAG_SCAL_Y");
+	_parameter_handles.mag_scale[2] = param_find("IMU_MAG_SCAL_Z");
+	_parameter_handles.mag_scale1[0] = param_find("IMU_MAG_SCAL1_X");
+	_parameter_handles.mag_scale1[1] = param_find("IMU_MAG_SCAL1_Y");
+	_parameter_handles.mag_scale1[2] = param_find("IMU_MAG_SCAL1_Z");
+	_parameter_handles.mag_scale2[0] = param_find("IMU_MAG_SCAL2_X");
+	_parameter_handles.mag_scale2[1] = param_find("IMU_MAG_SCAL2_Y");
+	_parameter_handles.mag_scale2[2] = param_find("IMU_MAG_SCAL2_Z");
+	_parameter_handles.mag_scale3[0] = param_find("IMU_MAG_SCAL3_X");
+	_parameter_handles.mag_scale3[1] = param_find("IMU_MAG_SCAL3_Y");
+	_parameter_handles.mag_scale3[2] = param_find("IMU_MAG_SCAL3_Z");
+	_parameter_handles.mag_bias[0] = param_find("IMU_MAG_BIAS_X");
+	_parameter_handles.mag_bias[1] = param_find("IMU_MAG_BIAS_Y");
+	_parameter_handles.mag_bias[2] = param_find("IMU_MAG_BIAS_Z");
+	_parameter_handles.mag_bias1[0] = param_find("IMU_MAG_BIAS1_X");
+	_parameter_handles.mag_bias1[1] = param_find("IMU_MAG_BIAS1_Y");
+	_parameter_handles.mag_bias1[2] = param_find("IMU_MAG_BIAS1_Z");
+	_parameter_handles.mag_bias2[0] = param_find("IMU_MAG_BIAS2_X");
+	_parameter_handles.mag_bias2[1] = param_find("IMU_MAG_BIAS2_Y");
+	_parameter_handles.mag_bias2[2] = param_find("IMU_MAG_BIAS2_Z");
+	_parameter_handles.mag_bias3[0] = param_find("IMU_MAG_BIAS3_X");
+	_parameter_handles.mag_bias3[1] = param_find("IMU_MAG_BIAS3_Y");
+	_parameter_handles.mag_bias3[2] = param_find("IMU_MAG_BIAS3_Z");
+	_parameter_handles.mag_align_xy = param_find("IMU_MAG_ALGN_XY");
+	_parameter_handles.mag_align_xz = param_find("IMU_MAG_ALGN_XZ");
+	_parameter_handles.mag_align_yx = param_find("IMU_MAG_ALGN_YX");
+	_parameter_handles.mag_align_yz = param_find("IMU_MAG_ALGN_YZ");
+	_parameter_handles.mag_align_zx = param_find("IMU_MAG_ALGN_ZX");
+	_parameter_handles.mag_align_zy = param_find("IMU_MAG_ALGN_ZY");
 
 	/* Differential pressure offset */
 	_parameter_handles.diff_pres_offset_pa = param_find("SENS_DPRES_OFF");
@@ -513,9 +613,9 @@ Sensors::Sensors() :
 	parameters_update();
 }
 
-Sensors::~Sensors()
+Quat_Sensors::~Quat_Sensors()
 {
-	if (_sensors_task != -1) {
+	if (_quat_sensors_task != -1) {
 
 		/* task wakes up every 100ms or so at the longest */
 		_task_should_exit = true;
@@ -529,17 +629,17 @@ Sensors::~Sensors()
 
 			/* if we have given up, kill it */
 			if (++i > 50) {
-				task_delete(_sensors_task);
+				task_delete(_quat_sensors_task);
 				break;
 			}
-		} while (_sensors_task != -1);
+		} while (_quat_sensors_task != -1);
 	}
 
-	sensors::g_sensors = nullptr;
+	quat_sensors::g_quat_sensors = nullptr;
 }
 
 int
-Sensors::parameters_update()
+Quat_Sensors::parameters_update()
 {
 	bool rc_valid = true;
 
@@ -693,26 +793,89 @@ Sensors::parameters_update()
 	_rc.function[AUX_5] = _parameters.rc_map_aux5 - 1;
 
 	/* gyro offsets */
-	param_get(_parameter_handles.gyro_offset[0], &(_parameters.gyro_offset[0]));
-	param_get(_parameter_handles.gyro_offset[1], &(_parameters.gyro_offset[1]));
-	param_get(_parameter_handles.gyro_offset[2], &(_parameters.gyro_offset[2]));
+	param_get(_parameter_handles.gyro_bias1[0], &(_parameters.gyro_bias1[0]));
+	param_get(_parameter_handles.gyro_bias1[1], &(_parameters.gyro_bias1[1]));
+	param_get(_parameter_handles.gyro_bias1[2], &(_parameters.gyro_bias1[2]));
+	param_get(_parameter_handles.gyro_bias2[0], &(_parameters.gyro_bias2[0]));
+	param_get(_parameter_handles.gyro_bias2[1], &(_parameters.gyro_bias2[1]));
+	param_get(_parameter_handles.gyro_bias2[2], &(_parameters.gyro_bias2[2]));
+	param_get(_parameter_handles.gyro_bias3[0], &(_parameters.gyro_bias3[0]));
+	param_get(_parameter_handles.gyro_bias3[1], &(_parameters.gyro_bias3[1]));
+	param_get(_parameter_handles.gyro_bias3[2], &(_parameters.gyro_bias3[2]));
+	param_get(_parameter_handles.gyro_align_xy, &(_parameters.gyro_align_xy));
+	param_get(_parameter_handles.gyro_align_xz, &(_parameters.gyro_align_xz));
+	param_get(_parameter_handles.gyro_align_yx, &(_parameters.gyro_align_yx));
+	param_get(_parameter_handles.gyro_align_yz, &(_parameters.gyro_align_yz));
+	param_get(_parameter_handles.gyro_align_zx, &(_parameters.gyro_align_zx));
+	param_get(_parameter_handles.gyro_align_zy, &(_parameters.gyro_align_zy));
+	param_get(_parameter_handles.gyro_scale[0], &(_parameters.gyro_scale[0]));
+	param_get(_parameter_handles.gyro_scale[1], &(_parameters.gyro_scale[1]));
+	param_get(_parameter_handles.gyro_scale[2], &(_parameters.gyro_scale[2]));
 
 	/* accel offsets */
-	param_get(_parameter_handles.accel_offset[0], &(_parameters.accel_offset[0]));
-	param_get(_parameter_handles.accel_offset[1], &(_parameters.accel_offset[1]));
-	param_get(_parameter_handles.accel_offset[2], &(_parameters.accel_offset[2]));
-	param_get(_parameter_handles.accel_scale[0], &(_parameters.accel_scale[0]));
-	param_get(_parameter_handles.accel_scale[1], &(_parameters.accel_scale[1]));
-	param_get(_parameter_handles.accel_scale[2], &(_parameters.accel_scale[2]));
+	param_get(_parameter_handles.acc_bias[0], &(_parameters.acc_bias[0]));
+	param_get(_parameter_handles.acc_bias[1], &(_parameters.acc_bias[1]));
+	param_get(_parameter_handles.acc_bias[2], &(_parameters.acc_bias[2]));
+	param_get(_parameter_handles.acc_bias1[0], &(_parameters.acc_bias1[0]));
+	param_get(_parameter_handles.acc_bias1[1], &(_parameters.acc_bias1[1]));
+	param_get(_parameter_handles.acc_bias1[2], &(_parameters.acc_bias1[2]));
+	param_get(_parameter_handles.acc_bias2[0], &(_parameters.acc_bias2[0]));
+	param_get(_parameter_handles.acc_bias2[1], &(_parameters.acc_bias2[1]));
+	param_get(_parameter_handles.acc_bias2[2], &(_parameters.acc_bias2[2]));
+	param_get(_parameter_handles.acc_bias3[0], &(_parameters.acc_bias3[0]));
+	param_get(_parameter_handles.acc_bias3[1], &(_parameters.acc_bias3[1]));
+	param_get(_parameter_handles.acc_bias3[2], &(_parameters.acc_bias3[2]));
+	param_get(_parameter_handles.acc_align_xy, &(_parameters.acc_align_xy));
+	param_get(_parameter_handles.acc_align_xz, &(_parameters.acc_align_xz));
+	param_get(_parameter_handles.acc_align_yx, &(_parameters.acc_align_yx));
+	param_get(_parameter_handles.acc_align_yz, &(_parameters.acc_align_yz));
+	param_get(_parameter_handles.acc_align_zx, &(_parameters.acc_align_zx));
+	param_get(_parameter_handles.acc_align_zy, &(_parameters.acc_align_zy));
+	param_get(_parameter_handles.acc_scale[0], &(_parameters.acc_scale[0]));
+	param_get(_parameter_handles.acc_scale[1], &(_parameters.acc_scale[1]));
+	param_get(_parameter_handles.acc_scale[2], &(_parameters.acc_scale[2]));
+	param_get(_parameter_handles.acc_scale1[0], &(_parameters.acc_scale1[0]));
+	param_get(_parameter_handles.acc_scale1[1], &(_parameters.acc_scale1[1]));
+	param_get(_parameter_handles.acc_scale1[2], &(_parameters.acc_scale1[2]));
+	param_get(_parameter_handles.acc_scale2[0], &(_parameters.acc_scale2[0]));
+	param_get(_parameter_handles.acc_scale2[1], &(_parameters.acc_scale2[1]));
+	param_get(_parameter_handles.acc_scale2[2], &(_parameters.acc_scale2[2]));
+	param_get(_parameter_handles.acc_scale3[0], &(_parameters.acc_scale3[0]));
+	param_get(_parameter_handles.acc_scale3[1], &(_parameters.acc_scale3[1]));
+	param_get(_parameter_handles.acc_scale3[2], &(_parameters.acc_scale3[2]));
+
 
 	/* mag offsets */
-	param_get(_parameter_handles.mag_offset[0], &(_parameters.mag_offset[0]));
-	param_get(_parameter_handles.mag_offset[1], &(_parameters.mag_offset[1]));
-	param_get(_parameter_handles.mag_offset[2], &(_parameters.mag_offset[2]));
-	/* mag scaling */
+	param_get(_parameter_handles.mag_bias[0], &(_parameters.mag_bias[0]));
+	param_get(_parameter_handles.mag_bias[1], &(_parameters.mag_bias[1]));
+	param_get(_parameter_handles.mag_bias[2], &(_parameters.mag_bias[2]));
+	param_get(_parameter_handles.mag_bias1[0], &(_parameters.mag_bias1[0]));
+	param_get(_parameter_handles.mag_bias1[1], &(_parameters.mag_bias1[1]));
+	param_get(_parameter_handles.mag_bias1[2], &(_parameters.mag_bias1[2]));
+	param_get(_parameter_handles.mag_bias2[0], &(_parameters.mag_bias2[0]));
+	param_get(_parameter_handles.mag_bias2[1], &(_parameters.mag_bias2[1]));
+	param_get(_parameter_handles.mag_bias2[2], &(_parameters.mag_bias2[2]));
+	param_get(_parameter_handles.mag_bias3[0], &(_parameters.mag_bias3[0]));
+	param_get(_parameter_handles.mag_bias3[1], &(_parameters.mag_bias3[1]));
+	param_get(_parameter_handles.mag_bias3[2], &(_parameters.mag_bias3[2]));
+	param_get(_parameter_handles.mag_align_xy, &(_parameters.mag_align_xy));
+	param_get(_parameter_handles.mag_align_xz, &(_parameters.mag_align_xz));
+	param_get(_parameter_handles.mag_align_yx, &(_parameters.mag_align_yx));
+	param_get(_parameter_handles.mag_align_yz, &(_parameters.mag_align_yz));
+	param_get(_parameter_handles.mag_align_zx, &(_parameters.mag_align_zx));
+	param_get(_parameter_handles.mag_align_zy, &(_parameters.mag_align_zy));
 	param_get(_parameter_handles.mag_scale[0], &(_parameters.mag_scale[0]));
 	param_get(_parameter_handles.mag_scale[1], &(_parameters.mag_scale[1]));
 	param_get(_parameter_handles.mag_scale[2], &(_parameters.mag_scale[2]));
+	param_get(_parameter_handles.mag_scale1[0], &(_parameters.mag_scale1[0]));
+	param_get(_parameter_handles.mag_scale1[1], &(_parameters.mag_scale1[1]));
+	param_get(_parameter_handles.mag_scale1[2], &(_parameters.mag_scale1[2]));
+	param_get(_parameter_handles.mag_scale2[0], &(_parameters.mag_scale2[0]));
+	param_get(_parameter_handles.mag_scale2[1], &(_parameters.mag_scale2[1]));
+	param_get(_parameter_handles.mag_scale2[2], &(_parameters.mag_scale2[2]));
+	param_get(_parameter_handles.mag_scale3[0], &(_parameters.mag_scale3[0]));
+	param_get(_parameter_handles.mag_scale3[1], &(_parameters.mag_scale3[1]));
+	param_get(_parameter_handles.mag_scale3[2], &(_parameters.mag_scale3[2]));
 
 	/* Airspeed offset */
 	param_get(_parameter_handles.diff_pres_offset_pa, &(_parameters.diff_pres_offset_pa));
@@ -726,7 +889,7 @@ Sensors::parameters_update()
 }
 
 void
-Sensors::accel_init()
+Quat_Sensors::accel_init()
 {
 	int	fd;
 
@@ -749,7 +912,7 @@ Sensors::accel_init()
 }
 
 void
-Sensors::gyro_init()
+Quat_Sensors::gyro_init()
 {
 	int	fd;
 
@@ -772,7 +935,7 @@ Sensors::gyro_init()
 }
 
 void
-Sensors::mag_init()
+Quat_Sensors::mag_init()
 {
 	int	fd;
 
@@ -793,7 +956,7 @@ Sensors::mag_init()
 }
 
 void
-Sensors::baro_init()
+Quat_Sensors::baro_init()
 {
 	int	fd;
 
@@ -811,7 +974,7 @@ Sensors::baro_init()
 }
 
 void
-Sensors::adc_init()
+Quat_Sensors::adc_init()
 {
 
 	_fd_adc = open(ADC_DEVICE_PATH, O_RDONLY | O_NONBLOCK);
@@ -823,7 +986,7 @@ Sensors::adc_init()
 }
 
 void
-Sensors::accel_poll(struct sensor_combined_s &raw)
+Quat_Sensors::accel_poll(struct sensor_combined_s &raw)
 {
 	bool accel_updated;
 	orb_check(_accel_sub, &accel_updated);
@@ -846,7 +1009,73 @@ Sensors::accel_poll(struct sensor_combined_s &raw)
 }
 
 void
-Sensors::gyro_poll(struct sensor_combined_s &raw)
+Quat_Sensors::correctAccMeasurement(struct accel_report &acc_report)
+{
+	float x,y,z, a,b,c;
+	// rates
+	x = -(acc_report.x + _parameters.acc_bias1[0]*temp + _parameters.acc_bias2[0]*temp2 + _parameters.acc_bias3[0]*temp3);
+	y = +(acc_report.y + _parameters.acc_bias1[1]*temp + _parameters.acc_bias2[1]*temp2 + _parameters.acc_bias3[1]*temp3);
+	z = -(acc_report.z + _parameters.acc_bias1[2]*temp + _parameters.acc_bias2[2]*temp2 + _parameters.acc_bias3[2]*temp3);
+
+	a = x + y*_parameters.acc_align_xy + z*_parameters.acc_align_xz;
+	b = x*_parameters.acc_align_yx + y + z*_parameters.acc_align_yz;
+	c = x*_parameters.acc_align_zx + y*_parameters.acc_align_zy + z;
+
+	a /= _parameters.acc_scale[0] + _parameters.acc_scale1[0]*temp + _parameters.acc_scale2[0]*temp2 + _parameters.acc_scale3[0]*temp3;
+	b /= _parameters.acc_scale[1] + _parameters.acc_scale1[1]*temp + _parameters.acc_scale2[1]*temp2 + _parameters.acc_scale3[1]*temp3;
+	c /= _parameters.acc_scale[2] + _parameters.acc_scale1[2]*temp + _parameters.acc_scale2[2]*temp2 + _parameters.acc_scale3[2]*temp3;
+
+	acc_report.x = a;
+	acc_report.y = b;
+	acc_report.z = c;
+}
+
+void
+Quat_Sensors::correctMagMeasurement(struct mag_report &mag_report)
+{
+	float x,y,z, a,b,c;
+	// rates
+	x = -(mag_report.x + _parameters.mag_bias1[0]*temp + _parameters.mag_bias2[0]*temp2 + _parameters.mag_bias3[0]*temp3);
+	y = +(mag_report.y + _parameters.mag_bias1[1]*temp + _parameters.mag_bias2[1]*temp2 + _parameters.mag_bias3[1]*temp3);
+	z = -(mag_report.z + _parameters.mag_bias1[2]*temp + _parameters.mag_bias2[2]*temp2 + _parameters.mag_bias3[2]*temp3);
+
+	a = x + y*_parameters.mag_align_xy + z*_parameters.mag_align_xz;
+	b = x*_parameters.mag_align_yx + y + z*_parameters.mag_align_yz;
+	c = x*_parameters.mag_align_zx + y*_parameters.mag_align_zy + z;
+
+	a /= _parameters.mag_scale[0] + _parameters.mag_scale1[0]*temp + _parameters.mag_scale2[0]*temp2 + _parameters.mag_scale3[0]*temp3;
+	b /= _parameters.mag_scale[1] + _parameters.mag_scale1[1]*temp + _parameters.mag_scale2[1]*temp2 + _parameters.mag_scale3[1]*temp3;
+	c /= _parameters.mag_scale[2] + _parameters.mag_scale1[2]*temp + _parameters.mag_scale2[2]*temp2 + _parameters.mag_scale3[2]*temp3;
+
+	mag_report.x = a;
+	mag_report.y = b;
+	mag_report.z = c;
+}
+
+void
+Quat_Sensors::correctGyroMeasurement(struct  gyro_report &gyro_report)
+{
+	float x,y,z, a,b,c;
+	// rates
+	x = +(gyro_report.x + _parameters.gyro_bias1[0]*temp + _parameters.gyro_bias2[0]*temp2 + _parameters.gyro_bias3[0]*temp3);
+	y = -(gyro_report.y + _parameters.gyro_bias1[1]*temp + _parameters.gyro_bias2[1]*temp2 + _parameters.gyro_bias3[1]*temp3);
+	z = -(gyro_report.z + _parameters.gyro_bias1[2]*temp + _parameters.gyro_bias2[2]*temp2 + _parameters.gyro_bias3[2]*temp3);
+
+	a = x + y*_parameters.gyro_align_xy + z*_parameters.gyro_align_xz;
+	b = x*_parameters.gyro_align_yx + y + z*_parameters.gyro_align_yz;
+	c = x*_parameters.gyro_align_zx + y*_parameters.gyro_align_zy + z;
+
+	a /= _parameters.gyro_scale[0];
+	b /= _parameters.gyro_scale[1];
+	c /= _parameters.gyro_scale[2];
+
+	gyro_report.x = a;
+	gyro_report.y = b;
+	gyro_report.z = c;
+}
+
+void
+Quat_Sensors::gyro_poll(struct sensor_combined_s &raw)
 {
 	bool gyro_updated;
 	orb_check(_gyro_sub, &gyro_updated);
@@ -869,7 +1098,7 @@ Sensors::gyro_poll(struct sensor_combined_s &raw)
 }
 
 void
-Sensors::mag_poll(struct sensor_combined_s &raw)
+Quat_Sensors::mag_poll(struct sensor_combined_s &raw)
 {
 	bool mag_updated;
 	orb_check(_mag_sub, &mag_updated);
@@ -892,7 +1121,7 @@ Sensors::mag_poll(struct sensor_combined_s &raw)
 }
 
 void
-Sensors::baro_poll(struct sensor_combined_s &raw)
+Quat_Sensors::baro_poll(struct sensor_combined_s &raw)
 {
 	bool baro_updated;
 	orb_check(_baro_sub, &baro_updated);
@@ -910,33 +1139,7 @@ Sensors::baro_poll(struct sensor_combined_s &raw)
 }
 
 void
-Sensors::diff_pres_poll(struct sensor_combined_s &raw)
-{
-	bool updated;
-	orb_check(_diff_pres_sub, &updated);
-
-	if (updated) {
-		orb_copy(ORB_ID(differential_pressure), _diff_pres_sub, &_diff_pres);
-
-		raw.differential_pressure_pa = _diff_pres.differential_pressure_pa;
-		raw.differential_pressure_counter++;
-
-		_airspeed.indicated_airspeed_m_s = calc_indicated_airspeed(_diff_pres.differential_pressure_pa);
-		_airspeed.true_airspeed_m_s = calc_true_airspeed(_diff_pres.differential_pressure_pa + raw.baro_pres_mbar*1e2f,
-											 			 raw.baro_pres_mbar*1e2f, raw.baro_temp_celcius - PCB_TEMP_ESTIMATE_DEG);
-
-		/* announce the airspeed if needed, just publish else */
-		if (_airspeed_pub > 0) {
-			orb_publish(ORB_ID(airspeed), _airspeed_pub, &_airspeed);
-
-		} else {
-			_airspeed_pub = orb_advertise(ORB_ID(airspeed), &_airspeed);
-		}
-	}
-}
-
-void
-Sensors::vehicle_status_poll()
+Quat_Sensors::vehicle_status_poll()
 {
 	struct vehicle_status_s vstatus;
 	bool vstatus_updated;
@@ -964,7 +1167,7 @@ Sensors::vehicle_status_poll()
 }
 
 void
-Sensors::parameter_update_poll(bool forced)
+Quat_Sensors::parameter_update_poll(bool forced)
 {
 	bool param_updated;
 
@@ -975,56 +1178,8 @@ Sensors::parameter_update_poll(bool forced)
 		/* read from param to clear updated flag */
 		struct parameter_update_s update;
 		orb_copy(ORB_ID(parameter_update), _params_sub, &update);
-
 		/* update parameters */
 		parameters_update();
-
-		/* update sensor offsets */
-		int fd = open(GYRO_DEVICE_PATH, 0);
-		struct gyro_scale gscale = {
-			_parameters.gyro_offset[0],
-			1.0f,
-			_parameters.gyro_offset[1],
-			1.0f,
-			_parameters.gyro_offset[2],
-			1.0f,
-		};
-
-		if (OK != ioctl(fd, GYROIOCSSCALE, (long unsigned int)&gscale))
-			warn("WARNING: failed to set scale / offsets for gyro");
-
-		close(fd);
-
-		fd = open(ACCEL_DEVICE_PATH, 0);
-		struct accel_scale ascale = {
-			_parameters.accel_offset[0],
-			_parameters.accel_scale[0],
-			_parameters.accel_offset[1],
-			_parameters.accel_scale[1],
-			_parameters.accel_offset[2],
-			_parameters.accel_scale[2],
-		};
-
-		if (OK != ioctl(fd, ACCELIOCSSCALE, (long unsigned int)&ascale))
-			warn("WARNING: failed to set scale / offsets for accel");
-
-		close(fd);
-
-		fd = open(MAG_DEVICE_PATH, 0);
-		struct mag_scale mscale = {
-			_parameters.mag_offset[0],
-			_parameters.mag_scale[0],
-			_parameters.mag_offset[1],
-			_parameters.mag_scale[1],
-			_parameters.mag_offset[2],
-			_parameters.mag_scale[2],
-		};
-
-		if (OK != ioctl(fd, MAGIOCSSCALE, (long unsigned int)&mscale))
-			warn("WARNING: failed to set scale / offsets for mag");
-
-		close(fd);
-
 #if 0
 		printf("CH0: RAW MAX: %d MIN %d S: %d MID: %d FUNC: %d\n", (int)_parameters.max[0], (int)_parameters.min[0], (int)(_rc.chan[0].scaling_factor * 10000), (int)(_rc.chan[0].mid), (int)_rc.function[0]);
 		printf("CH1: RAW MAX: %d MIN %d S: %d MID: %d FUNC: %d\n", (int)_parameters.max[1], (int)_parameters.min[1], (int)(_rc.chan[1].scaling_factor * 10000), (int)(_rc.chan[1].mid), (int)_rc.function[1]);
@@ -1036,7 +1191,7 @@ Sensors::parameter_update_poll(bool forced)
 }
 
 void
-Sensors::adc_poll(struct sensor_combined_s &raw)
+Quat_Sensors::adc_poll(struct sensor_combined_s &raw)
 {
 
 	/* rate limit to 100 Hz */
@@ -1046,16 +1201,12 @@ Sensors::adc_poll(struct sensor_combined_s &raw)
 		/* read all channels available */
 		int ret = read(_fd_adc, &buf_adc, sizeof(buf_adc));
 
+		/* look for battery channel */
+
 		for (unsigned i = 0; i < sizeof(buf_adc) / sizeof(buf_adc[0]); i++) {
 			
 			if (ret >= (int)sizeof(buf_adc[0])) {
 
-				/* Save raw voltage values */
-				if (i < (sizeof(raw.adc_voltage_v)) / sizeof(raw.adc_voltage_v[0])) {
-					 raw.adc_voltage_v[i] = buf_adc[i].am_data / (4096.0f / 3.3f);
-				}
-
-				/* look for specific channels and process the raw voltage to measurement data */
 				if (ADC_BATTERY_VOLTAGE_CHANNEL == buf_adc[i].am_channel) {
 					/* Voltage in volts */
 					float voltage = (buf_adc[i].am_data * _parameters.battery_voltage_scaling);
@@ -1117,8 +1268,38 @@ Sensors::adc_poll(struct sensor_combined_s &raw)
 
 #if CONFIG_HRT_PPM
 void
-Sensors::ppm_poll()
+Quat_Sensors::ppm_poll()
 {
+	/* fake low-level driver, directly pulling from driver variables */
+	static orb_advert_t rc_input_pub = -1;
+	struct rc_input_values raw;
+
+	raw.timestamp = ppm_last_valid_decode;
+	/* we are accepting this message */
+	_ppm_last_valid = ppm_last_valid_decode;
+
+	/*
+	 * relying on two decoded channels is very noise-prone,
+	 * in particular if nothing is connected to the pins.
+	 * requiring a minimum of four channels
+	 */
+	if (ppm_decoded_channels > 4 && hrt_absolute_time() - _ppm_last_valid < PPM_INPUT_TIMEOUT_INTERVAL) {
+
+		for (unsigned i = 0; i < ppm_decoded_channels; i++) {
+			raw.values[i] = ppm_buffer[i];
+		}
+
+		raw.channel_count = ppm_decoded_channels;
+
+		/* publish to object request broker */
+		if (rc_input_pub <= 0) {
+			rc_input_pub = orb_advertise(ORB_ID(input_rc), &raw);
+
+		} else {
+			orb_publish(ORB_ID(input_rc), rc_input_pub, &raw);
+		}
+	}
+
 
 	/* read low-level values from FMU or IO RC inputs (PPM, Spektrum, S.Bus) */
 	bool rc_updated;
@@ -1164,45 +1345,31 @@ Sensors::ppm_poll()
 		/* Read out values from raw message */
 		for (unsigned int i = 0; i < channel_limit; i++) {
 
-			/*
-			 * 1) Constrain to min/max values, as later processing depends on bounds.
-			 */
-			if (rc_input.values[i] < _parameters.min[i])
-				rc_input.values[i] = _parameters.min[i];
-			if (rc_input.values[i] > _parameters.max[i])
-				rc_input.values[i] = _parameters.max[i];
-
-			/*
-			 * 2) Scale around the mid point differently for lower and upper range.
-			 *
-			 * This is necessary as they don't share the same endpoints and slope.
-			 *
-			 * First normalize to 0..1 range with correct sign (below or above center),
-			 * the total range is 2 (-1..1).
-			 * If center (trim) == min, scale to 0..1, if center (trim) == max,
-			 * scale to -1..0.
-			 *
-			 * As the min and max bounds were enforced in step 1), division by zero
-			 * cannot occur, as for the case of center == min or center == max the if
-			 * statement is mutually exclusive with the arithmetic NaN case.
-			 *
-			 * DO NOT REMOVE OR ALTER STEP 1!
-			 */
+			/* scale around the mid point differently for lower and upper range */
 			if (rc_input.values[i] > (_parameters.trim[i] + _parameters.dz[i])) {
-				_rc.chan[i].scaled = (rc_input.values[i] - _parameters.trim[i] - _parameters.dz[i]) / (float)(_parameters.max[i] - _parameters.trim[i] - _parameters.dz[i]);
+				_rc.chan[i].scaled = (rc_input.values[i] - _parameters.trim[i]) / (float)(_parameters.max[i] - _parameters.trim[i]);
 
 			} else if (rc_input.values[i] < (_parameters.trim[i] - _parameters.dz[i])) {
-				_rc.chan[i].scaled = (rc_input.values[i] - _parameters.trim[i] + _parameters.dz[i]) / (float)(_parameters.trim[i] - _parameters.min[i] - _parameters.dz[i]);
+				/* division by zero impossible for trim == min (as for throttle), as this falls in the above if clause */
+				_rc.chan[i].scaled = -((_parameters.trim[i] - rc_input.values[i]) / (float)(_parameters.trim[i] - _parameters.min[i]));
 
 			} else {
 				/* in the configured dead zone, output zero */
 				_rc.chan[i].scaled = 0.0f;
 			}
 
-			_rc.chan[i].scaled *= _parameters.rev[i];
+			/* reverse channel if required */
+			if (i == (int)_rc.function[THROTTLE]) {
+				if ((int)_parameters.rev[i] == -1) {
+					_rc.chan[i].scaled = 1.0f + -1.0f * _rc.chan[i].scaled;
+				}
+
+			} else {
+				_rc.chan[i].scaled *= _parameters.rev[i];
+			}
 
 			/* handle any parameter-induced blowups */
-			if (!isfinite(_rc.chan[i].scaled))
+			if (isnan(_rc.chan[i].scaled) || isinf(_rc.chan[i].scaled))
 				_rc.chan[i].scaled = 0.0f;
 		}
 
@@ -1315,17 +1482,17 @@ Sensors::ppm_poll()
 #endif
 
 void
-Sensors::task_main_trampoline(int argc, char *argv[])
+Quat_Sensors::task_main_trampoline(int argc, char *argv[])
 {
-	sensors::g_sensors->task_main();
+	quat_sensors::g_quat_sensors->task_main();
 }
 
 void
-Sensors::task_main()
+Quat_Sensors::task_main()
 {
 
 	/* inform about start */
-	printf("[sensors] Initializing..\n");
+	printf("[quat_sensors] Initializing..\n");
 	fflush(stdout);
 
 	/* start individual sensors */
@@ -1343,7 +1510,6 @@ Sensors::task_main()
 	_mag_sub = orb_subscribe(ORB_ID(sensor_mag));
 	_rc_sub = orb_subscribe(ORB_ID(input_rc));
 	_baro_sub = orb_subscribe(ORB_ID(sensor_baro));
-	_diff_pres_sub = orb_subscribe(ORB_ID(differential_pressure));
 	_vstatus_sub = orb_subscribe(ORB_ID(vehicle_status));
 	_params_sub = orb_subscribe(ORB_ID(parameter_update));
 	_manual_control_sub = orb_subscribe(ORB_ID(manual_control_setpoint));
@@ -1370,7 +1536,6 @@ Sensors::task_main()
 	gyro_poll(raw);
 	mag_poll(raw);
 	baro_poll(raw);
-	diff_pres_poll(raw);
 
 	parameter_update_poll(true /* forced */);
 
@@ -1419,8 +1584,6 @@ Sensors::task_main()
 		/* check battery voltage */
 		adc_poll(raw);
 
-		diff_pres_poll(raw);
-
 		/* Inform other processes that new data is available to copy */
 		if (_publishing)
 			orb_publish(ORB_ID(sensor_combined), _sensor_pub, &raw);
@@ -1433,26 +1596,26 @@ Sensors::task_main()
 		perf_end(_loop_perf);
 	}
 
-	printf("[sensors] exiting.\n");
+	printf("[quat_sensors] exiting.\n");
 
-	_sensors_task = -1;
+	_quat_sensors_task = -1;
 	_exit(0);
 }
 
 int
-Sensors::start()
+Quat_Sensors::start()
 {
-	ASSERT(_sensors_task == -1);
+	ASSERT(_quat_sensors_task == -1);
 
 	/* start the task */
-	_sensors_task = task_spawn("sensors_task",
+	_quat_sensors_task = task_spawn("quat_sensors_task",
 				   SCHED_DEFAULT,
 				   SCHED_PRIORITY_MAX - 5,
 				   2048,
-				   (main_t)&Sensors::task_main_trampoline,
+				   (main_t)&Quat_Sensors::task_main_trampoline,
 				   nullptr);
 
-	if (_sensors_task < 0) {
+	if (_quat_sensors_task < 0) {
 		warn("task start failed");
 		return -errno;
 	}
@@ -1460,41 +1623,41 @@ Sensors::start()
 	return OK;
 }
 
-int sensors_main(int argc, char *argv[])
+int quat_sensors_main(int argc, char *argv[])
 {
 	if (argc < 1)
-		errx(1, "usage: sensors {start|stop|status}");
+		errx(1, "usage: quat_sensors {start|stop|status}");
 
 	if (!strcmp(argv[1], "start")) {
 
-		if (sensors::g_sensors != nullptr)
-			errx(1, "sensors task already running");
+		if (quat_sensors::g_quat_sensors != nullptr)
+			errx(1, "quat_sensors task already running");
 
-		sensors::g_sensors = new Sensors;
+		quat_sensors::g_quat_sensors = new Quat_Sensors;
 
-		if (sensors::g_sensors == nullptr)
-			errx(1, "sensors task alloc failed");
+		if (quat_sensors::g_quat_sensors == nullptr)
+			errx(1, "quat_sensors task alloc failed");
 
-		if (OK != sensors::g_sensors->start()) {
-			delete sensors::g_sensors;
-			sensors::g_sensors = nullptr;
-			err(1, "sensors task start failed");
+		if (OK != quat_sensors::g_quat_sensors->start()) {
+			delete quat_sensors::g_quat_sensors;
+			quat_sensors::g_quat_sensors = nullptr;
+			err(1, "quat_sensors task start failed");
 		}
 
 		exit(0);
 	}
 
 	if (!strcmp(argv[1], "stop")) {
-		if (sensors::g_sensors == nullptr)
-			errx(1, "sensors task not running");
+		if (quat_sensors::g_quat_sensors == nullptr)
+			errx(1, "quat_sensors task not running");
 
-		delete sensors::g_sensors;
-		sensors::g_sensors = nullptr;
+		delete quat_sensors::g_quat_sensors;
+		quat_sensors::g_quat_sensors = nullptr;
 		exit(0);
 	}
 
 	if (!strcmp(argv[1], "status")) {
-		if (sensors::g_sensors) {
+		if (quat_sensors::g_quat_sensors) {
 			errx(0, "task is running");
 
 		} else {

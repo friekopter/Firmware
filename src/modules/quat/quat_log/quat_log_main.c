@@ -34,7 +34,7 @@
 #include <systemlib/perf_counter.h>
 #include <systemlib/systemlib.h>
 
-#include <quat_log.h>
+#include "quat_log.h"
 
 
 static bool thread_should_exit = false;		/**< Deamon exit flag */

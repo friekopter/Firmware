@@ -18,7 +18,7 @@
 
 #include "srcdkf.h"
 #include "aq_math.h"
-#include <../utils/util.h>
+#include <quat/utils/util.h>
 void srcdkfCalcSigmaPoints(srcdkf_t *f, arm_matrix_instance_f32 *Sn);
 
 float *srcdkfGetState(srcdkf_t *f) {

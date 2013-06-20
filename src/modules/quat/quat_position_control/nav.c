@@ -18,9 +18,9 @@
 
 #include "nav.h"
 #include "nav_ukf.h"
-#include <../utils/util.h>
-#include <../utils/quat_constants.h>
-#include <../utils/pid.h>
+#include <quat/utils/util.h>
+#include <quat/utils/quat_constants.h>
+#include <quat/utils/pid.h>
 #include "nav_ukf.h"
 #include <string.h>
 #include <math.h>

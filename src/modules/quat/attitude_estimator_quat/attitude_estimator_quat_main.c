@@ -61,11 +61,11 @@
 #include <uORB/topics/parameter_update.h>
 #include <uORB/topics/vehicle_status.h>
 #include <mavlink/mavlink_log.h>
-#include <quat.h>
 
 #include <systemlib/systemlib.h>
 
 #include "attitude_estimator_quat_params.h"
+#include "quat.h"
 
 
 __EXPORT int attitude_estimator_quat_main(int argc, char *argv[]);

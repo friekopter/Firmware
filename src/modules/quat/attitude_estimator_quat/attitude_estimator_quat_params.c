@@ -65,12 +65,12 @@ int parameters_init(struct attitude_estimator_quat_param_handles *h)
 	h->ka 	=	param_find("QUA_ATT_KA");
 	h->km1 	=	param_find("QUA_ATT_KM1");
 	h->km2 	=	param_find("QUA_ATT_KM2");
-	return h->accdist == PARAM_INVALID |
-			h->kp == PARAM_INVALID |
-			h->ki == PARAM_INVALID |
-			h->ka == PARAM_INVALID |
-			h->km1 == PARAM_INVALID |
-			h->km2 == PARAM_INVALID;
+	return  (h->accdist == PARAM_INVALID) |
+			(h->kp == PARAM_INVALID) |
+			(h->ki == PARAM_INVALID) |
+			(h->ka == PARAM_INVALID) |
+			(h->km1 == PARAM_INVALID) |
+			(h->km2 == PARAM_INVALID);
 }
 
 

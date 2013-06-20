@@ -333,6 +333,7 @@ typedef enum {
 	CFG_NAV5,
 	ACK_ACK,
 	ACK_NAK,
+	TIM_TP
 } ubx_message_id_t;
 
 typedef enum {

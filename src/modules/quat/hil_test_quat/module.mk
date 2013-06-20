@@ -1,0 +1,9 @@
+
+
+MODULE_COMMAND		= hil_test_quat
+MODULE_PRIORITY	 	= SCHED_PRIORITY_DEFAULT
+MODULE_STACKSIZE	= 2048
+
+SRCS		 	= hil_test_quat.c
+
+INCLUDE_DIRS	 += $(MAVLINK_SRC)/include/mavlink
