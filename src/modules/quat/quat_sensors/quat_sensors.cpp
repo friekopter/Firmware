@@ -60,6 +60,10 @@
 #define BAT_VOL_LOWPASS_2 0.01f
 #define VOLTAGE_BATTERY_IGNORE_THRESHOLD_VOLTS 3.5f
 
+#define RATE_CALIB_SAMPLES	25
+#define IMU_STATIC_STD		0.05f
+#define IMU_ROOM_TEMP		20.0f
+
 #define PPM_INPUT_TIMEOUT_INTERVAL	50000 /**< 50 ms timeout / 20 Hz */
 
 #define limit_minus_one_to_one(arg) (arg < -1.0f) ? -1.0f : ((arg > 1.0f) ? 1.0f : arg)
@@ -458,9 +462,10 @@ Quat_Sensors::Quat_Sensors() :
 	_rc_pub(-1),
 	_battery_pub(-1),
 	_airspeed_pub(-1),
+	_diff_pres_pub(-1),
 
 /* performance counters */
-	_loop_perf(perf_alloc(PC_ELAPSED, "sensor task update"))
+	_loop_perf(perf_alloc(PC_ELAPSED, "quat sensor task update"))
 {
 
 	/* basic r/c parameters */
@@ -996,6 +1001,8 @@ Quat_Sensors::accel_poll(struct sensor_combined_s &raw)
 
 		orb_copy(ORB_ID(sensor_accel), _accel_sub, &accel_report);
 
+		correctAccMeasurement(accel_report);
+
 		raw.accelerometer_m_s2[0] = accel_report.x;
 		raw.accelerometer_m_s2[1] = accel_report.y;
 		raw.accelerometer_m_s2[2] = accel_report.z;
@@ -1085,6 +1092,14 @@ Quat_Sensors::gyro_poll(struct sensor_combined_s &raw)
 
 		orb_copy(ORB_ID(sensor_gyro), _gyro_sub, &gyro_report);
 
+		correctGyroMeasurement(gyro_report);
+
+		if(!raw.gyro_counter % 100){
+			temp = gyro_report.temperature - IMU_ROOM_TEMP;
+			temp2 = temp*temp;
+			temp3 = temp2*temp;
+		}
+
 		raw.gyro_rad_s[0] = gyro_report.x;
 		raw.gyro_rad_s[1] = gyro_report.y;
 		raw.gyro_rad_s[2] = gyro_report.z;
@@ -1107,6 +1122,8 @@ Quat_Sensors::mag_poll(struct sensor_combined_s &raw)
 		struct mag_report	mag_report;
 
 		orb_copy(ORB_ID(sensor_mag), _mag_sub, &mag_report);
+
+		correctMagMeasurement(mag_report);
 
 		raw.magnetometer_ga[0] = mag_report.x;
 		raw.magnetometer_ga[1] = mag_report.y;
@@ -1201,12 +1218,16 @@ Quat_Sensors::adc_poll(struct sensor_combined_s &raw)
 		/* read all channels available */
 		int ret = read(_fd_adc, &buf_adc, sizeof(buf_adc));
 
-		/* look for battery channel */
-
 		for (unsigned i = 0; i < sizeof(buf_adc) / sizeof(buf_adc[0]); i++) {
 			
 			if (ret >= (int)sizeof(buf_adc[0])) {
 
+				/* Save raw voltage values */
+				if (i < (sizeof(raw.adc_voltage_v)) / sizeof(raw.adc_voltage_v[0])) {
+					 raw.adc_voltage_v[i] = buf_adc[i].am_data / (4096.0f / 3.3f);
+				}
+
+				/* look for specific channels and process the raw voltage to measurement data */
 				if (ADC_BATTERY_VOLTAGE_CHANNEL == buf_adc[i].am_channel) {
 					/* Voltage in volts */
 					float voltage = (buf_adc[i].am_data * _parameters.battery_voltage_scaling);
@@ -1270,36 +1291,6 @@ Quat_Sensors::adc_poll(struct sensor_combined_s &raw)
 void
 Quat_Sensors::ppm_poll()
 {
-	/* fake low-level driver, directly pulling from driver variables */
-	static orb_advert_t rc_input_pub = -1;
-	struct rc_input_values raw;
-
-	raw.timestamp = ppm_last_valid_decode;
-	/* we are accepting this message */
-	_ppm_last_valid = ppm_last_valid_decode;
-
-	/*
-	 * relying on two decoded channels is very noise-prone,
-	 * in particular if nothing is connected to the pins.
-	 * requiring a minimum of four channels
-	 */
-	if (ppm_decoded_channels > 4 && hrt_absolute_time() - _ppm_last_valid < PPM_INPUT_TIMEOUT_INTERVAL) {
-
-		for (unsigned i = 0; i < ppm_decoded_channels; i++) {
-			raw.values[i] = ppm_buffer[i];
-		}
-
-		raw.channel_count = ppm_decoded_channels;
-
-		/* publish to object request broker */
-		if (rc_input_pub <= 0) {
-			rc_input_pub = orb_advertise(ORB_ID(input_rc), &raw);
-
-		} else {
-			orb_publish(ORB_ID(input_rc), rc_input_pub, &raw);
-		}
-	}
-
 
 	/* read low-level values from FMU or IO RC inputs (PPM, Spektrum, S.Bus) */
 	bool rc_updated;
@@ -1345,31 +1336,45 @@ Quat_Sensors::ppm_poll()
 		/* Read out values from raw message */
 		for (unsigned int i = 0; i < channel_limit; i++) {
 
-			/* scale around the mid point differently for lower and upper range */
+			/*
+			 * 1) Constrain to min/max values, as later processing depends on bounds.
+			 */
+			if (rc_input.values[i] < _parameters.min[i])
+				rc_input.values[i] = _parameters.min[i];
+			if (rc_input.values[i] > _parameters.max[i])
+				rc_input.values[i] = _parameters.max[i];
+
+			/*
+			 * 2) Scale around the mid point differently for lower and upper range.
+			 *
+			 * This is necessary as they don't share the same endpoints and slope.
+			 *
+			 * First normalize to 0..1 range with correct sign (below or above center),
+			 * the total range is 2 (-1..1).
+			 * If center (trim) == min, scale to 0..1, if center (trim) == max,
+			 * scale to -1..0.
+			 *
+			 * As the min and max bounds were enforced in step 1), division by zero
+			 * cannot occur, as for the case of center == min or center == max the if
+			 * statement is mutually exclusive with the arithmetic NaN case.
+			 *
+			 * DO NOT REMOVE OR ALTER STEP 1!
+			 */
 			if (rc_input.values[i] > (_parameters.trim[i] + _parameters.dz[i])) {
-				_rc.chan[i].scaled = (rc_input.values[i] - _parameters.trim[i]) / (float)(_parameters.max[i] - _parameters.trim[i]);
+				_rc.chan[i].scaled = (rc_input.values[i] - _parameters.trim[i] - _parameters.dz[i]) / (float)(_parameters.max[i] - _parameters.trim[i] - _parameters.dz[i]);
 
 			} else if (rc_input.values[i] < (_parameters.trim[i] - _parameters.dz[i])) {
-				/* division by zero impossible for trim == min (as for throttle), as this falls in the above if clause */
-				_rc.chan[i].scaled = -((_parameters.trim[i] - rc_input.values[i]) / (float)(_parameters.trim[i] - _parameters.min[i]));
+				_rc.chan[i].scaled = (rc_input.values[i] - _parameters.trim[i] + _parameters.dz[i]) / (float)(_parameters.trim[i] - _parameters.min[i] - _parameters.dz[i]);
 
 			} else {
 				/* in the configured dead zone, output zero */
 				_rc.chan[i].scaled = 0.0f;
 			}
 
-			/* reverse channel if required */
-			if (i == (int)_rc.function[THROTTLE]) {
-				if ((int)_parameters.rev[i] == -1) {
-					_rc.chan[i].scaled = 1.0f + -1.0f * _rc.chan[i].scaled;
-				}
-
-			} else {
-				_rc.chan[i].scaled *= _parameters.rev[i];
-			}
+			_rc.chan[i].scaled *= _parameters.rev[i];
 
 			/* handle any parameter-induced blowups */
-			if (isnan(_rc.chan[i].scaled) || isinf(_rc.chan[i].scaled))
+			if (!isfinite(_rc.chan[i].scaled))
 				_rc.chan[i].scaled = 0.0f;
 		}
 
@@ -1497,11 +1502,15 @@ Quat_Sensors::task_main()
 
 	/* start individual sensors */
 	accel_init();
+	printf("[quat_sensors] Init gyro...\n");
 	gyro_init();
+	printf("[quat_sensors] Init mag...\n");
 	mag_init();
+	printf("[quat_sensors] Init baro...\n");
 	baro_init();
+	printf("[quat_sensors] Init adc...\n");
 	adc_init();
-
+	fflush(stdout);
 	/*
 	 * do subscriptions
 	 */
@@ -1539,6 +1548,9 @@ Quat_Sensors::task_main()
 
 	parameter_update_poll(true /* forced */);
 
+	/* calibrate sensors */
+	gyro_calibrate();
+
 	/* advertise the sensor_combined topic and make the initial publication */
 	_sensor_pub = orb_advertise(ORB_ID(sensor_combined), &raw);
 
@@ -1549,6 +1561,7 @@ Quat_Sensors::task_main()
 	fds[0].fd = _gyro_sub;
 	fds[0].events = POLLIN;
 
+	printf("[quat_sensors] Init finished...\n");
 	while (!_task_should_exit) {
 
 		/* wait for up to 500ms for data */
@@ -1592,7 +1605,6 @@ Quat_Sensors::task_main()
 		/* Look for new r/c input data */
 		ppm_poll();
 #endif
-
 		perf_end(_loop_perf);
 	}
 
@@ -1622,6 +1634,82 @@ Quat_Sensors::start()
 
 	return OK;
 }
+
+void
+Quat_Sensors::gyro_calibrate()
+{
+    float32_t stdX, stdY, stdZ;
+    float32_t x[RATE_CALIB_SAMPLES];
+    float32_t y[RATE_CALIB_SAMPLES];
+    float32_t z[RATE_CALIB_SAMPLES];
+    int i = 0;
+    int j = 0;
+    float32_t meanRate[3];
+	/* set offsets to zero */
+	int fd = open(GYRO_DEVICE_PATH, 0);
+	struct gyro_scale gscale_null = {
+		0.0f,
+		1.0f,
+		0.0f,
+		1.0f,
+		0.0f,
+		1.0f,
+	};
+
+	if (OK != ioctl(fd, GYROIOCSSCALE, (long unsigned int)&gscale_null)) {
+		warn("WARNING: failed to set scale / offsets for gyro");
+	}
+	close(fd);
+
+	while(i <= RATE_CALIB_SAMPLES || (stdX + stdY + stdZ) > IMU_STATIC_STD)
+	{
+		bool gyro_updated;
+		orb_check(_gyro_sub, &gyro_updated);
+
+		if (gyro_updated) {
+			struct gyro_report	gyro_report;
+			orb_copy(ORB_ID(sensor_gyro), _gyro_sub, &gyro_report);
+			x[j] = gyro_report.x;
+			y[j] = gyro_report.y;
+			z[j] = gyro_report.z;
+			if (i >= RATE_CALIB_SAMPLES) {
+			    arm_std_f32(x, RATE_CALIB_SAMPLES, &stdX);
+			    arm_std_f32(y, RATE_CALIB_SAMPLES, &stdY);
+			    arm_std_f32(z, RATE_CALIB_SAMPLES, &stdZ);
+			}
+
+			i++;
+			j = (j + 1) % RATE_CALIB_SAMPLES;
+		}
+		usleep(10000);
+	}
+
+   	arm_mean_f32(x,RATE_CALIB_SAMPLES,&meanRate[0]);
+   	arm_mean_f32(y,RATE_CALIB_SAMPLES,&meanRate[1]);
+   	arm_mean_f32(z,RATE_CALIB_SAMPLES,&meanRate[2]);
+
+    float rateBiasX = -(meanRate[0] + _parameters.gyro_bias1[0]*temp + _parameters.gyro_bias2[0]*temp2 + _parameters.gyro_bias3[0]*temp3);
+    float rateBiasY = -(meanRate[1] + _parameters.gyro_bias1[1]*temp + _parameters.gyro_bias2[1]*temp2 + _parameters.gyro_bias3[1]*temp3);
+    float rateBiasZ = -(meanRate[2] + _parameters.gyro_bias1[2]*temp + _parameters.gyro_bias2[2]*temp2 + _parameters.gyro_bias3[2]*temp3);
+
+    // set offsets
+	fd = open(GYRO_DEVICE_PATH, 0);
+	struct gyro_scale gscale = {
+		-rateBiasX,
+		1.0f,
+		-rateBiasY,
+		1.0f,
+		-rateBiasZ,
+		1.0f,
+	};
+	printf("[Quat Sensors]: Set gyro bias: %8.4f\t %8.4f\t %8.4f\t",rateBiasX,rateBiasY,rateBiasZ);
+
+	if (OK != ioctl(fd, GYROIOCSSCALE, (long unsigned int)&gscale)) {
+		warn("WARNING: failed to set scale / offsets for gyro");
+	}
+	close(fd);
+}
+
 
 int quat_sensors_main(int argc, char *argv[])
 {
