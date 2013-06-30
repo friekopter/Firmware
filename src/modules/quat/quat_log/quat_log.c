@@ -30,7 +30,8 @@ void logSetup(struct gyro_report* gyro_report,
 		struct mag_report* mag_report,
 		struct battery_status_s* battery_status,
 		struct accel_report* accel_report,
-		struct baro_report* barometer);
+		struct baro_report* barometer,
+		struct sensor_combined_s* raw);
 static float dummyFloat = 0.0f;
 static double dummyDouble = 0.0f;
 static uint32_t dummyUint32 = 0;
@@ -251,7 +252,8 @@ void logSetup(struct gyro_report* gyro_report,
 		struct mag_report* mag_report,
 		struct battery_status_s* battery_status,
 		struct accel_report* accel_report,
-		struct baro_report* barometer) {
+		struct baro_report* barometer,
+		struct sensor_combined_s* raw) {
     int i;
 
     logData.numFields = sizeof(logFields) / sizeof(logFields_t);
@@ -309,31 +311,31 @@ void logSetup(struct gyro_report* gyro_report,
 		logData.fp[i].fieldPointer = (void *)&accel_report->temperature;
 		break;
 	    case LOG_IMU_RATEX:
-		logData.fp[i].fieldPointer = (void *)&dummyFloat;//(void *)&IMU_RATEX;
+		logData.fp[i].fieldPointer = (void *)&raw->gyro_rad_s[0];//(void *)&IMU_RATEX;
 		break;
 	    case LOG_IMU_RATEY:
-		logData.fp[i].fieldPointer = (void *)&dummyFloat;//(void *)&IMU_RATEY;
+		logData.fp[i].fieldPointer = (void *)&raw->gyro_rad_s[1];//(void *)&IMU_RATEY;
 		break;
 	    case LOG_IMU_RATEZ:
-		logData.fp[i].fieldPointer = (void *)&dummyFloat;//(void *)&IMU_RATEZ;
+		logData.fp[i].fieldPointer = (void *)&raw->gyro_rad_s[2];//(void *)&IMU_RATEZ;
 		break;
 	    case LOG_IMU_ACCX:
-		logData.fp[i].fieldPointer = (void *)&dummyFloat;//(void *)&IMU_ACCX;
+		logData.fp[i].fieldPointer = (void *)&raw->accelerometer_m_s2[0];//(void *)&IMU_ACCX;
 		break;
 	    case LOG_IMU_ACCY:
-		logData.fp[i].fieldPointer = (void *)&dummyFloat;//(void *)&IMU_ACCY;
+		logData.fp[i].fieldPointer = (void *)&raw->accelerometer_m_s2[1];//(void *)&IMU_ACCY;
 		break;
 	    case LOG_IMU_ACCZ:
-		logData.fp[i].fieldPointer = (void *)&dummyFloat;//(void *)&IMU_ACCZ;
+		logData.fp[i].fieldPointer = (void *)&raw->accelerometer_m_s2[2];//(void *)&IMU_ACCZ;
 		break;
 	    case LOG_IMU_MAGX:
-		logData.fp[i].fieldPointer = (void *)&dummyFloat;//(void *)&IMU_MAGX;
+		logData.fp[i].fieldPointer = (void *)&raw->magnetometer_ga[0];//(void *)&IMU_MAGX;
 		break;
 	    case LOG_IMU_MAGY:
-		logData.fp[i].fieldPointer = (void *)&dummyFloat;//(void *)&IMU_MAGY;
+		logData.fp[i].fieldPointer = (void *)&raw->magnetometer_ga[1];//(void *)&IMU_MAGY;
 		break;
 	    case LOG_IMU_MAGZ:
-		logData.fp[i].fieldPointer = (void *)&dummyFloat;//(void *)&IMU_MAGZ;
+		logData.fp[i].fieldPointer = (void *)&raw->magnetometer_ga[2];//(void *)&IMU_MAGZ;
 		break;
 	    case LOG_GPS_PDOP:
 		logData.fp[i].fieldPointer = (void *)&dummyFloat;//(void *)&gpsData.pDOP;
@@ -426,10 +428,10 @@ void logSetup(struct gyro_report* gyro_report,
 		logData.fp[i].fieldPointer = (void *)&dummyFloat;//(void *)&UKF_POSD;
 		break;
 	    case LOG_UKF_PRES_ALT:
-		logData.fp[i].fieldPointer = (void *)&dummyFloat;//(void *)&UKF_PRES_ALT;
+		logData.fp[i].fieldPointer = (void *)&raw->baro_pres_mbar;//(void *)&UKF_PRES_ALT;
 		break;
 	    case LOG_UKF_ALT:
-		logData.fp[i].fieldPointer = (void *)&dummyFloat;//(void *)&UKF_ALTITUDE;
+		logData.fp[i].fieldPointer = (void *)&raw->baro_alt_meter;//(void *)&UKF_ALTITUDE;
 		break;
 	    case LOG_UKF_VELN:
 		logData.fp[i].fieldPointer = (void *)&dummyFloat;//(void *)&UKF_VELN;
@@ -587,10 +589,11 @@ void logInit(struct gyro_report* gyro_report,
 		struct mag_report* mag_report,
 		struct battery_status_s* battery_status,
 		struct accel_report* accel_report,
-		struct baro_report* barometer) {
+		struct baro_report* barometer,
+		struct sensor_combined_s* raw) {
     memset((void *)&logData, 0, sizeof(logData));
 
-    logSetup(gyro_report,mag_report,battery_status,accel_report,barometer);
+    logSetup(gyro_report,mag_report,battery_status,accel_report,barometer,raw);
 
     logDoHeader();
 }

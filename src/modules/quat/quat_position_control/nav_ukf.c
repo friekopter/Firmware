@@ -49,6 +49,7 @@ void navUkfInitState(const struct sensor_combined_s* sensors);
 void navUkfAccUpdate(float *u, float *x, float *noise, float *y);
 void navUkfMagUpdate(float *u, float *x, float *noise, float *y);
 void navUkfPresUpdate(float *u, float *x, float *noise, float *y);
+void navUkfPresGPSAltUpdate(float *u, float *x, float *noise, float *y);
 void navUkfPosUpdate(float *u, float *x, float *noise, float *y);
 void navUkfVelUpdate(float *u, float *x, float *noise, float *y);
 
@@ -57,7 +58,30 @@ bool isFlying(const struct vehicle_status_s *current_status){
 }
 
 float navUkfPresToAlt(float pressure) {
-    return (1.0f -  powf(pressure / UKF_P0, 0.19f)) * (1.0f / 22.558e-6f);
+    //return (1.0f -  powf(pressure / UKF_P0, 0.19f)) * (1.0f / 22.558e-6f);
+	/* tropospheric properties (0-11km) for standard atmosphere */
+	const double T1 = 15.0f + 273.15f;	/* temperature at base height in Kelvin */
+	const double a  = -6.5f / 1000.0f;	/* temperature gradient in degrees per metre */
+	const double g  = 9.80665f;	/* gravity constant in m/s/s */
+	const double R  = 287.05f;	/* ideal gas constant in J/kg/K */
+
+	/* current pressure at MSL in kPa */
+	double p1 = 101325.0f / 1000.0f;
+
+	/* measured pressure in kPa */
+	double p = pressure / 10.0f;
+
+	/*
+	 * Solve:
+	 *
+	 *     /        -(aR / g)     \
+	 *    | (p / p1)          . T1 | - T1
+	 *     \                      /
+	 * h = -------------------------------  + h1
+	 *                   a
+	 */
+	return (((pow((p / p1), (-(a * R) / g))) * T1) - T1) / a;
+	//pow((p/101.325),0.000001902)
 }
 
 // reset current sea level static pressure based on better GPS estimate
@@ -361,6 +385,11 @@ void navUkfPresUpdate(float *u, float *x, float *noise, float *y) {
     y[0] = x[16] + noise[0]; // return altitude
 }
 
+void navUkfPresGPSAltUpdate(float *u, float *x, float *noise, float *y) {
+    y[0] = x[16] + noise[0];// return pres altitude
+    y[1] = x[5] + noise[1]; // return GPS altitude
+}
+
 void navUkfPosUpdate(float *u, float *x, float *noise, float *y) {
     y[0] = x[3] + noise[0]; // return position
     y[1] = x[4] + noise[1];
@@ -441,17 +470,23 @@ void navUkfZeroRate(float rate, int axis) {
 void simDoPresUpdate(float pres,
 					 const struct vehicle_status_s *current_status,
 					 const struct quat_position_control_UKF_params* params) {
-    float noise[1];        // measurement variance
-    float y[1];            // measurment(s)
+    float noise[2];        // measurement variance
+    float y[2];            // measurment(s)
 
     noise[0] = params->ukf_alt_n;
-    if (!isFlying(current_status)) {
-    	noise[0] *= 0.001f;
-    }
+    noise[0] = params->ukf_alt_n;
 
     y[0] = navUkfPresToAlt(pres);
+    y[1] = y[0];
 
-    srcdkfMeasurementUpdate(navUkfData.kf, 0, y, 1, 1, noise, navUkfPresUpdate);
+    // if GPS altitude data has been available, only update pressure altitude
+    if (fabsf(navUkfData.presAltOffset) > FLT_MIN) {
+    	srcdkfMeasurementUpdate(navUkfData.kf, 0, y, 1, 1, noise, navUkfPresUpdate);
+    }
+      // otherwise update pressure and GPS altitude from the single pressure reading
+    else {
+    	srcdkfMeasurementUpdate(navUkfData.kf, 0, y, 2, 2, noise, navUkfPresGPSAltUpdate);
+    }
 }
 
 void simDoAccUpdate(float accX, float accY, float accZ,

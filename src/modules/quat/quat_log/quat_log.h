@@ -156,7 +156,8 @@ extern void logInit(struct gyro_report* gyro_report,
 		struct mag_report* mag_report,
 		struct battery_status_s* battery_status,
 		struct accel_report* accel_report,
-		struct baro_report* barometer);
+		struct baro_report* barometer,
+		struct sensor_combined_s* raw);
 extern void logDo(void);
 extern void logDoHeader(void);
 size_t logWrite(FILE* loggingFile);

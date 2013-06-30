@@ -94,6 +94,8 @@ static bool thread_should_exit = false;
 static bool thread_running = false;
 static int mavlink_task;
 
+static float pressure_mbar = 1013.25f;
+
 /* terminate MAVLink on user request - disabled by default */
 static bool mavlink_link_termination_allowed = false;
 
@@ -387,15 +389,17 @@ void handleMessage(mavlink_message_t *msg)
 		sensors_raw_report.magnetometer_ga[1] = imu.ymag/1000.0f;
 		sensors_raw_report.magnetometer_ga[2] = imu.zmag/1000.0f;
 		sensors_raw_report.magnetometer_counter++;
+		sensors_raw_report.baro_pres_mbar = pressure_mbar;
+		sensors_raw_report.baro_counter++;
 		mag_report.timestamp = hrt_absolute_time();
 		sensors_raw_report.timestamp = hrt_absolute_time();
 		/* advertise sensor topics */
 		/* check if topic is advertised */
 		if (accel_topic <= 0)
 		{
-			accel_topic = orb_advertise(ORB_ID(sensor_accel), &accel_report);
-			gyro_topic = orb_advertise(ORB_ID(sensor_gyro), &gyro_report);
-			mag_topic = orb_advertise(ORB_ID(sensor_mag), &mag_report);
+			//accel_topic = orb_advertise(ORB_ID(sensor_accel), &accel_report);
+			//gyro_topic = orb_advertise(ORB_ID(sensor_gyro), &gyro_report);
+			//mag_topic = orb_advertise(ORB_ID(sensor_mag), &mag_report);
 			sensors_raw_topic = orb_advertise(ORB_ID(sensor_combined), &sensors_raw_report);
 		}
 		else
@@ -406,6 +410,14 @@ void handleMessage(mavlink_message_t *msg)
 			orb_publish(ORB_ID(sensor_mag), mag_topic, &mag_report);
 			orb_publish(ORB_ID(sensor_combined), sensors_raw_topic, &sensors_raw_report);
 		}
+	}
+	else if (msg->msgid == MAVLINK_MSG_ID_RAW_PRESSURE)
+	{
+		mavlink_raw_pressure_t pressure;
+		mavlink_msg_scaled_imu_decode(msg, &pressure);
+		pressure_mbar = (float)pressure.press_abs / 10.0f;
+		//printf("Pressure:%8.4f\n",pressure_mbar);
+
 	}
 	else if (msg->msgid == MAVLINK_MSG_ID_SET_MODE)
 	{

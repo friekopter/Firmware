@@ -272,7 +272,7 @@ int quat_log_thread_main(int argc, char *argv[])
 
 	/* --- IMPORTANT: DEFINE NUMBER OF ORB STRUCTS TO WAIT FOR HERE --- */
 	/* number of messages */
-	const ssize_t fdsc = 5;
+	const ssize_t fdsc = 6;
 	/* Sanity check variable and index */
 	ssize_t fdsc_count = 0;
 	/* file descriptors to wait for */
@@ -284,6 +284,7 @@ int quat_log_thread_main(int argc, char *argv[])
 		struct battery_status_s battery_status;
 		struct accel_report accel_report;
 		struct baro_report barometer;
+		struct sensor_combined_s raw;
 	} buf;
 	memset(&buf, 0, sizeof(buf));
 
@@ -293,6 +294,7 @@ int quat_log_thread_main(int argc, char *argv[])
 		int battery_sub;
 		int accel_sub;
 		int baro_sub;
+		int raw_sub;
 	} subs;
 
 	subs.gyro_sub = orb_subscribe(ORB_ID(sensor_gyro));
@@ -325,6 +327,11 @@ int quat_log_thread_main(int argc, char *argv[])
 	//orb_set_interval(subs.baro_sub, intervall);
 	fdsc_count++;
 
+	subs.raw_sub = orb_subscribe(ORB_ID(sensor_combined));
+	fds[fdsc_count].fd = subs.raw_sub;
+	fds[fdsc_count].events = POLLIN;
+	//orb_set_interval(subs.raw_sub, intervall);
+	fdsc_count++;
 	/* WARNING: If you get the error message below,
 	 * then the number of registered messages (fdsc)
 	 * differs from the number of messages in the above list.
@@ -338,7 +345,7 @@ int quat_log_thread_main(int argc, char *argv[])
 	perf_counter_t quat_log_write_perf = perf_alloc(PC_ELAPSED, "quat_log_write");
 	perf_counter_t quat_log_sync_perf = perf_alloc(PC_ELAPSED, "quat_log_sync");
 
-	logInit(&buf.gyro_report, &buf.mag_report, &buf.battery_status, &buf.accel_report, &buf.barometer);
+	logInit(&buf.gyro_report, &buf.mag_report, &buf.battery_status, &buf.accel_report, &buf.barometer, &buf.raw);
 
 	thread_running = true;
 
@@ -368,6 +375,7 @@ int quat_log_thread_main(int argc, char *argv[])
 				orb_copy(ORB_ID(battery_status), subs.battery_sub, &buf.battery_status);
 				orb_copy(ORB_ID(sensor_accel), subs.accel_sub, &buf.accel_report);
 				orb_copy(ORB_ID(sensor_baro), subs.baro_sub, &buf.barometer);
+				orb_copy(ORB_ID(sensor_combined), subs.raw_sub, &buf.raw);
 				if (!(loops % 200)) {
 				    logDoHeader();
 				}
