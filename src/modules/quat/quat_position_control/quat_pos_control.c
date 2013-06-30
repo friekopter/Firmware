@@ -277,6 +277,7 @@ quat_pos_control_thread_main(int argc, char *argv[])
 	navUkfInit(&ukf_params,&raw);
 	sleep(1);
 	bool initCompleted = false;
+	printf("[quat pos control] Mag-Ref X: %8.4f\t Y: %8.4f\t Z: %8.4f\n", (double)navUkfData.v0m[0], (double)navUkfData.v0m[1], (double)navUkfData.v0m[2]);
 	while (!initCompleted) {
 		int ret = poll(fds, 1, 1000);
 		if (ret < 0)
@@ -352,15 +353,19 @@ quat_pos_control_thread_main(int argc, char *argv[])
 				// rotate mags to body frame of reference
 				navUkfRotateVecByRevMatrix(estMag, navUkfData.v0m, m);
 
-				// measured error, starting with accel vector
-				rotError[0] = -(acc[2] * estAcc[1] - estAcc[2] * acc[1]) * 1.0f;
-				rotError[1] = -(acc[0] * estAcc[2] - estAcc[0] * acc[2]) * 1.0f;
-				rotError[2] = -(acc[1] * estAcc[0] - estAcc[1] * acc[0]) * 1.0f;
+				// measured error
+				rotError[0] = -(mag[2] * estMag[1] - estMag[2] * mag[1]) * 0.50f;
+				rotError[1] = -(mag[0] * estMag[2] - estMag[0] * mag[2]) * 0.50f;
+				rotError[2] = -(mag[1] * estMag[0] - estMag[1] * mag[0]) * 0.50f;
+				printf("[quat pos control] Estmag X: %8.4f\t Y: %8.4f\t Z: %8.4f\n", (double)estMag[0], (double)estMag[1], (double)estMag[2]);
+				printf("[quat pos control] Mag X: %8.4f\t Y: %8.4f\t Z: %8.4f\n", (double)mag[0], (double)mag[1], (double)mag[2]);
+				printf("[quat pos control] Mag error errorX: %8.4f\t errorY: %8.4f\t errorZ: %8.4f\n", (double)rotError[0], (double)rotError[1], (double)rotError[2]);
 
-				// add in mag vector
-				rotError[0] += -(mag[2] * estMag[1] - estMag[2] * mag[1]) * 0.50f;
-				rotError[1] += -(mag[0] * estMag[2] - estMag[0] * mag[2]) * 0.50f;
-				rotError[2] += -(mag[1] * estMag[0] - estMag[1] * mag[0]) * 0.50f;
+
+				rotError[0] += -(acc[2] * estAcc[1] - estAcc[2] * acc[1]) * 1.0f;
+				rotError[1] += -(acc[0] * estAcc[2] - estAcc[0] * acc[2]) * 1.0f;
+				rotError[2] += -(acc[1] * estAcc[0] - estAcc[1] * acc[0]) * 1.0f;
+
 
 			    navUkfRotateQuat(&UKF_Q1, &UKF_Q1, rotError, 0.1f);
 

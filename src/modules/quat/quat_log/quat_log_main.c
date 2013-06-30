@@ -379,6 +379,18 @@ int quat_log_thread_main(int argc, char *argv[])
 				if (!(loops % 200)) {
 				    logDoHeader();
 				}
+
+				// do some corrections in sign, needed because of different board
+				buf.accel_report.x = - buf.accel_report.x;
+				buf.accel_report.z = - buf.accel_report.z;
+
+				buf.mag_report.x = - buf.mag_report.x;
+				buf.mag_report.z = - buf.mag_report.z;
+
+				buf.gyro_report.y = - buf.gyro_report.y;
+				buf.gyro_report.z = - buf.gyro_report.z;
+				//
+
 				logDo();
 				perf_end(quat_log_do_perf);
 				perf_begin(quat_log_write_perf);
@@ -395,7 +407,7 @@ int quat_log_thread_main(int argc, char *argv[])
 					float diff = (float)(currentTime - lastTime)/1000.0f;
 					unsigned bytes = quat_log_bytes;
 					float mebibytes = (float)bytes / 1024.0f / 1024.0f;
-					if(mebibytes > 300.0f) thread_should_exit = true;
+					if(mebibytes > 250.0f) thread_should_exit = true;
 					printf("[quat log] %8.4fms\t written: %dbytes\ttotal: %8.4fMegabytes\ttemp: %8.4fC\n",
 							diff, writtenBytes, mebibytes, buf.gyro_report.temperature);
 					lastTime = currentTime;

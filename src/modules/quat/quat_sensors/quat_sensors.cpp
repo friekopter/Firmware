@@ -1020,9 +1020,9 @@ Quat_Sensors::correctAccMeasurement(struct accel_report &acc_report)
 {
 	float x,y,z, a,b,c;
 	// rates
-	x = -(acc_report.x + _parameters.acc_bias1[0]*temp + _parameters.acc_bias2[0]*temp2 + _parameters.acc_bias3[0]*temp3);
-	y = +(acc_report.y + _parameters.acc_bias1[1]*temp + _parameters.acc_bias2[1]*temp2 + _parameters.acc_bias3[1]*temp3);
-	z = -(acc_report.z + _parameters.acc_bias1[2]*temp + _parameters.acc_bias2[2]*temp2 + _parameters.acc_bias3[2]*temp3);
+	x = -(-acc_report.x + _parameters.acc_bias1[0]*temp + _parameters.acc_bias2[0]*temp2 + _parameters.acc_bias3[0]*temp3);
+	y = +(+acc_report.y + _parameters.acc_bias1[1]*temp + _parameters.acc_bias2[1]*temp2 + _parameters.acc_bias3[1]*temp3);
+	z = -(-acc_report.z + _parameters.acc_bias1[2]*temp + _parameters.acc_bias2[2]*temp2 + _parameters.acc_bias3[2]*temp3);
 
 	a = x + y*_parameters.acc_align_xy + z*_parameters.acc_align_xz;
 	b = x*_parameters.acc_align_yx + y + z*_parameters.acc_align_yz;
@@ -1042,9 +1042,9 @@ Quat_Sensors::correctMagMeasurement(struct mag_report &mag_report)
 {
 	float x,y,z, a,b,c;
 	// rates
-	x = -(mag_report.x + _parameters.mag_bias1[0]*temp + _parameters.mag_bias2[0]*temp2 + _parameters.mag_bias3[0]*temp3);
-	y = +(mag_report.y + _parameters.mag_bias1[1]*temp + _parameters.mag_bias2[1]*temp2 + _parameters.mag_bias3[1]*temp3);
-	z = -(mag_report.z + _parameters.mag_bias1[2]*temp + _parameters.mag_bias2[2]*temp2 + _parameters.mag_bias3[2]*temp3);
+	x = -(-mag_report.x + _parameters.mag_bias1[0]*temp + _parameters.mag_bias2[0]*temp2 + _parameters.mag_bias3[0]*temp3);
+	y = +(+mag_report.y + _parameters.mag_bias1[1]*temp + _parameters.mag_bias2[1]*temp2 + _parameters.mag_bias3[1]*temp3);
+	z = -(-mag_report.z + _parameters.mag_bias1[2]*temp + _parameters.mag_bias2[2]*temp2 + _parameters.mag_bias3[2]*temp3);
 
 	a = x + y*_parameters.mag_align_xy + z*_parameters.mag_align_xz;
 	b = x*_parameters.mag_align_yx + y + z*_parameters.mag_align_yz;
@@ -1064,9 +1064,9 @@ Quat_Sensors::correctGyroMeasurement(struct  gyro_report &gyro_report)
 {
 	float x,y,z, a,b,c;
 	// rates
-	x = +(gyro_report.x + _parameters.gyro_bias1[0]*temp + _parameters.gyro_bias2[0]*temp2 + _parameters.gyro_bias3[0]*temp3);
-	y = -(gyro_report.y + _parameters.gyro_bias1[1]*temp + _parameters.gyro_bias2[1]*temp2 + _parameters.gyro_bias3[1]*temp3);
-	z = -(gyro_report.z + _parameters.gyro_bias1[2]*temp + _parameters.gyro_bias2[2]*temp2 + _parameters.gyro_bias3[2]*temp3);
+	x = +(+gyro_report.x + _parameters.gyro_bias1[0]*temp + _parameters.gyro_bias2[0]*temp2 + _parameters.gyro_bias3[0]*temp3);
+	y = -(-gyro_report.y + _parameters.gyro_bias1[1]*temp + _parameters.gyro_bias2[1]*temp2 + _parameters.gyro_bias3[1]*temp3);
+	z = -(-gyro_report.z + _parameters.gyro_bias1[2]*temp + _parameters.gyro_bias2[2]*temp2 + _parameters.gyro_bias3[2]*temp3);
 
 	a = x + y*_parameters.gyro_align_xy + z*_parameters.gyro_align_xz;
 	b = x*_parameters.gyro_align_yx + y + z*_parameters.gyro_align_yz;

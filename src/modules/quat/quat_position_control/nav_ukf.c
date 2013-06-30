@@ -262,7 +262,7 @@ void navUkfQuatExtractEuler(float *q, float *yaw, float *pitch, float *roll) {
     q1 = q[2];
     q2 = q[3];
     q3 = q[0];
-
+/*
     *yaw = atan2f((2.0f * (q0 * q1 + q3 * q2)), (q3*q3 - q2*q2 - q1*q1 + q0*q0));
     float pitchProduct = 2.0f * (q0 * q2 - q1 * q3);
     //The following is needed because the valid parameter range of asinf is [-1,1]
@@ -279,6 +279,10 @@ void navUkfQuatExtractEuler(float *q, float *yaw, float *pitch, float *roll) {
     }
     *pitch = asinf(pitchProduct) + base;
     *roll = atan2f((2.0f * (q1 * q2 + q0 * q3)),-(1.0f-2.0f*(q3*q3 + q2*q2)));
+    *roll */
+    *yaw = atan2f((2.0f * (q0 * q1 + q3 * q2)), (q3*q3 - q2*q2 - q1*q1 + q0*q0));
+    *pitch = asinf(-2.0f * (q0 * q2 - q1 * q3));
+    *roll = atanf((2.0f * (q1 * q2 + q0 * q3)) / (q3*q3 + q2*q2 - q1*q1 -q0*q0));
 }
 
 // result and source can be the same
@@ -407,7 +411,7 @@ void navUkfFinish(void) {
     navUkfNormalizeQuat(&UKF_Q1, &UKF_Q1);
     navUkfQuatExtractEuler(&UKF_Q1, &yaw, &pitch, &roll);
     navUkfData.roll = roll;
-    navUkfData.pitch = -pitch;
+    navUkfData.pitch = pitch;
     navUkfData.yaw = yaw;
     navUkfData.yaw = compassNormalize(navUkfData.yaw * RAD_TO_DEG)*DEG_TO_RAD;
     //navUkfData.pitch *= RAD_TO_DEG;
