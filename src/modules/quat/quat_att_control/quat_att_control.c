@@ -1,6 +1,7 @@
 #include "quat_att_control.h"
 #include "inttypes.h"
 #include "debug.h"
+#include <float.h>
 #include <uORB/topics/actuator_controls.h>
 
 #include <quat/utils/pid.h>
@@ -10,8 +11,6 @@
 
 #include <math.h>
 #include <stdbool.h>
-
-#define VERY_SMALL_FLOAT 0.00000001f
 
 
 controlStruct_t controlData;
@@ -81,7 +80,7 @@ void control_quadrotor_attitude(
 		struct actuator_controls_s *actuators)
 {
     float pitchCommand, rollCommand, ruddCommand, throttleCommand;
-    if(abs(rate_sp->yaw) < VERY_SMALL_FLOAT)
+    if(fabsf(rate_sp->yaw) < FLT_MIN)
     {
     	// hold heading
     	float yawRateTarget = pidUpdate(controlData.yawAngle, 0.0f, compassDifference(controlData.yawSetpoint, att->yaw));	// seek a 0 deg difference between hold heading and actual yaw

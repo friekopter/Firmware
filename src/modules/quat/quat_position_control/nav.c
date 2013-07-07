@@ -67,20 +67,20 @@ void navSetHomeCurrent(	const struct vehicle_gps_position_s* gps_position,
     // navData.homeLeg.poiHeading = AQ_YAW; //TODO FL set yaw
 }
 
-/*
-void navRecallHome(void) {
+
+void navRecallHome(const struct quat_position_control_NAV_params* params) {
     navUkfSetGlobalPositionTarget(navData.homeLeg.targetLat, navData.homeLeg.targetLon);
     navSetHoldAlt(navData.homeLeg.targetAlt, navData.homeLeg.relativeAlt);
     navData.holdMaxHorizSpeed = navData.homeLeg.maxHorizSpeed;
     navData.holdMaxVertSpeed = navData.homeLeg.maxVertSpeed;
     navSetHoldHeading(navData.homeLeg.poiHeading);
 
-    if (navData.holdMaxHorizSpeed == 0.0f)
-	navData.holdMaxHorizSpeed = p[NAV_MAX_SPEED];
-    if (navData.holdMaxVertSpeed == 0.0f)
-	navData.holdMaxVertSpeed = p[NAV_ALT_POS_OM];
+    if (fabsf(navData.holdMaxHorizSpeed) < FLT_MIN)
+	navData.holdMaxHorizSpeed = params->nav_max_speed;
+    if (fabsf(navData.holdMaxVertSpeed) < FLT_MIN)
+	navData.holdMaxVertSpeed = params->nav_alt_pos_om;
 }
-
+/*
 
 void navLoadLeg(uint8_t leg) {
     // invalid type?

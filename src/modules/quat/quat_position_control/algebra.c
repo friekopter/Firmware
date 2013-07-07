@@ -22,6 +22,13 @@
 #define MIN(a, b) ((a < b) ? a : b)
 #define MAX(a, b) ((a > b) ? a : b)
 
+inline float __aq_sqrtf(float x) {
+	//float result = 0;
+	//arm_sqrt_f32(x, &result);
+	//return result;
+	return sqrtf(x);
+}
+
 void matrixInit(arm_matrix_instance_f32 *m, int rows, int cols) {
     float32_t *d;
 
@@ -36,26 +43,38 @@ void matrixFree(arm_matrix_instance_f32 *m) {
 	free(m->pData);
 }
 
-//char matBuf[1024];
+char matBuf[1024];
 //char matBufTmp[64];
 //
 //#include "aq.h"
-//#include "notice.h"
-//#include "stdio.h"
-//void matrixDump(char *name, arm_matrix_instance_f32 *m) {
-//    int i, j;
-//    char *p = matBuf;
-//
-//    p += sprintf(p, "%s  = [\n", name);
-//    for (i = 0; i < m->numRows; i++) {
-//	for (j = 0; j < m->numCols; j++) {
-//	    p += sprintf(p, "%+.5e ", m->pData[i*m->numCols + j]);
-//	}
-//	p += sprintf(p, ";\n", name);
-//    }
-//    sprintf(p, "]\n", name);
-//    AQ_NOTICE(matBuf);
-//}
+#include "stdio.h"
+void matrixDump(char *name, arm_matrix_instance_f32 *m) {
+/*    int i, j;
+    char *p = matBuf;
+
+    p += sprintf(p, "%s  = [\n", name);
+    for (i = 0; i < m->numRows; i++) {
+		for (j = 0; j < m->numCols; j++) {
+			p += sprintf(p, "%+.5e ", m->pData[i*m->numCols + j]);
+		}
+		p += sprintf(p, ";\n", name);
+    }
+    sprintf(p, "]\n", name);
+    printf(p);*/
+	int i, j;
+    char *p = matBuf;
+
+    printf("%s  = [\n", name);
+    for (i = 0; i < m->numRows; i++) {
+		for (j = 0; j < m->numCols; j++) {
+			p += sprintf(p, "%+.5e ", m->pData[i*m->numCols + j]);
+		}
+		p += sprintf(p, ";\n");
+		printf(matBuf);
+		p = matBuf;
+    }
+    printf("]\n");
+}
 
 // Calculates the QR decomposition of the given matrix A Transposed (decomp's A', not A)
 //      notes:  A matrix is modified

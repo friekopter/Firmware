@@ -326,11 +326,24 @@ quat_att_control_thread_main(int argc, char *argv[])
 				&rates_sp,
 				&control,
 				&actuators);
-
+	    if(isnan(actuators.control[0]) || isnan(actuators.control[1]) || isnan(actuators.control[2]) || isnan(actuators.control[3])) {
+	    	/* init control */
+	    	actuators.control[0] = 0;
+	    	actuators.control[1] = 0;
+	    	actuators.control[2] = 0;
+	    	actuators.control[3] = 0;
+	    	control_quadrotor_attitude_init(&tilt_rate_params,
+	    									&tilt_angle_params,
+	    									&yaw_rate_params,
+	    									&yaw_angle_params,
+	    									&control);
+	    	continue;
+	    }
 		// /* print debug information every 200th time */
 		if (debug == true && printcounter % 1000 == 0)
 		{
 			printf("attitude_sp: %8.4f\t%8.4f\t%8.4f\t%8.4f\n", (double)att_sp.roll_body, (double)att_sp.pitch_body, (double)att_sp.yaw_body, (double)att_sp.thrust);
+			printf("attitude   : %8.4f\t%8.4f\t%8.4f\n", (double)att.roll, (double)att.pitch, (double)att.yaw);
 			printf("actuators: %8.4f\t%8.4f\t%8.4f\t%8.4f\n", (double)actuators.control[0], (double)actuators.control[1], (double)actuators.control[2], (double)actuators.control[3]);
 			printf("state: %i\n", state.flag_control_manual_enabled);
 		}

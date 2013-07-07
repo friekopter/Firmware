@@ -174,7 +174,7 @@ void srcdkfTimeUpdate(srcdkf_t *f, float32_t *u, float32_t dt) {
 	float32_t *xOut = f->xOut;	// callback buffer
 	float32_t *xNoise = f->xNoise;	// callback buffer
 	float32_t *qrTempS = f->qrTempS.pData;
-	int i, j;
+	int i=0, j=0;
 
 	srcdkfCalcSigmaPoints(f, &f->Sv);
 	L = f->L;
@@ -351,6 +351,12 @@ void srcdkfMeasurementUpdate(srcdkf_t *f, float32_t *u, float32_t *ym, int M, in
 	// x = x + k(ym - y)
 	for (i = 0; i < M; i++)
 		inov[i] = ym[i] - y[i];
+/*
+	if(M == 3) {
+		printf("Measured   :\t%8.4f\t%8.4f\t%8.4f\nCalculated:\t%8.4f\t%8.4f\t%8.4f\n",
+				ym[0],ym[1],ym[2],y[0],y[1],y[2]);
+	}*/
+
 	arm_mat_mult_f32(&f->K, &f->inov, &f->xUpdate);
 //matrixDump("K", &f->K);
 	for (i = 0; i < S; i++)

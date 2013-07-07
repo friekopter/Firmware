@@ -262,8 +262,8 @@ void navUkfQuatExtractEuler(float *q, float *yaw, float *pitch, float *roll) {
     q1 = q[2];
     q2 = q[3];
     q3 = q[0];
-/*
-    *yaw = atan2f((2.0f * (q0 * q1 + q3 * q2)), (q3*q3 - q2*q2 - q1*q1 + q0*q0));
+
+/*    *yaw = atan2f((2.0f * (q0 * q1 + q3 * q2)), (q3*q3 - q2*q2 - q1*q1 + q0*q0));
     float pitchProduct = 2.0f * (q0 * q2 - q1 * q3);
     //The following is needed because the valid parameter range of asinf is [-1,1]
     float base = 0;
@@ -278,8 +278,8 @@ void navUkfQuatExtractEuler(float *q, float *yaw, float *pitch, float *roll) {
     	base = - M_PI;
     }
     *pitch = asinf(pitchProduct) + base;
-    *roll = atan2f((2.0f * (q1 * q2 + q0 * q3)),-(1.0f-2.0f*(q3*q3 + q2*q2)));
-    *roll */
+    *roll = atan2f((2.0f * (q1 * q2 + q0 * q3)),-(1.0f-2.0f*(q3*q3 + q2*q2)));*/
+
     *yaw = atan2f((2.0f * (q0 * q1 + q3 * q2)), (q3*q3 - q2*q2 - q1*q1 + q0*q0));
     *pitch = asinf(-2.0f * (q0 * q2 - q1 * q3));
     *roll = atanf((2.0f * (q1 * q2 + q0 * q3)) / (q3*q3 + q2*q2 - q1*q1 -q0*q0));
@@ -358,6 +358,15 @@ void navUkfTimeUpdate(float *in, float *noise, float *out, float *u, float dt) {
     out[1] = in[1] + acc[1] * dt + noise[11];
     out[2] = in[2] + acc[2] * dt + noise[12];
 
+/*
+    if(fabs(acc[0])> 0.2 || fabs(acc[1])> 0.2 || fabs(acc[2])> 0.2)
+    {
+    	printf("in1:%8.4f\t2:%8.4f\t3:%8.4f\n",
+    	    			u[0],u[1],u[2]);
+    	printf("acc1:%8.4f\t2:%8.4f\t3:%8.4f\n",
+    	    	    			acc[0],acc[1],acc[2]);
+    }
+*/
     // pos
     out[3] = in[3] + (in[0] + out[0]) * 0.5f * dt + noise[13];
     out[4] = in[4] + (in[1] + out[1]) * 0.5f * dt + noise[14];
@@ -445,7 +454,12 @@ float navUkfInertialUpdate(const struct sensor_combined_s* raw) {
     u[5] = raw->gyro_rad_s[2];
 
     srcdkfTimeUpdate(navUkfData.kf, u, dt);
-
+    /*static int c = 0;
+    printf("acc x:%8.4f\ty:%8.4f\tz:%8.4f\n",
+    		u[0],u[1],u[2]);
+    if(!(c++ % 20)) {
+        matrixDump("Sigma Points", &navUkfData.kf->Xa);
+    }*/
     // store history
     navUkfData.posN[navUkfData.navHistIndex] = UKF_POSN;
     navUkfData.posE[navUkfData.navHistIndex] = UKF_POSE;
@@ -511,11 +525,12 @@ void simDoAccUpdate(float accX, float accY, float accZ,
     y[1] = accY / norm;
     y[2] = accZ / norm;
 
-    noise[0] = params->ukf_acc_n + fabsf(GRAVITY - norm) * params->ukf_dist_n;
+    noise[0] = params->ukf_acc_n + fabsf(CONSTANTS_ONE_G - norm) * params->ukf_dist_n;
+    //printf("Noise:%8.4f\n",noise[0]);
     if (!isFlying(current_status)) {
-	accX -= UKF_ACC_BIAS_X;
-	accY -= UKF_ACC_BIAS_Y;
-	noise[0] *= 0.001f;
+    	accX -= UKF_ACC_BIAS_X; // TODO FL: There is no point about this code
+    	accY -= UKF_ACC_BIAS_Y; // Result is not used
+    	noise[0] *= 0.001f;
     }
 
     noise[1] = noise[0];
@@ -734,7 +749,7 @@ void navUkfInitState(const struct sensor_combined_s* sensors) {
     // pos
     UKF_POSN = 0.0f;
     UKF_POSE = 0.0f;
-    UKF_POSD = sensors->baro_alt_meter;
+    UKF_POSD = navUkfPresToAlt(sensors->baro_pres_mbar);
 
     // acc bias
     UKF_ACC_BIAS_X = 0.0f;
@@ -752,7 +767,7 @@ void navUkfInitState(const struct sensor_combined_s* sensors) {
     UKF_Q3 =  0.0f;
     UKF_Q4 =  0.0f;
 
-    UKF_PRES_ALT = sensors->baro_alt_meter;
+    UKF_PRES_ALT = UKF_POSD;
 }
 
 void navUkfInit(const struct quat_position_control_UKF_params* params,
@@ -781,6 +796,7 @@ void navUkfInit(const struct quat_position_control_UKF_params* params,
 
     navUkfData.x = srcdkfGetState(navUkfData.kf);
 
+    // State variance
     Q[0] = params->ukf_vel_q;
     Q[1] = params->ukf_vel_q;
     Q[2] = params->ukf_vel_alt_q;
@@ -799,6 +815,7 @@ void navUkfInit(const struct quat_position_control_UKF_params* params,
     Q[15] = params->ukf_quat_q;
     Q[16] = params->ukf_pres_alt_q;
 
+    // Process noise
     V[0] = params->ukf_acc_bias_v;
     V[1] = params->ukf_acc_bias_v;
     V[2] = params->ukf_acc_bias_v;

@@ -20,8 +20,9 @@
 #define _aq_math_h
 #include <mathlib/CMSIS/Include/arm_math.h>
 
-#define aq_sqrtf sqrtf
+#define aq_sqrtf __aq_sqrtf
 
+float __aq_sqrtf(float x);
 extern void matrixInit(arm_matrix_instance_f32 *m, int rows, int cols);
 extern void matrixFree(arm_matrix_instance_f32 *m);
 extern void matrixDump(char *name, arm_matrix_instance_f32 *m);

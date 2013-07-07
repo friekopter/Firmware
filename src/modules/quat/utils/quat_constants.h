@@ -12,6 +12,5 @@
 #define COMPASS_INCLINATION		-64.15194444444f
 #define RAD_TO_DEG		(180.0f/M_PI)
 #define DEG_TO_RAD		(M_PI/180.0f)
-#define GRAVITY			9.80665f	// m/s^2
 
 #endif /* QUAT_CONSTANTS_H_ */

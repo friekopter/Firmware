@@ -518,7 +518,7 @@ void handleMessage(mavlink_message_t *msg)
 			gps_report.vel_e_m_s = ((float)((int16_t)gps_data.cog))/100.0f;
 			gps_report.vel_m_s = 0;
 			gps_report.vel_n_m_s = ((float)((int16_t)gps_data.vel))/100.0f;
-			gps_report.vel_ned_valid = 0;
+			gps_report.vel_ned_valid = 1;
 			orb_publish(ORB_ID(vehicle_gps_position), gps_topic, &gps_report);
 		}
 	}

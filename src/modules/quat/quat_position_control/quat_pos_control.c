@@ -409,7 +409,7 @@ quat_pos_control_thread_main(int argc, char *argv[])
 		}
 	}
 	printf("[quat pos control] Init nav\n");
-	navInit(&nav_params,raw.baro_alt_meter,0.0f);//TODO FL find a better yaw to init hold
+	navInit(&nav_params,raw.baro_alt_meter,navUkfData.yaw);
 	printf("[quat pos control] Starting loop\n");
 
 	while (!thread_should_exit) {
@@ -522,7 +522,7 @@ quat_pos_control_thread_main(int argc, char *argv[])
 						   	   	   	&state,
 						   	   	   	&ukf_params);
 				}
-				else if (!((loopcounter+7) % 20)) {
+			/*	else if (!((loopcounter+7) % 20)) {
 					simDoPresUpdate(runData.sumPres*(1.0f / (float)RUN_SENSOR_HIST),
 				   	   	   			&state,
 				   	   	   			&ukf_params);
@@ -533,7 +533,7 @@ quat_pos_control_thread_main(int argc, char *argv[])
 						   	   	  runData.sumMag[2]*(1.0 / (float)RUN_SENSOR_HIST),
 						   	   	  &state,
 						   	   	  &ukf_params);
-				}
+				}*/
 				navUkfFinish();
 				// Publish attitude
 				att.R_valid = false;
@@ -625,6 +625,7 @@ quat_pos_control_thread_main(int argc, char *argv[])
 /*			printf("Pressure:%8.4f\t%8.4f\t%8.4f\n",
 					raw.baro_pres_mbar, runData.sumPres*(1.0f / (float)RUN_SENSOR_HIST),
 					navUkfPresToAlt(runData.sumPres*(1.0f / (float)RUN_SENSOR_HIST)));*/
+
 			if (debug == true && !(printcounter % 1000))
 			{
 				float frequence = 0;
@@ -632,6 +633,7 @@ quat_pos_control_thread_main(int argc, char *argv[])
 				uint32_t current = hrt_absolute_time();
 				frequence = 1000.0f*1000000.0f/(float)(current - last_measure);
 				last_measure = current;
+
 				printf("1:%8.4f\t2:%8.4f\t3:%8.4f\t4:%8.4f\t5:%8.4f\t6:%8.4f\t7:%8.4f\t8:%8.4f\t9:%8.4f\t10:%8.4f\n11:%8.4f\t12:%8.4f\t13:%8.4f\t14:%8.4f\t15:%8.4f\t16:%8.4f\t17:%8.4f\n",
 					navUkfData.x[0],navUkfData.x[1],navUkfData.x[2],navUkfData.x[3],navUkfData.x[4],
 					navUkfData.x[5],navUkfData.x[6],navUkfData.x[7],navUkfData.x[8],navUkfData.x[9],
@@ -643,6 +645,8 @@ quat_pos_control_thread_main(int argc, char *argv[])
 						raw.accelerometer_m_s2[0], runData.sumAcc[0]*(1.0f / (float)RUN_SENSOR_HIST), raw.accelerometer_m_s2[1], runData.sumAcc[1]*(1.0f / (float)RUN_SENSOR_HIST), raw.accelerometer_m_s2[2], runData.sumAcc[2]*(1.0f / (float)RUN_SENSOR_HIST) );
 				printf("Gyro x:%8.4f\ty:%8.4f\tz:%8.4f\n",
 						raw.gyro_rad_s[0],raw.gyro_rad_s[1],raw.gyro_rad_s[2]);
+				printf("Mag x:%8.4f\ty:%8.4f\tz:%8.4f\n",
+						raw.magnetometer_ga[0],raw.magnetometer_ga[1],raw.magnetometer_ga[2]);
 				printf("Pressure:%8.4f\t%8.4f\n",
 						raw.baro_pres_mbar, runData.sumPres*(1.0f / (float)RUN_SENSOR_HIST));
 				//printf("GPS trust: hAcc:%8.4f dt:%8.4f\n", gps_data.eph_m, dt);
