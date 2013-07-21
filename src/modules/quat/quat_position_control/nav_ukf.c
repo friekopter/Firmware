@@ -20,14 +20,16 @@
 #include <systemlib/conversions.h>
 #include <quat/utils/quat_constants.h>
 #include "nav.h"
+#include <quat/utils/aq_math.h>
 #include <float.h>
 #include <math.h>
-#include "aq_math.h"
+#include <quat/utils/aq_math.h>
 #include <quat/utils/util.h>
 #include <quat/utils/compass_utils.h>
 #include <drivers/drv_hrt.h>
+#include <uORB/topics/filtered_bottom_flow.h>
 
-navUkfStruct_t navUkfData __attribute__((section(".ccm")));;
+navUkfStruct_t navUkfData __attribute__((section(".ccm")));
 
 #ifdef UKF_LOG_BUF
 char ukfLog[UKF_LOG_BUF];
@@ -52,6 +54,7 @@ void navUkfPresUpdate(float *u, float *x, float *noise, float *y);
 void navUkfPresGPSAltUpdate(float *u, float *x, float *noise, float *y);
 void navUkfPosUpdate(float *u, float *x, float *noise, float *y);
 void navUkfVelUpdate(float *u, float *x, float *noise, float *y);
+void navUkfFlowUpdate(float *u, float *x, float *noise, float *y);
 
 bool isFlying(const struct vehicle_status_s *current_status){
 	return (current_status->state_machine > SYSTEM_STATE_GROUND_READY);
@@ -263,8 +266,8 @@ void navUkfQuatExtractEuler(float *q, float *yaw, float *pitch, float *roll) {
     q2 = q[3];
     q3 = q[0];
 
-/*    *yaw = atan2f((2.0f * (q0 * q1 + q3 * q2)), (q3*q3 - q2*q2 - q1*q1 + q0*q0));
-    float pitchProduct = 2.0f * (q0 * q2 - q1 * q3);
+    *yaw = atan2f((2.0f * (q0 * q1 + q3 * q2)), (q3*q3 - q2*q2 - q1*q1 + q0*q0));
+    float pitchProduct = - 2.0f * (q0 * q2 - q1 * q3);
     //The following is needed because the valid parameter range of asinf is [-1,1]
     float base = 0;
     if(pitchProduct > 1)
@@ -278,11 +281,11 @@ void navUkfQuatExtractEuler(float *q, float *yaw, float *pitch, float *roll) {
     	base = - M_PI;
     }
     *pitch = asinf(pitchProduct) + base;
-    *roll = atan2f((2.0f * (q1 * q2 + q0 * q3)),-(1.0f-2.0f*(q3*q3 + q2*q2)));*/
-
+    *roll  = atan2f((2.0f * (q1 * q2 + q0 * q3)),-(1.0f-2.0f*(q3*q3 + q2*q2)));
+/*
     *yaw = atan2f((2.0f * (q0 * q1 + q3 * q2)), (q3*q3 - q2*q2 - q1*q1 + q0*q0));
     *pitch = asinf(-2.0f * (q0 * q2 - q1 * q3));
-    *roll = atanf((2.0f * (q1 * q2 + q0 * q3)) / (q3*q3 + q2*q2 - q1*q1 -q0*q0));
+    *roll = atanf((2.0f * (q1 * q2 + q0 * q3)) / (q3*q3 + q2*q2 - q1*q1 -q0*q0));*/
 }
 
 // result and source can be the same
@@ -415,14 +418,19 @@ void navUkfVelUpdate(float *u, float *x, float *noise, float *y) {
     y[2] = x[2] + noise[2];
 }
 
+void navUkfFlowUpdate(float *u, float *x, float *noise, float *y) {
+    y[0] = x[0] + noise[0]; // return velocity
+    y[1] = x[1] + noise[1];
+}
+
 void navUkfFinish(void) {
 	float yaw, pitch, roll;
     navUkfNormalizeQuat(&UKF_Q1, &UKF_Q1);
     navUkfQuatExtractEuler(&UKF_Q1, &yaw, &pitch, &roll);
     navUkfData.roll = roll;
     navUkfData.pitch = pitch;
+    yaw = compassNormalizeRad(yaw);
     navUkfData.yaw = yaw;
-    navUkfData.yaw = compassNormalize(navUkfData.yaw * RAD_TO_DEG)*DEG_TO_RAD;
     //navUkfData.pitch *= RAD_TO_DEG;
     //navUkfData.roll *= RAD_TO_DEG;
 
@@ -549,7 +557,7 @@ void simDoMagUpdate(float magX, float magY, float magZ,
     noise[0] = params->ukf_mag_n;
 
     if (!isFlying(current_status))
-	noise[0] *= 0.001f;
+	noise[0] = 0.001f;
 
     noise[1] = noise[0];
     noise[2] = noise[0];
@@ -716,13 +724,9 @@ void navUkfGpsVelUpate(
 #endif
     }
     else {
-	// experimental
-//	UKF_ACC_BIAS_X = 0.0f;
-//	UKF_ACC_BIAS_Y = 0.0f;
-
 	y[0] = 0.0f;
 	y[1] = 0.0f;
-	y[2] = 0.0f;
+	y[2] = UKF_PRES_ALT;
 
 	if (isFlying(current_status)) {
 	    noise[0] = 5.0f;
@@ -732,11 +736,33 @@ void navUkfGpsVelUpate(
 	else {
 	    noise[0] = 1e-7f;
 	    noise[1] = 1e-7f;
-	    noise[2] = 1e-7f;
+	    noise[2] = 1e2f;
 	}
 
 	srcdkfMeasurementUpdate(navUkfData.kf, 0, y, 3, 3, noise, navUkfVelUpdate);
     }
+}
+
+void navUkfFlowVelUpate(
+		const struct filtered_bottom_flow_s* measured_flow,
+		float dt,
+		const struct vehicle_status_s *current_status,
+		const struct quat_position_control_UKF_params* params) {
+	// Don't do anything for invalid dt
+	if(dt < FLT_MIN) return;
+    float y[2];
+    float noise[2];
+    float velDelta[3];
+
+	// rotate to earth frame
+    y[0] = measured_flow->vx * navUkfData.yawCos - measured_flow->vy * navUkfData.yawSin; //North
+    y[1] = measured_flow->vy * navUkfData.yawCos + measured_flow->vx * navUkfData.yawSin; //East
+
+
+	noise[0] = params->ukf_flow_vel_n;
+	noise[1] = noise[0];
+
+	srcdkfMeasurementUpdate(navUkfData.kf, 0, y, 2, 2, noise, navUkfFlowUpdate);
 }
 
 void navUkfInitState(const struct sensor_combined_s* sensors) {

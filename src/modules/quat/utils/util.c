@@ -6,7 +6,8 @@ uint32_t heapUsed, dataSramUsed;
 uint32_t *ccmHeap[UTIL_CCM_HEAP_SIZE] __attribute__((section(".ccm")));
 
 void *aqCalloc(size_t count, size_t size) {
-    //heapUsed += count * size;
+    heapUsed += count * size;
+    printf("heap used: %d\n",heapUsed);
     return calloc(count, size);
 }
 // allocates memory from 64KB CCM

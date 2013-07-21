@@ -365,7 +365,7 @@ void quatUpdate(const uint8_t updateVect[3],
 
     // extract and save euler angles
     quatExtractEuler(quatData.q, &yaw, &pitch, &roll);
-    yaw = compassNormalize(yaw * RAD_TO_DEG)* DEG_TO_RAD;
+    yaw = compassNormalizeRad(yaw);
 
     attitudeResult->roll = roll;
     attitudeResult->pitch = -pitch;

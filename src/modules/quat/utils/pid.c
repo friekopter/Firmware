@@ -37,6 +37,8 @@ pidStruct_t *pidInit(const float *p,const float *i,const float *d,const float *f
     pid->dTrim = dTrim;
     pid->fTrim = fTrim;
 
+    pidZeroIntegral(pid,0.0f,0.0f);
+
     return pid;
 }
 

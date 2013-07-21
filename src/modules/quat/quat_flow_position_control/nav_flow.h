@@ -16,18 +16,17 @@
     Copyright � 2011, 2012  Bill Nesbitt
 */
 
-#ifndef _nav_h
-#define _nav_h
+#ifndef _nav_flow_h
+#define _nav_flow_h
 
 //#include <CoOS.h>
 #include <uORB/topics/vehicle_gps_position.h>
 #include <uORB/topics/vehicle_status.h>
 #include <uORB/topics/manual_control_setpoint.h>
 #include <uORB/topics/filtered_bottom_flow.h>
-#include "quat_pos_control_params.h"
+#include <quat/quat_position_control/quat_pos_control_params.h>
 #include <quat/utils/pid.h>
 
-#define NAV_MIN_GPS_ACC		3.0f
 #define NAV_MAX_FIX_AGE		((int)1e6f)				    // 1 second
 
 #define NAV_LANDING_VEL		0.33f					    // default landing/takeoff vertical velocity
@@ -45,31 +44,6 @@
 
 #define IMU_STATIC_STD		0.05f						// Standard deviation
 
-enum navLegTypes {
-    NAV_LEG_HOME = 1,
-    NAV_LEG_TAKEOFF,
-    NAV_LEG_GOTO,
-    NAV_LEG_ORBIT,
-    NAV_LEG_LAND,
-    NAV_NUM_LEG_TYPES
-};
-
-#define NAV_MAX_MISSION_LEGS	25
-
-typedef struct {
-    double targetLat;
-    double targetLon;
-    float targetAlt;			// either relative or absolute - if absolute, GPS altitude is used
-    float targetRadius;			// achievement threshold for GOTO or orbit radius for ORBIT
-    uint32_t loiterTime;		// us
-    float maxHorizSpeed;		// m/s
-    float maxVertSpeed;			// m/s
-    float poiHeading;			// POI heading (>= 0 is absolute, < 0 is relative to target bearing)
-    float poiAltitude;			// altitude of POI - used for camera tilting
-    uint8_t relativeAlt;		// 0 == absolute, 1 == relative
-    uint8_t type;
-} navMission_t;
-
 typedef struct {
     float poiAngle;			// pitch angle for gimbal to center POI
     float holdAlt;			// altitude to hold
@@ -79,51 +53,37 @@ typedef struct {
     float holdDistance;			// distance to hold position (straight line)
     float holdMaxHorizSpeed;		// maximum N/E speed allowed to achieve position
     float holdMaxVertSpeed;		// maximum UP/DOWN speed allowed to achieve altitude
-    float holdSpeedN;			// required speed (North/South)
-    float holdSpeedE;			// required speed (East/West)
-    float holdTiltN;			// required tilt (North/South)
-    float holdTiltE;			// required tilt (East/West)
+    float holdSpeedX;			// required speed (North/South)
+    float holdSpeedY;			// required speed (East/West)
+    float holdTiltX;			// required tilt (North/South)
+    float holdTiltY;			// required tilt (East/West)
     float holdSpeedAlt;			// required speed (Up/Down)
     float targetHoldSpeedAlt;
 
-    pidStruct_t *speedNPID;		// PID to control N/S speed - output tilt in degrees
-    pidStruct_t *speedEPID;		// PID to control E/W speed - output tilt in degrees
-    pidStruct_t *distanceNPID;		// PID to control N/S distance - output speed in m/s
-    pidStruct_t *distanceEPID;		// PID to control E/W distance - output speed in m/s
+    pidStruct_t *speedXPID;		// PID to control N/S speed - output tilt in degrees
+    pidStruct_t *speedYPID;		// PID to control E/W speed - output tilt in degrees
     pidStruct_t *altSpeedPID;		// PID to control U/D speed - output speed in m/s
     pidStruct_t *altPosPID;		// PID to control U/D distance - output error in meters
-
-    navMission_t missionLegs[NAV_MAX_MISSION_LEGS];
-    navMission_t homeLeg;
-    uint32_t loiterCompleteTime;
 
     uint32_t lastUpdate;
 
     uint8_t mode;			// navigation mode
     uint8_t navCapable;
-    uint8_t missionLeg;
-} navStruct_t;
+} navFlowStruct_t;
 
-extern navStruct_t navData;
+extern navFlowStruct_t navFlowData;
 
-extern void navInit(const struct quat_position_control_NAV_params* params,
+extern void navFlowInit(const struct quat_position_control_NAV_params* params,
 		float holdYaw,
 		float holdAlt);
-extern unsigned int navGetWaypointCount(void);
-extern unsigned char navClearWaypoints(void);
-extern navMission_t *navGetWaypoint(int seqId);
-extern navMission_t *navGetHomeWaypoint(void);
-extern void navSetHomeCurrent(	const struct vehicle_gps_position_s* gps_position,
-								const struct quat_position_control_NAV_params* params);
-extern void navLoadLeg(unsigned char leg);
-extern void navNavigate(const struct vehicle_gps_position_s* gps_position,
+extern void navFlowNavigate(
 		const struct vehicle_status_s *current_status,
 		const struct quat_position_control_NAV_params* params,
 		const struct manual_control_setpoint_s* manual_control,
 		const struct filtered_bottom_flow_s* flow_data,
 		uint64_t imu_timestamp
 		);
-extern void navResetHoldAlt(float delta);
-extern void navSetHoldHeading(float targetHeading);
+extern void navFlowResetHoldAlt(float delta);
+extern void navFlowSetHoldHeading(float targetHeading);
 
 #endif

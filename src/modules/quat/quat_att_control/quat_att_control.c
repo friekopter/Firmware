@@ -34,18 +34,22 @@ void control_quadrotor_attitude_reset()
 	pidZeroIntegral(controlData.yawAngle,0.0f,0.0f);
 }
 
-void control_quadrotor_attitude_init(		const struct attitude_pid_quat_params *tilt_rate,
-											const struct attitude_pid_quat_params *tilt_angle,
-											const struct attitude_pid_quat_params *yaw_rate,
-											const struct attitude_pid_quat_params *yaw_angle,
-											const struct attitude_control_quat_params *control)
-{
+void control_initFilter() {
     int i;
     for (i = 0; i < 3; i++)
     {
     	utilFilterInit(&controlData.pitchFilter[i], 1.0f/100.0f, 0.1f, 0.0f);
     	utilFilterInit(&controlData.rollFilter[i], 1.0f/100.0f, 0.1f, 0.0f);
     }
+}
+
+void control_quadrotor_attitude_init(		const struct attitude_pid_quat_params *tilt_rate,
+											const struct attitude_pid_quat_params *tilt_angle,
+											const struct attitude_pid_quat_params *yaw_rate,
+											const struct attitude_pid_quat_params *yaw_angle,
+											const struct attitude_control_quat_params *control)
+{
+	control_initFilter();
 
     controlData.pitchRate = pidInit(&tilt_rate->p, &tilt_rate->i, &tilt_rate->d, &tilt_rate->f,
     								&tilt_rate->max_p, &tilt_rate->max_i, &tilt_rate->max_d, &tilt_rate->max_o,
@@ -83,7 +87,7 @@ void control_quadrotor_attitude(
     if(fabsf(rate_sp->yaw) < FLT_MIN)
     {
     	// hold heading
-    	float yawRateTarget = pidUpdate(controlData.yawAngle, 0.0f, compassDifference(controlData.yawSetpoint, att->yaw));	// seek a 0 deg difference between hold heading and actual yaw
+    	float yawRateTarget = pidUpdate(controlData.yawAngle, 0.0f, compassDifferenceRad(controlData.yawSetpoint, att->yaw));	// seek a 0 deg difference between hold heading and actual yaw
     	ruddCommand = constrainFloat(pidUpdate(controlData.yawRate, yawRateTarget, att->yawspeed), -control->controlMax, control->controlMax);
     }
     else

@@ -258,7 +258,13 @@ quat_att_control_thread_main(int argc, char *argv[])
 		att.yawspeed = raw.gyro_rad_s[2];
 
 		/** STEP 1: Define which input is the dominating control input */
-		if (state.flag_control_offboard_enabled) {
+		if (!state.flag_system_armed) {
+		    //navSetHoldHeading(att.yaw);
+		    // Reset all PIDs
+		    control_quadrotor_attitude_reset();
+		}
+		else if (state.flag_control_offboard_enabled) {
+
 					/* offboard inputs */
 					if (offboard_sp.mode == OFFBOARD_CONTROL_MODE_DIRECT_RATES) {
 						rates_sp.roll = offboard_sp.p1;
@@ -312,10 +318,24 @@ quat_att_control_thread_main(int argc, char *argv[])
 				orb_publish(ORB_ID(vehicle_attitude_setpoint), att_sp_pub, &att_sp);
 			}
 		}
+		else if (state.state_machine == SYSTEM_STATE_STABILIZED) {
+			if (manual.yaw < -control.controlDeadBand || manual.yaw > control.controlDeadBand)
+			{
+				rates_sp.yaw = manual.yaw * control.controlYawF;
+			}
+			else
+			{
+				rates_sp.yaw = 0.0f;
+			}
+		}
 		else {
 			// switch to yaw absolute control for the automatic control
-			rates_sp.yaw = 0.0f;
-			control_quadrotor_set_yaw(att_sp.yaw_body);
+			//rates_sp.yaw = 0.0f;
+			//float yaw = compassDifferenceRad(controlData.yawSetpoint,att_sp.yaw_body);
+			//yaw = constrainFloat(yaw, -p[CTRL_NAV_YAW_RT]/400.0f, +p[CTRL_NAV_YAW_RT]/400.0f);
+			// Smoothly adjust controlData.yawSetpoint to the hold heading value
+			//yaw = compassNormalizeRad(controlData.yawSetpoint + yaw);
+			//control_quadrotor_set_yaw(yaw);
 		}
 
 		/** STEP 3: Identify the controller setup to run and set up the inputs correctly */
@@ -326,25 +346,23 @@ quat_att_control_thread_main(int argc, char *argv[])
 				&rates_sp,
 				&control,
 				&actuators);
+
 	    if(isnan(actuators.control[0]) || isnan(actuators.control[1]) || isnan(actuators.control[2]) || isnan(actuators.control[3])) {
 	    	/* init control */
 	    	actuators.control[0] = 0;
 	    	actuators.control[1] = 0;
 	    	actuators.control[2] = 0;
 	    	actuators.control[3] = 0;
-	    	control_quadrotor_attitude_init(&tilt_rate_params,
-	    									&tilt_angle_params,
-	    									&yaw_rate_params,
-	    									&yaw_angle_params,
-	    									&control);
+	    	control_quadrotor_attitude_reset();
+	    	control_initFilter();
 	    	continue;
 	    }
 		// /* print debug information every 200th time */
 		if (debug == true && printcounter % 1000 == 0)
 		{
 			printf("attitude_sp: %8.4f\t%8.4f\t%8.4f\t%8.4f\n", (double)att_sp.roll_body, (double)att_sp.pitch_body, (double)att_sp.yaw_body, (double)att_sp.thrust);
-			printf("attitude   : %8.4f\t%8.4f\t%8.4f\n", (double)att.roll, (double)att.pitch, (double)att.yaw);
-			printf("actuators: %8.4f\t%8.4f\t%8.4f\t%8.4f\n", (double)actuators.control[0], (double)actuators.control[1], (double)actuators.control[2], (double)actuators.control[3]);
+			printf("attitude   : %8.4f\t%8.4f\t%8.4f\n",        (double)att.roll, (double)att.pitch, (double)att.yaw);
+			printf("actuators  : %8.4f\t%8.4f\t%8.4f\t%8.4f\n", (double)actuators.control[0], (double)actuators.control[1], (double)actuators.control[2], (double)actuators.control[3]);
 			printf("state: %i\n", state.flag_control_manual_enabled);
 		}
 		printcounter++;

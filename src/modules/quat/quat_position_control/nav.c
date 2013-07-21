@@ -25,14 +25,13 @@
 #include <string.h>
 #include <math.h>
 #include <float.h>
-#include "aq_math.h"
+#include <quat/utils/aq_math.h>
 #include <stdio.h>
 #include <uORB/topics/manual_control_setpoint.h>
 
 #define CTRL_DEAD_BAND (5.0f/1000.0f)
 
 void navSetHoldAlt(float alt, uint8_t relative);
-void navSetHoldHeading(float targetHeading);
 navStruct_t navData __attribute__((section(".ccm")));
 
 void navResetHoldAlt(float delta) {
@@ -50,7 +49,7 @@ void navSetHoldHeading(float targetHeading) {
     // signbit() returns true if negative sign
     if (signbit(targetHeading))
 	// use targetHeading as relative to bearing to target
-	navData.holdHeading = compassNormalize(navData.holdCourse + targetHeading);
+	navData.holdHeading = compassNormalizeRad(navData.holdCourse + targetHeading);
     else
 	// use targetHeading as absolute heading
 	navData.holdHeading = targetHeading;
@@ -160,16 +159,20 @@ void navNavigate(
 		const struct vehicle_status_s *current_status,
 		const struct quat_position_control_NAV_params* params,
 		const struct manual_control_setpoint_s* manual_control,
+		const struct filtered_bottom_flow_s* flow_data,
 		uint64_t imu_timestamp
 		) {
-    uint64_t currentTime;
+    uint64_t currentTime = imu_timestamp;
     unsigned char leg = navData.missionLeg;
     float tmp;
 
-    currentTime = imu_timestamp;
-
     // do we have a sufficient, recent fix?
-    if ((currentTime - gps_position->timestamp_position) < NAV_MAX_FIX_AGE && (gps_position->eph_m/* * runData.accMask*/) < NAV_MIN_GPS_ACC) {
+    if ((currentTime - gps_position->timestamp_position) < NAV_MAX_FIX_AGE
+    		&& (gps_position->eph_m/* * runData.accMask*/) < NAV_MIN_GPS_ACC
+    		) {
+    	navData.navCapable = 1;
+    }
+    else if ((currentTime - flow_data->timestamp) < NAV_MAX_FIX_AGE) {
     	navData.navCapable = 1;
     }
     // do not drop out of mission due to (hopefully) temporary GPS degradation
@@ -199,6 +202,7 @@ void navNavigate(
 
 			navData.mode = NAV_STATUS_ALTHOLD;
 			navData.holdSpeedAlt = -UKF_VELD;
+			printf("[quat_pos_control]: Altitude hold activated\n");
 		}
 
 		// are we not in position hold mode now?
@@ -233,6 +237,7 @@ void navNavigate(
 
 			// activate pos hold
 			navData.mode = NAV_STATUS_POSHOLD;
+			printf("[quat_pos_control]: Position hold activated\n");
 		}
 		// DVH
 		else if (navData.navCapable && (
@@ -241,6 +246,7 @@ void navNavigate(
 			manual_control->roll > CTRL_DEAD_BAND ||
 			manual_control->roll < -CTRL_DEAD_BAND)) {
 				navData.mode = NAV_STATUS_DVH;
+				//printf("[quat_pos_control]: DVH activated\n");
 		}
 		else if (navData.navCapable && navData.mode == NAV_STATUS_DVH) {
 			// allow speed to drop before holding position (or if RTH engaged)
@@ -253,6 +259,7 @@ void navNavigate(
 			//		RADIO_AUX2 < -250) {
 				navUkfSetGlobalPositionTarget(gps_position->lat, gps_position->lon);
 				navData.mode = NAV_STATUS_POSHOLD;
+				printf("[quat_pos_control]: Position hold activated from DVH\n");
 			//}
 		}
     }
@@ -277,7 +284,7 @@ void navNavigate(
     */
 
     if (UKF_POSN != 0.0f || UKF_POSE != 0.0f) {
-		navData.holdCourse = compassNormalize(atan2f(-UKF_POSE, -UKF_POSN) * RAD_TO_DEG);
+		navData.holdCourse = compassNormalizeRad(atan2f(-UKF_POSE, -UKF_POSN));
 		navData.holdDistance = aq_sqrtf(UKF_POSN*UKF_POSN + UKF_POSE*UKF_POSE);
     }
     else {
@@ -361,7 +368,7 @@ void navNavigate(
 		navData.holdSpeedE = pidUpdate(navData.distanceEPID, 0.0f, UKF_POSE);
     }
 
-    if (abs(navData.holdSpeedE) > FLT_MIN || abs(navData.holdSpeedE) > FLT_MIN) {
+    if (fabs(navData.holdSpeedE) > FLT_MIN || fabs(navData.holdSpeedE) > FLT_MIN) {
         // normalize N/E speed requests to fit below max nav speed
         tmp = aq_sqrtf(navData.holdSpeedN*navData.holdSpeedN + navData.holdSpeedE*navData.holdSpeedE);
         if (tmp > navData.holdMaxHorizSpeed) {
@@ -378,7 +385,8 @@ void navNavigate(
 		float vertStick;
 
 		// Throttle controls vertical speed
-		vertStick = manual_control->throttle;
+		// Throttle is 0 ... 1
+		vertStick = (manual_control->throttle * 2.0f) - 1.0f;
 		if (vertStick > CTRL_DEAD_BAND || vertStick < -CTRL_DEAD_BAND) {
 			// altitude velocity proportional to throttle stick
 			// TODO: Assume that throttle control is normalized to -1 ... 1
@@ -438,6 +446,10 @@ void navInit(const struct quat_position_control_NAV_params* params,
 				float holdYaw,
 				float holdAlt) {
     int i = 0;
+
+    memset(&navData,0,sizeof(navData));
+	navData.holdMaxHorizSpeed = params->nav_max_speed;
+	navData.holdMaxVertSpeed = params->nav_alt_pos_om;
 
     navData.speedNPID = pidInit(&params->nav_speed_p, &params->nav_speed_i, 0, 0, &params->nav_speed_pm, &params->nav_speed_im, 0, &params->nav_speed_om, 0, 0, 0, 0);
     navData.speedEPID = pidInit(&params->nav_speed_p, &params->nav_speed_i, 0, 0, &params->nav_speed_pm, &params->nav_speed_im, 0, &params->nav_speed_om, 0, 0, 0, 0);

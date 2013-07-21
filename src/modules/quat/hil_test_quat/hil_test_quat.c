@@ -79,6 +79,7 @@
 #include <uORB/topics/actuator_controls.h>
 #include <uORB/topics/manual_control_setpoint.h>
 #include <uORB/topics/debug_key_value.h>
+#include <uORB/topics/filtered_bottom_flow.h>
 #include <mavlink/mavlink_log.h>
 
 #include <systemlib/param/param.h>
@@ -124,6 +125,8 @@ static orb_advert_t stat_pub;
 static orb_advert_t		manual_topic;
 struct manual_control_setpoint_s manual_report;
 static orb_advert_t		gps_topic;
+static orb_advert_t		filtered_flow_pub;
+struct filtered_bottom_flow_s flow_report;
 struct vehicle_gps_position_s gps_report;
 
 
@@ -490,7 +493,7 @@ void handleMessage(mavlink_message_t *msg)
 			gps_report.cAcc = 0;
 			gps_report.cog_rad = 0;
 			gps_report.eDop = 150.0f;
-			gps_report.eph_m = 3.0f;
+			gps_report.eph_m = 2.9f;
 			gps_report.epv_m = 3.0f;
 			gps_report.fix_type = 3;
 			gps_report.hDop = gps_data.eph;
@@ -520,6 +523,28 @@ void handleMessage(mavlink_message_t *msg)
 			gps_report.vel_n_m_s = ((float)((int16_t)gps_data.vel))/100.0f;
 			gps_report.vel_ned_valid = 1;
 			orb_publish(ORB_ID(vehicle_gps_position), gps_topic, &gps_report);
+		}
+	}
+	if (msg->msgid == MAVLINK_MSG_ID_OPTICAL_FLOW) {
+		mavlink_optical_flow_t flow;
+		mavlink_msg_optical_flow_decode(msg, &flow);
+
+		flow_report.timestamp = hrt_absolute_time();
+		flow_report.vx = flow.flow_comp_m_x;
+		flow_report.vy = flow.flow_comp_m_y;
+		flow_report.sumx = 0;
+		flow_report.sumy = 0;
+/*		flow_report.flow_comp_x_m = flow.flow_comp_m_x;
+		flow_report.flow_comp_y_m = flow.flow_comp_m_y;
+		flow_report.ground_distance_m = flow.ground_distance;
+		flow_report.quality = flow.quality;
+		flow_report.sensor_id = flow.sensor_id;*/
+		//printf("flowx:%8.4f\tflowy:%8.4f\n",flow_report.vx, flow_report.vy);
+		if (filtered_flow_pub <= 0) {
+			filtered_flow_pub = orb_advertise(ORB_ID(filtered_bottom_flow), &flow_report);
+		}
+		else {
+			orb_publish(ORB_ID(filtered_bottom_flow), filtered_flow_pub, &flow_report);
 		}
 	}
 }

@@ -2,6 +2,7 @@
 #define quat_pos_control_params_h_
 
 #include <systemlib/param/param.h>
+#include <systemlib/visibility.h>
 
     struct quat_position_control_UKF_params {
     	float ukf_vel_q, // state variance variables
@@ -32,6 +33,7 @@
     	ukf_acc_n,
     	ukf_dist_n,
     	ukf_mag_n,
+    	ukf_flow_vel_n,
     	ukf_pos_delay,
     	ukf_vel_delay;
     };
@@ -49,6 +51,7 @@
         	nav_dist_pm,
         	nav_dist_im,
         	nav_dist_om,
+#include <systemlib/visibility.h>
         	nav_alt_speed_p,
         	nav_alt_speed_i,
         	nav_alt_speed_pm,
@@ -73,6 +76,7 @@
 		ukf_acc_bias_v,
 		ukf_gyo_bias_v,
 		ukf_rate_v,
+#include <systemlib/visibility.h>
     	ukf_pres_alt_v,
 		ukf_pos_v,
 		ukf_vel_v,
@@ -90,6 +94,7 @@
 		ukf_acc_n,
 		ukf_dist_n,
 		ukf_mag_n,
+    	ukf_flow_vel_n,
 		ukf_pos_delay,
 		ukf_vel_delay;
     };
@@ -118,18 +123,20 @@
         	nav_alt_pos_im,
         	nav_alt_pos_om;
     };
+
+__BEGIN_DECLS
 /**
  * Initialize all parameter handles and values
  *
  */
-int parameters_init(struct quat_position_control_NAV_param_handles *nav, struct quat_position_control_UKF_param_handles *ukf);
+__EXPORT int parameters_init(struct quat_position_control_NAV_param_handles *nav, struct quat_position_control_UKF_param_handles *ukf);
 
 /**
  * Update all parameters
  *
  */
-int parameters_update(const struct quat_position_control_NAV_param_handles *nav_handles, struct quat_position_control_NAV_params *nav_params,
+__EXPORT int parameters_update(const struct quat_position_control_NAV_param_handles *nav_handles, struct quat_position_control_NAV_params *nav_params,
 		const struct quat_position_control_UKF_param_handles *ukf_handles, struct quat_position_control_UKF_params *ukf_params);
-
+__END_DECLS
 
 #endif //quat_pos_control_params_h_

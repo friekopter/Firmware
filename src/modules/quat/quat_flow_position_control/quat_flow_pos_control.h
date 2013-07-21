@@ -5,15 +5,11 @@
  *      Author: fludwig
  */
 
-#ifndef QUAT_POS_CONTROL_H_
-#define QUAT_POS_CONTROL_H_
-
+#ifndef QUAT_FLOW_POS_CONTROL_H_
+#define QUAT_FLOW_POS_CONTROL_H_
 #define RUN_SENSOR_HIST		10	    // number of timesteps to average observation sensors' data
-#define RUN_ACC_MASK		1.0f//10.0f	    // allow GPS accuracy to ramp up after startup
 
 typedef struct {
-    float accMask;
-    float bestHacc;
     float accHist[3][RUN_SENSOR_HIST];
     float magHist[3][RUN_SENSOR_HIST];
     float presHist[RUN_SENSOR_HIST];
@@ -25,7 +21,7 @@ typedef struct {
     int presHistIndex;
 } runStruct_t;
 
-extern runStruct_t runData;
 
 
-#endif /* QUAT_POS_CONTROL_H_ */
+
+#endif /* QUAT_FLOW_POS_CONTROL_H_ */

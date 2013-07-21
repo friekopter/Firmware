@@ -19,6 +19,8 @@
 
 void control_quadrotor_attitude_reset(void);
 
+void control_initFilter(void);
+
 void control_quadrotor_attitude_init(	const struct attitude_pid_quat_params *tilt_rate,
 		const struct attitude_pid_quat_params *tilt_angle,
 		const struct attitude_pid_quat_params *yaw_rate,

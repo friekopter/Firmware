@@ -8,6 +8,8 @@ __BEGIN_DECLS
 
 __EXPORT float compassNormalize(float heading);
 __EXPORT float compassDifference(float a, float b);
+__EXPORT float compassNormalizeRad(float heading);
+__EXPORT float compassDifferenceRad(float a, float b);
 
 __END_DECLS
 

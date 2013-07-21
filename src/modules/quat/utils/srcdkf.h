@@ -20,6 +20,7 @@
 #define _srcdkf_h
 
 #include "aq_math.h"
+#include <systemlib/visibility.h>
 
 #define SRCDKF_H	aq_sqrtf(3.0f)
 #define SRCDKF_RM	0.0001f		// Robbins-Monro stochastic term
@@ -75,18 +76,21 @@ typedef struct {
 	SRCDKFTimeUpdate_t *timeUpdate;
 	SRCDKFMeasurementUpdate_t *map;	// only used for param est
 } srcdkf_t;
+__BEGIN_DECLS
 
-extern srcdkf_t *srcdkfInit(int s, int m, int v, int n, SRCDKFTimeUpdate_t *timeUpdate);
-extern float *srcdkfGetState(srcdkf_t *f);
-extern void srcdkfSetVariance(srcdkf_t *f, float32_t *q, float32_t *v, float32_t *n, int nn);
-extern void srcdkfGetVariance(srcdkf_t *f, float32_t *q);
-extern void srcdkfTimeUpdate(srcdkf_t *f, float32_t *u, float32_t dt);
-extern void srcdkfMeasurementUpdate(srcdkf_t *f, float32_t *u, float32_t *y, int M, int N, float32_t *noise, SRCDKFMeasurementUpdate_t *measurementUpdate);
-extern void srcdkfFree(srcdkf_t *f);
-extern srcdkf_t *paramsrcdkfInit(int w, int d, int n, SRCDKFMeasurementUpdate_t *map);
-extern void paramsrcdkfUpdate(srcdkf_t *f, float32_t *u, float32_t *d);
-extern void paramsrcdkfSetVariance(srcdkf_t *f, float32_t *v, float32_t *n);
-extern void paramsrcdkfGetVariance(srcdkf_t *f, float32_t *v, float32_t *n);
-extern void paramsrcdkfSetRM(srcdkf_t *f, float32_t rm);
+__EXPORT srcdkf_t *srcdkfInit(int s, int m, int v, int n, SRCDKFTimeUpdate_t *timeUpdate);
+__EXPORT float *srcdkfGetState(srcdkf_t *f);
+__EXPORT void srcdkfSetVariance(srcdkf_t *f, float32_t *q, float32_t *v, float32_t *n, int nn);
+__EXPORT void srcdkfGetVariance(srcdkf_t *f, float32_t *q);
+__EXPORT void srcdkfTimeUpdate(srcdkf_t *f, float32_t *u, float32_t dt);
+__EXPORT void srcdkfMeasurementUpdate(srcdkf_t *f, float32_t *u, float32_t *y, int M, int N, float32_t *noise, SRCDKFMeasurementUpdate_t *measurementUpdate);
+__EXPORT void srcdkfFree(srcdkf_t *f);
+__EXPORT srcdkf_t *paramsrcdkfInit(int w, int d, int n, SRCDKFMeasurementUpdate_t *map);
+__EXPORT void paramsrcdkfUpdate(srcdkf_t *f, float32_t *u, float32_t *d);
+__EXPORT void paramsrcdkfSetVariance(srcdkf_t *f, float32_t *v, float32_t *n);
+__EXPORT void paramsrcdkfGetVariance(srcdkf_t *f, float32_t *v, float32_t *n);
+__EXPORT void paramsrcdkfSetRM(srcdkf_t *f, float32_t rm);
+
+__END_DECLS
 
 #endif

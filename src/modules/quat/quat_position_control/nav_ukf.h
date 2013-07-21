@@ -19,11 +19,12 @@
 #ifndef _nav_ukf_h
 #define _nav_ukf_h
 
-#include "srcdkf.h"
+#include <quat/utils/srcdkf.h>
 #include "quat_pos_control_params.h"
 #include <uORB/topics/vehicle_status.h>
 #include <uORB/topics/sensor_combined.h>
 #include <uORB/topics/vehicle_gps_position.h>
+#include <uORB/topics/filtered_bottom_flow.h>
 
 #define SIM_S                   17		// states
 #define SIM_M                   3		// max measurements
@@ -104,6 +105,11 @@ extern void navUkfGpsPosUpate(
 		const struct quat_position_control_UKF_params* params);
 extern void navUkfGpsVelUpate(
 		const struct vehicle_gps_position_s* gps_position,
+		float dt,
+		const struct vehicle_status_s *current_status,
+		const struct quat_position_control_UKF_params* params);
+extern void navUkfFlowVelUpate(
+		const struct filtered_bottom_flow_s* measured_flow,
 		float dt,
 		const struct vehicle_status_s *current_status,
 		const struct quat_position_control_UKF_params* params);
