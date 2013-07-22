@@ -15,6 +15,7 @@
 #include <systemlib/err.h>
 #include <unistd.h>
 #include <drivers/drv_hrt.h>
+#include <drivers/drv_led.h>
 
 #include <uORB/uORB.h>
 #include <uORB/topics/sensor_combined.h>
@@ -47,6 +48,8 @@ static const char *mountpoint = "/fs/microsd";
 int sysvector_file = -1;
 int mavlink_fd = -1;
 static uint64_t starttime = 0;
+// File descriptor for led
+static int leds;
 
 /**
  * SD log management function.
@@ -75,6 +78,16 @@ static void print_quat_log_status(void);
  */
 static int create_logfolder(char *folder_path);
 
+/**
+ * Init leds
+ */
+static int led_init(void);
+
+/**
+ * Toggle leds
+ */
+static int led_toggle(int led);
+
 static void
 usage(const char *reason)
 {
@@ -82,6 +95,35 @@ usage(const char *reason)
 		fprintf(stderr, "%s\n", reason);
 
 	errx(1, "usage: quat_log {start|stop|status} [i]\n\n");
+}
+
+static int led_init(void)
+{
+	leds = open(LED_DEVICE_PATH, 0);
+
+	if (leds < 0) {
+		warnx("LED: open fail\n");
+		return ERROR;
+	}
+
+	if (ioctl(leds, LED_ON, LED_BLUE) || ioctl(leds, LED_ON, LED_AMBER)) {
+		warnx("LED: ioctl fail\n");
+		return ERROR;
+	}
+
+	return 0;
+}
+
+static int led_toggle(int led)
+{
+	static int last_blue = LED_ON;
+	static int last_amber = LED_ON;
+
+	if (led == LED_BLUE) last_blue = (last_blue == LED_ON) ? LED_OFF : LED_ON;
+
+	if (led == LED_AMBER) last_amber = (last_amber == LED_ON) ? LED_OFF : LED_ON;
+
+	return ioctl(leds, ((led == LED_BLUE) ? last_blue : last_amber), led);
 }
 
 /**
@@ -346,6 +388,7 @@ int quat_log_thread_main(int argc, char *argv[])
 	perf_counter_t quat_log_sync_perf = perf_alloc(PC_ELAPSED, "quat_log_sync");
 
 	logInit(&buf.gyro_report, &buf.mag_report, &buf.battery_status, &buf.accel_report, &buf.barometer, &buf.raw);
+    led_init();
 
 	thread_running = true;
 
@@ -400,6 +443,7 @@ int quat_log_thread_main(int argc, char *argv[])
 				// quat_log_bytes += fprintf(logging_file,"%s\n",logData.logBuf);
 				if (loops % 100 == 0) {
 					perf_begin(quat_log_sync_perf);
+					led_toggle(LED_BLUE);
 					fsync(logging_file_no);
 					perf_end(quat_log_sync_perf);
 					static uint64_t lastTime = 0;
