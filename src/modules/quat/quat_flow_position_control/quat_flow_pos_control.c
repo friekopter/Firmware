@@ -333,16 +333,16 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 				mag[1] = raw.magnetometer_ga[1];
 				mag[2] = raw.magnetometer_ga[2];
 
-				navFlowUkfNormalizeVec3(acc, acc);
-				navFlowUkfNormalizeVec3(mag, mag);
+				utilNormalizeVec3(acc, acc);
+				utilNormalizeVec3(mag, mag);
 
-				navFlowUkfQuatToMatrix(m, &UKF_FLOW_Q1, 1);
+				utilQuatToMatrix(m, &UKF_FLOW_Q1, 1);
 
 				// rotate gravity to body frame of reference
-				navFlowUkfRotateVecByRevMatrix(estAcc, navFlowUkfData.v0a, m);
+				utilRotateVecByRevMatrix(estAcc, navFlowUkfData.v0a, m);
 
 				// rotate mags to body frame of reference
-				navFlowUkfRotateVecByRevMatrix(estMag, navFlowUkfData.v0m, m);
+				utilRotateVecByRevMatrix(estMag, navFlowUkfData.v0m, m);
 
 				// measured error
 				rotError[0] = -(mag[2] * estMag[1] - estMag[2] * mag[1]) * 0.50f;
@@ -358,7 +358,7 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 				rotError[2] += -(acc[1] * estAcc[0] - estAcc[1] * acc[0]) * 1.0f;
 
 
-			    navFlowUkfRotateQuat(&UKF_FLOW_Q1, &UKF_FLOW_Q1, rotError, 0.1f);
+			    utilRotateQuat(&UKF_FLOW_Q1, &UKF_FLOW_Q1, rotError, 0.1f);
 
 				if (l >= UKF_GYO_AVG_NUM) {
 				    arm_std_f32(gyX, UKF_GYO_AVG_NUM, &stdX);
@@ -524,7 +524,8 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 				//}
 				navFlowUkfFinish();
 				// Publish attitude
-				att.R_valid = false;
+				att.R_valid = true;
+				utilQuatToMatrix(att.R, &UKF_FLOW_Q1, 1);
 				att.roll = navFlowUkfData.roll;
 				att.pitch = navFlowUkfData.pitch;
 				att.yaw = navFlowUkfData.yaw;

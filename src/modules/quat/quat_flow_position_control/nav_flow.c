@@ -32,6 +32,7 @@
 #define CTRL_DEAD_BAND (5.0f/1000.0f)
 
 void navFlowSetHoldAlt(float alt, uint8_t relative);
+void navFlowSetHoldPosition(const struct filtered_bottom_flow_s* flow_data);
 navFlowStruct_t navFlowData __attribute__((section(".ccm")));
 
 void navFlowResetHoldAlt(float delta) {
@@ -43,6 +44,11 @@ void navFlowSetHoldAlt(float alt, uint8_t relative) {
 	navFlowData.holdAlt += alt;
     else
 	navFlowData.holdAlt = alt;
+}
+
+void navFlowSetHoldPosition(const struct filtered_bottom_flow_s* flow_data) {
+	navFlowData.holdPositionX = flow_data->sumx;
+	navFlowData.holdPositionY = flow_data->sumy;
 }
 
 void navFlowSetHoldHeading(float targetHeading) {
@@ -63,6 +69,7 @@ void navFlowNavigate(
 		uint64_t imu_timestamp
 		) {
     uint64_t currentTime = imu_timestamp;
+    float tmp;
 
 
     if ((currentTime - flow_data->timestamp) < NAV_MAX_FIX_AGE) {
@@ -95,10 +102,15 @@ void navFlowNavigate(
 			navFlowData.mode != NAV_STATUS_POSHOLD &&
 			navFlowData.mode != NAV_STATUS_DVH) {
 
+			navFlowSetHoldPosition(flow_data);
+
 			// only zero bias if coming from lower mode
 			if (navFlowData.mode < NAV_STATUS_POSHOLD) {
 				navFlowData.holdTiltX = 0.0f;
 				navFlowData.holdTiltY = 0.0f;
+				// distance
+				pidZeroIntegral(navFlowData.distanceXPID, 0.0f, 0.0f);
+				pidZeroIntegral(navFlowData.distanceYPID, 0.0f, 0.0f);
 
 				// speed
 				pidZeroIntegral(navFlowData.speedXPID, UKF_FLOW_VELX, 0.0f);
@@ -133,6 +145,7 @@ void navFlowNavigate(
 				navFlowData.mode = NAV_STATUS_POSHOLD;
 				navFlowData.holdSpeedX = 0.0f;
 				navFlowData.holdSpeedY = 0.0f;
+				navFlowSetHoldPosition(flow_data);
 				printf("[quat_flow_pos_control]: Position hold activated from DVH\n");
 			//}
 		}
@@ -159,11 +172,23 @@ void navFlowNavigate(
 		if (manual_control->roll < -CTRL_DEAD_BAND)
 			y = +(manual_control->roll + CTRL_DEAD_BAND) * factor;
 
-		// rotate to earth frame
 		navFlowData.holdSpeedX = x;
 		navFlowData.holdSpeedY = y;
     }
+    else {
+		// distance => velocity
+    	navFlowData.holdSpeedX = pidUpdate(navFlowData.distanceXPID, navFlowData.holdTiltX, flow_data->sumx);
+    	navFlowData.holdSpeedY = pidUpdate(navFlowData.distanceYPID, navFlowData.holdTiltY, flow_data->sumy);
+    }
 
+    if (fabs(navFlowData.holdSpeedX) > FLT_MIN || fabs(navFlowData.holdSpeedY) > FLT_MIN) {
+        // normalize N/E speed requests to fit below max nav speed
+        tmp = aq_sqrtf(navFlowData.holdSpeedX*navFlowData.holdSpeedX + navFlowData.holdSpeedY*navFlowData.holdSpeedY);
+        if (tmp > navFlowData.holdMaxHorizSpeed) {
+    		navFlowData.holdSpeedX = (navFlowData.holdSpeedX / tmp) * navFlowData.holdMaxHorizSpeed;
+    		navFlowData.holdSpeedY = (navFlowData.holdSpeedY / tmp) * navFlowData.holdMaxHorizSpeed;
+        }
+    }
     // velocity => tilt
     navFlowData.holdTiltX = -pidUpdate(navFlowData.speedXPID, navFlowData.holdSpeedX, UKF_FLOW_VELX);
     navFlowData.holdTiltY = +pidUpdate(navFlowData.speedYPID, navFlowData.holdSpeedY, UKF_FLOW_VELY);
@@ -213,6 +238,8 @@ void navFlowInit(const struct quat_position_control_NAV_params* params,
 
     navFlowData.speedXPID = pidInit(&params->nav_speed_p, &params->nav_speed_i, 0, 0, &params->nav_speed_pm, &params->nav_speed_im, 0, &params->nav_speed_om, 0, 0, 0, 0);
     navFlowData.speedYPID = pidInit(&params->nav_speed_p, &params->nav_speed_i, 0, 0, &params->nav_speed_pm, &params->nav_speed_im, 0, &params->nav_speed_om, 0, 0, 0, 0);
+    navFlowData.distanceXPID = pidInit(&params->nav_dist_p, &params->nav_dist_i, 0, 0, &params->nav_dist_pm, &params->nav_dist_im, 0, &params->nav_dist_om, 0, 0, 0, 0);
+    navFlowData.distanceYPID = pidInit(&params->nav_dist_p, &params->nav_dist_i, 0, 0, &params->nav_dist_pm, &params->nav_dist_im, 0, &params->nav_dist_om, 0, 0, 0, 0);
     navFlowData.altSpeedPID = pidInit(&params->nav_alt_speed_p, &params->nav_alt_speed_i, 0, 0, &params->nav_alt_speed_pm, &params->nav_alt_speed_im, 0, &params->nav_alt_speed_om, 0, 0, 0, 0);
     navFlowData.altPosPID =   pidInit(&params->nav_alt_pos_p, &params->nav_alt_pos_i, 0, 0, &params->nav_alt_pos_pm, &params->nav_alt_pos_im, 0, &params->nav_alt_pos_om, 0, 0, 0, 0);
 

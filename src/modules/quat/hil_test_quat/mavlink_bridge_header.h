@@ -62,8 +62,6 @@
  */
 extern mavlink_system_t mavlink_system;
 
-
-mqd_t gps_queue;
 int uart;
 
 

@@ -67,12 +67,7 @@ extern void navFlowUkfFlowVelUpate(
 		const struct vehicle_status_s *current_status,
 		const struct quat_position_control_UKF_params* params);
 extern void navFlowUKFPressureAdjust(float altitude);
-extern void navFlowUkfQuatExtractEuler(float *q, float *yaw, float *pitch, float *roll);
 extern void navFlowUkfZeroRate(float zRate, int axis);
 extern void navFlowUkfFinish(void);
-void navFlowUkfNormalizeVec3(float *vr, float *v);
-void navFlowUkfQuatToMatrix(float *m, float *q, int normalize);
-void navFlowUkfRotateVecByRevMatrix(float *vr, float *v, float *m);
-void navFlowUkfRotateQuat(float *qr, float *q, float *rate, float dt);
 
 #endif

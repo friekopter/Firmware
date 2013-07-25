@@ -352,16 +352,16 @@ quat_pos_control_thread_main(int argc, char *argv[])
 				mag[1] = raw.magnetometer_ga[1];
 				mag[2] = raw.magnetometer_ga[2];
 
-				navUkfNormalizeVec3(acc, acc);
-				navUkfNormalizeVec3(mag, mag);
+				utilNormalizeVec3(acc, acc);
+				utilNormalizeVec3(mag, mag);
 
-				navUkfQuatToMatrix(m, &UKF_Q1, 1);
+				utilQuatToMatrix(m, &UKF_Q1, 1);
 
 				// rotate gravity to body frame of reference
-				navUkfRotateVecByRevMatrix(estAcc, navUkfData.v0a, m);
+				utilRotateVecByRevMatrix(estAcc, navUkfData.v0a, m);
 
 				// rotate mags to body frame of reference
-				navUkfRotateVecByRevMatrix(estMag, navUkfData.v0m, m);
+				utilRotateVecByRevMatrix(estMag, navUkfData.v0m, m);
 
 				// measured error
 				rotError[0] = -(mag[2] * estMag[1] - estMag[2] * mag[1]) * 0.50f;
@@ -377,7 +377,7 @@ quat_pos_control_thread_main(int argc, char *argv[])
 				rotError[2] += -(acc[1] * estAcc[0] - estAcc[1] * acc[0]) * 1.0f;
 
 
-			    navUkfRotateQuat(&UKF_Q1, &UKF_Q1, rotError, 0.1f);
+			    utilRotateQuat(&UKF_Q1, &UKF_Q1, rotError, 0.1f);
 
 				if (l >= UKF_GYO_AVG_NUM) {
 				    arm_std_f32(gyX, UKF_GYO_AVG_NUM, &stdX);

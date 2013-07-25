@@ -35,16 +35,8 @@ navUkfStruct_t navUkfData __attribute__((section(".ccm")));
 char ukfLog[UKF_LOG_BUF];
 #endif
 void navUkfCalcEarthRadius(double lat);
-float navUkfPresToAlt(float pressure);
 void navUkfCalcDistance(double lat, double lon, float *posNorth, float *posEast);
 void navUkfResetPosition(float deltaN, float deltaE, float deltaD);
-void navUkfNormalizeQuat(float *qr, float *q);
-void crossVector3(float *vr, float *va, float *vb);
-float dotVector3(float *va, float *vb);
-void navUkfRotateVectorByQuat(float *vr, float *v, float *q);
-void navUkfRotateVectorByRevQuat(float *vr, float *v, float *q);
-void navUkfRotateVecByMatrix(float *vr, float *v, float *m);
-void navUkfMatrixExtractEuler(float *m, float *yaw, float *pitch, float *roll);
 void navUkfTimeUpdate(float *in, float *noise, float *out, float *u, float dt);
 void navUkfRateUpdate(float *u, float *x, float *noise, float *y);
 void navUkfInitState(const struct sensor_combined_s* sensors);
@@ -58,33 +50,6 @@ void navUkfFlowUpdate(float *u, float *x, float *noise, float *y);
 
 bool isFlying(const struct vehicle_status_s *current_status){
 	return (current_status->state_machine > SYSTEM_STATE_GROUND_READY);
-}
-
-float navUkfPresToAlt(float pressure) {
-    //return (1.0f -  powf(pressure / UKF_P0, 0.19f)) * (1.0f / 22.558e-6f);
-	/* tropospheric properties (0-11km) for standard atmosphere */
-	const double T1 = 15.0f + 273.15f;	/* temperature at base height in Kelvin */
-	const double a  = -6.5f / 1000.0f;	/* temperature gradient in degrees per metre */
-	const double g  = 9.80665f;	/* gravity constant in m/s/s */
-	const double R  = 287.05f;	/* ideal gas constant in J/kg/K */
-
-	/* current pressure at MSL in kPa */
-	double p1 = 101325.0f / 1000.0f;
-
-	/* measured pressure in kPa */
-	double p = pressure / 10.0f;
-
-	/*
-	 * Solve:
-	 *
-	 *     /        -(aR / g)     \
-	 *    | (p / p1)          . T1 | - T1
-	 *     \                      /
-	 * h = -------------------------------  + h1
-	 *                   a
-	 */
-	return (((pow((p / p1), (-(a * R) / g))) * T1) - T1) / a;
-	//pow((p/101.325),0.000001902)
 }
 
 // reset current sea level static pressure based on better GPS estimate
@@ -139,189 +104,6 @@ void navUkfSetGlobalPositionTarget(double lat, double lon) {
     navUkfResetPosition(newPosN - oldPosN, newPosE - oldPosE, 0.0f);
 }
 
-void navUkfNormalizeVec3(float *vr, float *v) {
-    float norm;
-
-    norm = aq_sqrtf(v[0]*v[0] + v[1]*v[1] + v[2]*v[2]);
-
-    vr[0] = v[0] / norm;
-    vr[1] = v[1] / norm;
-    vr[2] = v[2] / norm;
-}
-
-void navUkfNormalizeQuat(float *qr, float *q) {
-    float norm;
-
-    norm = aq_sqrtf(q[0]*q[0] + q[1]*q[1] + q[2]*q[2] + q[3]*q[3]);
-
-    qr[0] = q[0] / norm;
-    qr[1] = q[1] / norm;
-    qr[2] = q[2] / norm;
-    qr[3] = q[3] / norm;
-}
-
-void crossVector3(float *vr, float *va, float *vb) {
-    vr[0] = va[1] * vb[2] - vb[1] * va[2];
-    vr[1] = va[2] * vb[0] - vb[2] * va[0];
-    vr[2] = va[0] * vb[1] - vb[0] * va[1];
-}
-
-float dotVector3(float *va, float *vb) {
-    return va[0]*vb[0] + va[1]*vb[1] + va[2]*vb[2];
-}
-
-void navUkfRotateVectorByQuat(float *vr, float *v, float *q) {
-    float w, x, y, z;
-
-    w = q[0];
-    x = q[1];
-    y = q[2];
-    z = q[3];
-
-    vr[0] = w*w*v[0] + 2.0*y*w*v[2] - 2.0*z*w*v[1] + x*x*v[0] + 2.0*y*x*v[1] + 2.0*z*x*v[2] - z*z*v[0] - y*y*v[0];
-    vr[1] = 2.0*x*y*v[0] + y*y*v[1] + 2.0*z*y*v[2] + 2.0*w*z*v[0] - z*z*v[1] + w*w*v[1] - 2.0*x*w*v[2] - x*x*v[1];
-    vr[2] = 2.0*x*z*v[0] + 2.0*y*z*v[1] + z*z*v[2] - 2.0*w*y*v[0] - y*y*v[2] + 2.0*w*x*v[1] - x*x*v[2] + w*w*v[2];
-}
-
-void navUkfRotateVectorByRevQuat(float *vr, float *v, float *q) {
-    float qc[4];
-
-    qc[0] = q[0];
-    qc[1] = -q[1];
-    qc[2] = -q[2];
-    qc[3] = -q[3];
-
-    navUkfRotateVectorByQuat(vr, v, qc);
-}
-
-void navUkfRotateVecByMatrix(float *vr, float *v, float *m) {
-    vr[0] = m[0*3 + 0]*v[0] + m[0*3 + 1]*v[1] + m[0*3 + 2]*v[2];
-    vr[1] = m[1*3 + 0]*v[0] + m[1*3 + 1]*v[1] + m[1*3 + 2]*v[2];
-    vr[2] = m[2*3 + 0]*v[0] + m[2*3 + 1]*v[1] + m[2*3 + 2]*v[2];
-}
-
-void navUkfRotateVecByRevMatrix(float *vr, float *v, float *m) {
-    vr[0] = m[0*3 + 0]*v[0] + m[1*3 + 0]*v[1] + m[2*3 + 0]*v[2];
-    vr[1] = m[0*3 + 1]*v[0] + m[1*3 + 1]*v[1] + m[2*3 + 1]*v[2];
-    vr[2] = m[0*3 + 2]*v[0] + m[1*3 + 2]*v[1] + m[2*3 + 2]*v[2];
-}
-
-void navUkfQuatToMatrix(float *m, float *q, int normalize) {
-    float sqw = q[0]*q[0];
-    float sqx = q[1]*q[1];
-    float sqy = q[2]*q[2];
-    float sqz = q[3]*q[3];
-    float tmp1, tmp2;
-    float invs;
-
-    // get the invert square length
-    if (normalize)
-	    invs = 1.0f / (sqx + sqy + sqz + sqw);
-    else
-	    invs = 1.0f;
-
-    // rotation matrix is scaled by inverse square length
-    m[0*3 + 0] = ( sqx - sqy - sqz + sqw) * invs;
-    m[1*3 + 1] = (-sqx + sqy - sqz + sqw) * invs;
-    m[2*3 + 2] = (-sqx - sqy + sqz + sqw) * invs;
-
-    tmp1 = q[1]*q[2];
-    tmp2 = q[3]*q[0];
-    m[1*3 + 0] = 2.0 * (tmp1 + tmp2) * invs;
-    m[0*3 + 1] = 2.0 * (tmp1 - tmp2) * invs;
-
-    tmp1 = q[1]*q[3];
-    tmp2 = q[2]*q[0];
-    m[2*3 + 0] = 2.0 * (tmp1 - tmp2) * invs;
-    m[0*3 + 2] = 2.0 * (tmp1 + tmp2) * invs;
-
-    tmp1 = q[2]*q[3];
-    tmp2 = q[1]*q[0];
-    m[2*3 + 1] = 2.0 * (tmp1 + tmp2) * invs;
-    m[1*3 + 2] = 2.0 * (tmp1 - tmp2) * invs;
-}
-
-void navUkfMatrixExtractEuler(float *m, float *yaw, float *pitch, float *roll) {
-    if (m[1*3+0] > 0.998f) { // singularity at north pole
-	*pitch = atan2f(m[0*3+2], m[2*3+2]);
-	*yaw = M_PI/2.0f;
-	*roll = 0.0f;
-    } else if (m[1*3+0] < -0.998f) { // singularity at south pole
-	*pitch = atan2f(m[0*3+2] ,m[2*3+2]);
-	*yaw = -M_PI/2.0f;
-	*roll = 0.0f;
-    }
-    else {
-	*pitch = atan2f(-m[2*3+0] ,m[0*3+0]);
-	*yaw = asinf(m[1*3+0]);
-	*roll = atan2f(-m[1*3+2], m[1*3+1]);
-    }
-}
-
-void navUkfQuatExtractEuler(float *q, float *yaw, float *pitch, float *roll) {
-    float q0, q1, q2, q3;
-
-    q0 = q[1];
-    q1 = q[2];
-    q2 = q[3];
-    q3 = q[0];
-
-    *yaw = atan2f((2.0f * (q0 * q1 + q3 * q2)), (q3*q3 - q2*q2 - q1*q1 + q0*q0));
-    float pitchProduct = - 2.0f * (q0 * q2 - q1 * q3);
-    //The following is needed because the valid parameter range of asinf is [-1,1]
-    float base = 0;
-    if(pitchProduct > 1)
-    {
-    	pitchProduct -= 1;
-    	base = M_PI;
-    }
-    else if(pitchProduct < -1)
-    {
-    	pitchProduct += 1;
-    	base = - M_PI;
-    }
-    *pitch = asinf(pitchProduct) + base;
-    *roll  = atan2f((2.0f * (q1 * q2 + q0 * q3)),-(1.0f-2.0f*(q3*q3 + q2*q2)));
-/*
-    *yaw = atan2f((2.0f * (q0 * q1 + q3 * q2)), (q3*q3 - q2*q2 - q1*q1 + q0*q0));
-    *pitch = asinf(-2.0f * (q0 * q2 - q1 * q3));
-    *roll = atanf((2.0f * (q1 * q2 + q0 * q3)) / (q3*q3 + q2*q2 - q1*q1 -q0*q0));*/
-}
-
-// result and source can be the same
-void navUkfRotateQuat(float *qr, float *q, float *rate, float dt) {
-    float q1[4];
-    float s, t, lg;
-    float qMag;
-
-    s = aq_sqrtf(rate[0]*rate[0] + rate[1]*rate[1] + rate[2]*rate[2]) * 0.5f;
-    if(s < FLT_MIN) {
-        qr[0] = q[0];
-        qr[1] = q[1];
-        qr[2] = q[2];
-        qr[3] = q[3];
-        return;
-    }
-    t = -(0.5f * sinf(s) / s);
-    rate[0] *= t;
-    rate[1] *= t;
-    rate[2] *= t;
-
-    // create Lagrange factor to control quat's numerical integration errors
-    qMag = q[0]*q[0] + q[1]*q[1] + q[2]*q[2] + q[3]*q[3];
-    lg = cosf(s) + (1.0f - qMag*qMag) * dt * dt;
-
-    // rotate
-    q1[0] = q[0];
-    q1[1] = q[1];
-    q1[2] = q[2];
-    q1[3] = q[3];
-
-    qr[0] =  lg*q1[0]      + rate[0]*q1[1] + rate[1]*q1[2] + rate[2]*q1[3];
-    qr[1] = -rate[0]*q1[0] + lg*q1[1]      - rate[2]*q1[2] + rate[1]*q1[3];
-    qr[2] = -rate[1]*q1[0] + rate[2]*q1[1] + lg*q1[2]      - rate[0]*q1[3];
-    qr[3] = -rate[2]*q1[0] - rate[1]*q1[1] + rate[0]*q1[2] + lg*q1[3];
-}
 
 void navUkfTimeUpdate(float *in, float *noise, float *out, float *u, float dt) {
     float tmp[3], acc[3];
@@ -344,8 +126,8 @@ void navUkfTimeUpdate(float *in, float *noise, float *out, float *u, float dt) {
     rate[2] = (u[5] + out[11] + noise[8]) * dt;
 
     // rotate
-    navUkfRotateQuat(&out[12], &in[12], rate, dt);
-    navUkfQuatToMatrix(mat3x3, &out[12], 1);
+    utilRotateQuat(&out[12], &in[12], rate, dt);
+    utilQuatToMatrix(mat3x3, &out[12], 1);
 
     // acc
     tmp[0] = u[0] + out[6];
@@ -353,7 +135,7 @@ void navUkfTimeUpdate(float *in, float *noise, float *out, float *u, float dt) {
     tmp[2] = u[2] + out[8];
 
     // rotate acc to world frame
-    navUkfRotateVecByMatrix(acc, tmp, mat3x3);
+    utilRotateVecByMatrix(acc, tmp, mat3x3);
     acc[2] += CONSTANTS_ONE_G;
 
     // vel
@@ -384,14 +166,14 @@ void navUkfRateUpdate(float *u, float *x, float *noise, float *y) {
 }
 
 void navUkfAccUpdate(float *u, float *x, float *noise, float *y) {
-    navUkfRotateVectorByRevQuat(y, navUkfData.v0a, &x[12]);
+    utilRotateVectorByRevQuat(y, navUkfData.v0a, &x[12]);
     y[0] += noise[0];
     y[1] += noise[1];
     y[2] += noise[2];
 }
 
 void navUkfMagUpdate(float *u, float *x, float *noise, float *y) {
-    navUkfRotateVectorByRevQuat(y, navUkfData.v0m, &x[12]);
+    utilRotateVectorByRevQuat(y, navUkfData.v0m, &x[12]);
     y[0] += noise[0];
     y[1] += noise[1];
     y[2] += noise[2];
@@ -425,8 +207,8 @@ void navUkfFlowUpdate(float *u, float *x, float *noise, float *y) {
 
 void navUkfFinish(void) {
 	float yaw, pitch, roll;
-    navUkfNormalizeQuat(&UKF_Q1, &UKF_Q1);
-    navUkfQuatExtractEuler(&UKF_Q1, &yaw, &pitch, &roll);
+    utilNormalizeQuat(&UKF_Q1, &UKF_Q1);
+    utilQuatExtractEuler(&UKF_Q1, &yaw, &pitch, &roll);
     navUkfData.roll = roll;
     navUkfData.pitch = pitch;
     yaw = compassNormalizeRad(yaw);
@@ -502,7 +284,7 @@ void simDoPresUpdate(float pres,
     noise[0] = params->ukf_alt_n;
     noise[0] = params->ukf_alt_n;
 
-    y[0] = navUkfPresToAlt(pres);
+    y[0] = utilPresToAlt(pres);
     y[1] = y[0];
 
     // if GPS altitude data has been available, only update pressure altitude
@@ -775,7 +557,7 @@ void navUkfInitState(const struct sensor_combined_s* sensors) {
     // pos
     UKF_POSN = 0.0f;
     UKF_POSE = 0.0f;
-    UKF_POSD = navUkfPresToAlt(sensors->baro_pres_mbar);
+    UKF_POSD = utilPresToAlt(sensors->baro_pres_mbar);
 
     // acc bias
     UKF_ACC_BIAS_X = 0.0f;

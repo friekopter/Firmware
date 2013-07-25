@@ -43,7 +43,15 @@ __EXPORT float utilFilter3(utilFilter_t *f, float signal);
 __EXPORT void utilFilterReset(utilFilter_t *f, float setpoint);
 __EXPORT void utilFilterReset3(utilFilter_t *f, float setpoint);
 __EXPORT void utilQuasiStatic(int n, float acc_x, float acc_y, float acc_z);
-
+__EXPORT void utilQuatExtractEuler(float *q, float *yaw, float *pitch, float *roll);
+__EXPORT void utilNormalizeVec3(float *vr, float *v);
+__EXPORT void utilQuatToMatrix(float *m, float *q, int normalize);
+__EXPORT void utilRotateVecByRevMatrix(float *vr, float *v, float *m);
+__EXPORT void utilRotateQuat(float *qr, float *q, float *rate, float dt);
+__EXPORT void utilRotateVecByMatrix(float *vr, float *v, float *m);
+__EXPORT void utilRotateVectorByRevQuat(float *vr, float *v, float *q);
+__EXPORT void utilNormalizeQuat(float *qr, float *q);
+__EXPORT float utilPresToAlt(float pressure);
 __END_DECLS
 
 #endif //_util_h

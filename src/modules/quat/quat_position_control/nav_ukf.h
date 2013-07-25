@@ -115,12 +115,8 @@ extern void navUkfFlowVelUpate(
 		const struct quat_position_control_UKF_params* params);
 extern void navUkfSetGlobalPositionTarget(double lat, double lon);
 extern void UKFPressureAdjust(float altitude);
-extern void navUkfQuatExtractEuler(float *q, float *yaw, float *pitch, float *roll);
 extern void navUkfZeroRate(float zRate, int axis);
 extern void navUkfFinish(void);
-void navUkfNormalizeVec3(float *vr, float *v);
-void navUkfQuatToMatrix(float *m, float *q, int normalize);
-void navUkfRotateVecByRevMatrix(float *vr, float *v, float *m);
-void navUkfRotateQuat(float *qr, float *q, float *rate, float dt);
+
 
 #endif

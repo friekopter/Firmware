@@ -53,6 +53,8 @@ typedef struct {
     float holdDistance;			// distance to hold position (straight line)
     float holdMaxHorizSpeed;		// maximum N/E speed allowed to achieve position
     float holdMaxVertSpeed;		// maximum UP/DOWN speed allowed to achieve altitude
+    float holdPositionX;		// hold position X
+    float holdPositionY;		// hold position Y
     float holdSpeedX;			// required speed (North/South)
     float holdSpeedY;			// required speed (East/West)
     float holdTiltX;			// required tilt (North/South)
@@ -60,6 +62,8 @@ typedef struct {
     float holdSpeedAlt;			// required speed (Up/Down)
     float targetHoldSpeedAlt;
 
+    pidStruct_t *distanceXPID;
+    pidStruct_t *distanceYPID;
     pidStruct_t *speedXPID;		// PID to control N/S speed - output tilt in degrees
     pidStruct_t *speedYPID;		// PID to control E/W speed - output tilt in degrees
     pidStruct_t *altSpeedPID;		// PID to control U/D speed - output speed in m/s

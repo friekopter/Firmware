@@ -532,8 +532,8 @@ void handleMessage(mavlink_message_t *msg)
 		flow_report.timestamp = hrt_absolute_time();
 		flow_report.vx = flow.flow_comp_m_x;
 		flow_report.vy = flow.flow_comp_m_y;
-		flow_report.sumx = 0;
-		flow_report.sumy = 0;
+		flow_report.sumx = ((float)flow.flow_x)/100.0f;//misuse of parameter for the distance in x direction
+		flow_report.sumy = ((float)flow.flow_y)/100.0f;//misuse of parameter for the distance in y direction
 /*		flow_report.flow_comp_x_m = flow.flow_comp_m_x;
 		flow_report.flow_comp_y_m = flow.flow_comp_m_y;
 		flow_report.ground_distance_m = flow.ground_distance;
