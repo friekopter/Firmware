@@ -48,6 +48,7 @@
 #include <uORB/topics/debug_key_value.h>
 #include <uORB/topics/filtered_bottom_flow.h>
 #include <mavlink/mavlink_log.h>
+#include <quat/utils/util.h>
 
 #include <systemlib/param/param.h>
 #include <systemlib/systemlib.h>
@@ -141,11 +142,11 @@ void handleMessage(mavlink_message_t *msg)
 			}
 			else {
 				// Rotate speed to earth frame
-				navFlowUkfRotateVecByMatrix(&speedEarth, speedBody, att.R);
+				utilRotateVecByMatrix2(&speedEarth, speedBody, att.R);
 				absoluteDistanceEarthFrame[0] += speedEarth[0] * dt;
 				absoluteDistanceEarthFrame[1] += speedEarth[1] * dt;
 				lastTime = currentTime;
-				navFlowUkfRotateVecByRevMatrix(&absoluteDistanceBodyFrame, absoluteDistanceEarthFrame, att.R);
+				utilRotateVecByRevMatrix2(&absoluteDistanceBodyFrame, absoluteDistanceEarthFrame, att.R);
 				flow_result.sumx = absoluteDistanceBodyFrame[0];
 				flow_result.sumy = absoluteDistanceBodyFrame[1];
 			}
@@ -319,13 +320,8 @@ int quat_flow_receiver_thread_main(int argc, char *argv[])
 
 	uart_fd = open(MAVLINK_LOG_DEVICE, 0);
 
-	uint16_t counter = 0;
-
 	/* advertise to ORB */
 	flow_pub = orb_advertise(ORB_ID(filtered_bottom_flow), &flow_result);
-	/* publish current flow */
-	state_machine_publish(flow_pub, &flow_result, mavlink_fd);
-
 	thread_running = true;
 	const int timeout = 1000;
 	uint8_t ch;
@@ -404,7 +400,7 @@ int quat_flow_receiver_main(int argc, char *argv[])
 					  SCHED_DEFAULT,
 					  SCHED_PRIORITY_DEFAULT,
 					  6000,
-					  hil_test_thread_main,
+					  quat_flow_receiver_thread_main,
 					  (argv) ? (const char **)&argv[2] : (const char **)NULL);
 		exit(0);
 	}

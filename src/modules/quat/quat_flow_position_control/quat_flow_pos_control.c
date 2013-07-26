@@ -525,7 +525,7 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 				navFlowUkfFinish();
 				// Publish attitude
 				att.R_valid = true;
-				utilQuatToMatrix(att.R, &UKF_FLOW_Q1, 1);
+				utilQuatToMatrix2(att.R, &UKF_FLOW_Q1, 1);
 				att.roll = navFlowUkfData.roll;
 				att.pitch = navFlowUkfData.pitch;
 				att.yaw = navFlowUkfData.yaw;

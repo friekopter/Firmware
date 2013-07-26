@@ -126,6 +126,7 @@ MODULES			+= modules/quat/quat_log
 MODULES			+= modules/quat/quat_position_control
 MODULES			+= modules/quat/quat_flow_position_control
 MODULES			+= modules/quat/quat_sensors
+MODULES			+= modules/quat/quat_flow_receiver
 MODULES			+= modules/quat/utils
 
 

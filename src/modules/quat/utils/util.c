@@ -220,6 +220,19 @@ void utilRotateVecByRevMatrix(float *vr, float *v, float *m) {
     vr[2] = m[0*3 + 2]*v[0] + m[1*3 + 2]*v[1] + m[2*3 + 2]*v[2];
 }
 
+
+void utilRotateVecByMatrix2(float *vr, float *v, float m[3][3]) {
+    vr[0] = m[0][0]*v[0] + m[0][1]*v[1] + m[0][2]*v[2];
+    vr[1] = m[1][0]*v[0] + m[1][1]*v[1] + m[1][2]*v[2];
+    vr[2] = m[2][0]*v[0] + m[2][1]*v[1] + m[2][2]*v[2];
+}
+
+void utilRotateVecByRevMatrix2(float *vr, float *v, float m[3][3]) {
+    vr[0] = m[0][0]*v[0] + m[1][0]*v[1] + m[2][0]*v[2];
+    vr[1] = m[0][1]*v[0] + m[1][1]*v[1] + m[2][1]*v[2];
+    vr[2] = m[0][2]*v[0] + m[1][2]*v[1] + m[2][2]*v[2];
+}
+
 void utilQuatToMatrix(float *m, float *q, int normalize) {
     float sqw = q[0]*q[0];
     float sqx = q[1]*q[1];
@@ -253,6 +266,41 @@ void utilQuatToMatrix(float *m, float *q, int normalize) {
     tmp2 = q[1]*q[0];
     m[2*3 + 1] = 2.0 * (tmp1 + tmp2) * invs;
     m[1*3 + 2] = 2.0 * (tmp1 - tmp2) * invs;
+}
+
+void utilQuatToMatrix2(float m[3][3], float *q, int normalize) {
+    float sqw = q[0]*q[0];
+    float sqx = q[1]*q[1];
+    float sqy = q[2]*q[2];
+    float sqz = q[3]*q[3];
+    float tmp1, tmp2;
+    float invs;
+
+    // get the invert square length
+    if (normalize)
+	    invs = 1.0f / (sqx + sqy + sqz + sqw);
+    else
+	    invs = 1.0f;
+
+    // rotation matrix is scaled by inverse square length
+    m[0][0] = ( sqx - sqy - sqz + sqw) * invs;
+    m[1][1] = (-sqx + sqy - sqz + sqw) * invs;
+    m[2][2] = (-sqx - sqy + sqz + sqw) * invs;
+
+    tmp1 = q[1]*q[2];
+    tmp2 = q[3]*q[0];
+    m[1][0] = 2.0 * (tmp1 + tmp2) * invs;
+    m[0][1] = 2.0 * (tmp1 - tmp2) * invs;
+
+    tmp1 = q[1]*q[3];
+    tmp2 = q[2]*q[0];
+    m[2][0] = 2.0 * (tmp1 - tmp2) * invs;
+    m[0][2] = 2.0 * (tmp1 + tmp2) * invs;
+
+    tmp1 = q[2]*q[3];
+    tmp2 = q[1]*q[0];
+    m[2][1] = 2.0 * (tmp1 + tmp2) * invs;
+    m[1][2] = 2.0 * (tmp1 - tmp2) * invs;
 }
 
 void utilNormalizeVec3(float *vr, float *v) {

@@ -1,8 +1,7 @@
 /****************************************************************************
  *
- *   Copyright (C) 2008-2013 PX4 Development Team. All rights reserved.
- *   Author: Samuel Zihlmann <samuezih@ee.ethz.ch>
- *   		 Lorenz Meier <lm@inf.ethz.ch>
+ *   Copyright (C) 2008-2012 PX4 Development Team. All rights reserved.
+ *   Author: @author Lorenz Meier <lm@inf.ethz.ch>
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -34,43 +33,55 @@
  ****************************************************************************/
 
 /**
- * @file filtered_bottom_flow.h
- * Definition of the filtered bottom flow uORB topic.
+ * @file mavlink_bridge_header
+ * MAVLink bridge header for UART access.
  */
 
-#ifndef TOPIC_FILTERED_BOTTOM_FLOW_H_
-#define TOPIC_FILTERED_BOTTOM_FLOW_H_
+/* MAVLink adapter header */
+#ifndef MAVLINK_BRIDGE_HEADER_H
+#define MAVLINK_BRIDGE_HEADER_H
 
-#include <stdint.h>
-#include <stdbool.h>
-#include "../uORB.h"
+#define MAVLINK_USE_CONVENIENCE_FUNCTIONS
+
+//use efficient approach, see mavlink_helpers.h
+#define MAVLINK_SEND_UART_BYTES mavlink_send_uart_bytes
+
+#include "v1.0/mavlink_types.h"
+#include <unistd.h>
+
+
+/* Struct that stores the communication settings of this system.
+   you can also define / alter these settings elsewhere, as long
+   as they're included BEFORE mavlink.h.
+   So you can set the
+
+   mavlink_system.sysid = 100; // System ID, 1-255
+   mavlink_system.compid = 50; // Component/Subsystem ID, 1-255
+
+   Lines also in your main.c, e.g. by reading these parameter from EEPROM.
+ */
+extern mavlink_system_t mavlink_system;
+
+int uart;
+
 
 /**
- * @addtogroup topics
- * @{
+ * @brief Send multiple chars (uint8_t) over a comm channel
+ *
+ * @param chan MAVLink channel to use, usually MAVLINK_COMM_0 = UART0
+ * @param ch Character to send
  */
-
-/**
- * Filtered bottom flow in bodyframe.
- */
-struct filtered_bottom_flow_s
+static inline void mavlink_send_uart_bytes(mavlink_channel_t chan, const uint8_t *ch, uint16_t length)
 {
-	uint64_t timestamp;		/**< time of this estimate, in microseconds since system start */
+	ssize_t ret;
 
-	float sumx;				/**< Integrated bodyframe x flow in meters					   */
-	float sumy;				/**< Integrated bodyframe y flow in meters			   		   */
+	if (chan == MAVLINK_COMM_0) {
+		ret = write(uart, ch, (size_t)(sizeof(uint8_t) * length));
 
-	float vx; 				/**< Flow bodyframe x speed, m/s							   */
-	float vy;				/**< Flow bodyframe y Speed, m/s 							   */
+		if (ret != length) {
+			printf("[mavlink] Error: Written %u instead of %u\n", ret, length);
+		}
+	}
+}
 
-	float groundDistance;	/**< Ground distance in meters								   */
-};
-
-/**
- * @}
- */
-
-/* register this as object request broker structure */
-ORB_DECLARE(filtered_bottom_flow);
-
-#endif
+#endif /* MAVLINK_BRIDGE_HEADER_H */
