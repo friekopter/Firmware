@@ -74,12 +74,12 @@ float pidUpdate(pidStruct_t *pid, float setpoint, float position) {
     if (pid->iTerm_1 > *pid->iMax)
     {
     	pid->iTerm_1 = *pid->iMax;//set result to max
-    	pid->iState -= error;//remove last error from integral
+    	pid->iState = pid->iTerm_1 / i;
     }
     else if (pid->iTerm_1 < -*pid->iMax)
     {
     	pid->iTerm_1 = -*pid->iMax;
-    	pid->iState -= error;
+    	pid->iState = pid->iTerm_1 / i;
     }
 
     // derivative if we have a value not 0 set
@@ -120,8 +120,9 @@ float pidUpdate(pidStruct_t *pid, float setpoint, float position) {
 }
 
 void pidZeroIntegral(pidStruct_t *pid, float pv, float iState) {
-    pid->iState = iState;
-    pid->dState = pv;
+    if (*pid->iGain != 0.0f)
+	pid->iState = iState / *pid->iGain;
+    pid->dState = -pv;
     pid->sp_1 = pv;
     pid->co_1 = 0.0f;
     pid->pv_1 = pv;
