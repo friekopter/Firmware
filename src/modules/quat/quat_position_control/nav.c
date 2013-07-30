@@ -368,7 +368,7 @@ void navNavigate(
 		navData.holdSpeedE = pidUpdate(navData.distanceEPID, 0.0f, UKF_POSE);
     }
 
-    if (fabs(navData.holdSpeedE) > FLT_MIN || fabs(navData.holdSpeedE) > FLT_MIN) {
+    if (fabs(navData.holdSpeedN) > FLT_MIN || fabs(navData.holdSpeedE) > FLT_MIN) {
         // normalize N/E speed requests to fit below max nav speed
         tmp = aq_sqrtf(navData.holdSpeedN*navData.holdSpeedN + navData.holdSpeedE*navData.holdSpeedE);
         if (tmp > navData.holdMaxHorizSpeed) {

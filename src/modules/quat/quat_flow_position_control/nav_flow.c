@@ -177,8 +177,8 @@ void navFlowNavigate(
     }
     else {
 		// distance => velocity
-    	navFlowData.holdSpeedX = pidUpdate(navFlowData.distanceXPID, navFlowData.holdTiltX, flow_data->sumx);
-    	navFlowData.holdSpeedY = pidUpdate(navFlowData.distanceYPID, navFlowData.holdTiltY, flow_data->sumy);
+    	navFlowData.holdSpeedX = pidUpdate(navFlowData.distanceXPID, navFlowData.holdPositionX, flow_data->sumx);
+    	navFlowData.holdSpeedY = pidUpdate(navFlowData.distanceYPID, navFlowData.holdPositionY, flow_data->sumy);
     }
 
     if (fabs(navFlowData.holdSpeedX) > FLT_MIN || fabs(navFlowData.holdSpeedY) > FLT_MIN) {

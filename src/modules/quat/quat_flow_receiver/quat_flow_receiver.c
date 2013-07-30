@@ -47,6 +47,7 @@
 #include <uORB/topics/manual_control_setpoint.h>
 #include <uORB/topics/debug_key_value.h>
 #include <uORB/topics/filtered_bottom_flow.h>
+#include <uORB/topics/optical_flow.h>
 #include <mavlink/mavlink_log.h>
 #include <quat/utils/util.h>
 
@@ -76,6 +77,8 @@ static mavlink_status_t status;
 // ORB registrations for data that will be sent
 struct filtered_bottom_flow_s flow_result;
 static orb_advert_t flow_pub;
+struct optical_flow_s raw_flow_result;
+static orb_advert_t raw_flow_pub;
 
 static struct vehicle_attitude_s att;
 int att_sub;
@@ -97,9 +100,28 @@ void handleMessage(mavlink_message_t *msg)
 	    static int8_t index = 0;
 	    static float sumVX;
 	    static float sumVY;
+		hrt_abstime currentTime = hrt_absolute_time();
 
 		mavlink_optical_flow_t flow;
 		mavlink_msg_optical_flow_decode(msg, &flow);
+
+		raw_flow_result.flow_comp_x_m = flow.flow_comp_m_x;
+		raw_flow_result.flow_comp_y_m = flow.flow_comp_m_y;
+		raw_flow_result.flow_raw_x = flow.flow_x;
+		raw_flow_result.flow_raw_y = flow.flow_y;
+		raw_flow_result.ground_distance_m = flow.ground_distance;
+		raw_flow_result.quality = flow.quality;
+		raw_flow_result.sensor_id = flow.sensor_id;
+		raw_flow_result.timestamp = currentTime;
+
+		/* check if topic is advertised */
+		if (raw_flow_pub <= 0) {
+			raw_flow_pub = orb_advertise(ORB_ID(optical_flow), &raw_flow_result);
+		} else {
+			/* publish */
+			orb_publish(ORB_ID(optical_flow), raw_flow_pub, &raw_flow_result);
+		}
+
 		if(flow.quality < QUAT_FLOW_QUALITY_LIMIT) {
 			sumVX = 0.0f;
 			sumVY = 0.0f;
@@ -116,7 +138,6 @@ void handleMessage(mavlink_message_t *msg)
 			float speedEarth[3];
 			static float absoluteDistanceEarthFrame[3] = {0.0f,0.0f,0.0f};
 			static float absoluteDistanceBodyFrame[3];
-			hrt_abstime currentTime = hrt_absolute_time();
 			static hrt_abstime lastTime = 0;
 			if (lastTime == 0) {
 				lastTime = currentTime;

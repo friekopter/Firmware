@@ -38,6 +38,7 @@ static uint32_t dummyUint32 = 0;
 static int16_t dummyint16 = 0;
 static uint16_t dummyUint16 = 0;
 static int8_t dummyint8 = 0;
+static int8_t dummyint8_Value1 = 1;
 
 logFields_t logFields[] = {
 		{LOG_LASTUPDATE, LOG_TYPE_U32},
@@ -404,7 +405,7 @@ void logSetup(struct gyro_report* gyro_report,
 		logData.fp[i].fieldPointer = (void *)&battery_status->voltage_v;//(void *)&adcData.vIn;
 		break;
 	    case LOG_ADC_MAG_SIGN:
-		logData.fp[i].fieldPointer = (void *)&dummyint8;//(void *)&adcData.magSign;
+		logData.fp[i].fieldPointer = (void *)&dummyint8_Value1;//(void *)&adcData.magSign;
 		break;
 	    case LOG_UKF_Q1:
 		logData.fp[i].fieldPointer = (void *)&dummyFloat;//(void *)&UKF_Q1;
