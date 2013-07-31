@@ -515,13 +515,13 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 				   	   	   			&state,
 				   	   	   			&ukf_params);
 				}
-				//else if (!((loopcounter+14) % 20)) {
+				else if (!((loopcounter+14) % 20)) {
 				navFlowDoMagUpdate(runData.sumMag[0]*(1.0 / (float)RUN_SENSOR_HIST),
 						   	   	  runData.sumMag[1]*(1.0 / (float)RUN_SENSOR_HIST),
 						   	   	  runData.sumMag[2]*(1.0 / (float)RUN_SENSOR_HIST),
 						   	   	  &state,
 						   	   	  &ukf_params);
-				//}
+				}
 				navFlowUkfFinish();
 				// Publish attitude
 				att.R_valid = true;
@@ -586,7 +586,7 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 			perf_end(quat_flow_pos_loop_perf);
 			// print debug information every 1000th time
 
-			if (debug == true && !(printcounter % 100))
+			if (debug == true && !(printcounter % 1000))
 			{
 				float frequence = 0;
 				static uint32_t last_measure = 0;
