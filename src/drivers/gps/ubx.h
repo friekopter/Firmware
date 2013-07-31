@@ -90,7 +90,7 @@
 
 #define UBX_MAX_PAYLOAD_LENGTH 500
 
-#define GPIO_UBX_TP_IN	(GPIO_FLOAT|GPIO_INPUT|GPIO_PORTB|GPIO_PIN2)  /**< UBX timepulse */
+#define GPIO_UBX_TP_IN	(GPIO_FLOAT|GPIO_INPUT|GPIO_PORTB|GPIO_PIN12)  /**< UBX timepulse on CAN2 RX */
 
 // ************
 /** the structures of the binary packets */
