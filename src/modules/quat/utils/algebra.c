@@ -17,16 +17,87 @@
 */
 
 #include "aq_math.h"
+#include <float.h>
 #include <quat/utils/util.h>
 
 #define MIN(a, b) ((a < b) ? a : b)
 #define MAX(a, b) ((a > b) ? a : b)
 
-inline float __aq_sqrtf(float x) {
+__attribute__((always_inline)) float inline __aq_sqrtf(float x) {
 	//float result = 0;
 	//arm_sqrt_f32(x, &result);
 	//return result;
-	return sqrtf(x);
+	//static q31_t q;
+	//arm_float_to_q31(&x,&q,1);
+	//  float32_t * pSrc,
+	 // q31_t * pDst,
+	  //uint32_t blockSize)
+	//arm_sqrt_q31(q,&q);
+	//arm_q31_to_float(&q,&x,1);
+	//return x;
+	float result;
+	__ASM volatile ("vsqrt.f32 %0, %1" : "=w" (result) : "w" (x) );
+	return (result);
+	//return sqrtf(x);
+}
+
+float inline __aq_cosf(float x) {
+	return arm_cos_f32(x);
+}
+
+float inline __aq_sinf(float x) {
+	return arm_sin_f32(x);
+}
+
+
+float __aq_atanf(float x)
+{
+  return asinf(x / __aq_sqrtf(x * x + 1));
+}
+
+float __aq_atan2f(float y, float x)
+{
+  if (y == 0.0)
+    {
+      if (x >= 0.0)
+        {
+          return 0.0;
+        }
+      else
+        {
+          return M_PI;
+        }
+    }
+  else if (y > 0.0)
+    {
+      if (x == 0.0)
+        {
+          return M_PI_2;
+        }
+      else if (x > 0.0)
+        {
+          return __aq_atanf(y / x);
+        }
+      else
+        {
+          return M_PI - __aq_atanf(y / x);
+        }
+    }
+  else
+    {
+      if (x == 0.0)
+        {
+          return M_PI + M_PI_2;
+        }
+      else if (x > 0.0)
+        {
+          return 2 * M_PI - __aq_atanf(y / x);
+        }
+      else
+        {
+          return M_PI + __aq_atanf(y / x);
+        }
+    }
 }
 
 void matrixInit(arm_matrix_instance_f32 *m, int rows, int cols) {
@@ -156,9 +227,10 @@ void qrDecompositionT_f32(arm_matrix_instance_f32 *A, arm_matrix_instance_f32 *Q
                                         A->pData[col*m + row] -= alpha*A->pData[minor*m + row];
                         }
                 }
-        	    // rank deficient
-        	    else
-        		return 0;
+        	    else {
+        	    	// rank deficient
+        	    	return;
+        	    }
         }
 
         // Form the matrix R of the QR-decomposition.
@@ -221,7 +293,7 @@ void matrixDiv_f32(arm_matrix_instance_f32 *X, arm_matrix_instance_f32 *A, arm_m
         n = B->numCols;
 
         qrDecompositionT_f32(B, Q, R);
-	arm_mat_mult_f32(A, Q, AQ);
+        arm_mat_mult_f32(A, Q, AQ);
 
         // solve for X by backsubstitution
         for (i = 0; i < m; i++) {

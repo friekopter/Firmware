@@ -138,8 +138,12 @@ void utilQuatExtractEuler(float *q, float *yaw, float *pitch, float *roll) {
     q1 = q[2];
     q2 = q[3];
     q3 = q[0];
+    float q0sq = q0*q0;
+    float q1sq = q1*q1;
+    float q2sq = q2*q2;
+    float q3sq = q3*q3;
 
-    *yaw = atan2f((2.0f * (q0 * q1 + q3 * q2)), (q3*q3 - q2*q2 - q1*q1 + q0*q0));
+    *yaw = __aq_atan2f((2.0f * (q0 * q1 + q3 * q2)), (q3sq - q2sq - q1sq + q0sq));
     float pitchProduct = - 2.0f * (q0 * q2 - q1 * q3);
     //The following is needed because the valid parameter range of asinf is [-1,1]
     float base = 0;
@@ -154,7 +158,7 @@ void utilQuatExtractEuler(float *q, float *yaw, float *pitch, float *roll) {
     	base = - M_PI;
     }
     *pitch = asinf(pitchProduct) + base;
-    *roll  = atan2f((2.0f * (q1 * q2 + q0 * q3)),-(1.0f-2.0f*(q3*q3 + q2*q2)));
+    *roll  = __aq_atan2f((2.0f * (q1 * q2 + q0 * q3)),-(1.0f-2.0f*(q3sq + q2sq)));
 /*
     *yaw = atan2f((2.0f * (q0 * q1 + q3 * q2)), (q3*q3 - q2*q2 - q1*q1 + q0*q0));
     *pitch = asinf(-2.0f * (q0 * q2 - q1 * q3));
@@ -175,14 +179,14 @@ void utilRotateQuat(float *qr, float *q, float *rate, float dt) {
         qr[3] = q[3];
         return;
     }
-    t = -(0.5f * sinf(s) / s);
+    t = -(0.5f * __aq_sinf(s) / s);
     rate[0] *= t;
     rate[1] *= t;
     rate[2] *= t;
 
     // create Lagrange factor to control quat's numerical integration errors
     qMag = q[0]*q[0] + q[1]*q[1] + q[2]*q[2] + q[3]*q[3];
-    lg = cosf(s) + (1.0f - qMag*qMag) * dt * dt;
+    lg = __aq_cosf(s) + (1.0f - qMag*qMag) * dt * dt;
 
     // rotate
     q1[0] = q[0];

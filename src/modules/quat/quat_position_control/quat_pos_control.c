@@ -537,13 +537,13 @@ quat_pos_control_thread_main(int argc, char *argv[])
 				   	   	   			&state,
 				   	   	   			&ukf_params);
 				}
-				//else if (!((loopcounter+14) % 20)) {
-					simDoMagUpdate(runData.sumMag[0]*(1.0 / (float)RUN_SENSOR_HIST),
-						   	   	  runData.sumMag[1]*(1.0 / (float)RUN_SENSOR_HIST),
-						   	   	  runData.sumMag[2]*(1.0 / (float)RUN_SENSOR_HIST),
+				else if (!((loopcounter+14) % 20)) {
+					simDoMagUpdate(runData.sumMag[0]*(1.0f / (float)RUN_SENSOR_HIST),
+						   	   	  runData.sumMag[1]*(1.0f / (float)RUN_SENSOR_HIST),
+						   	   	  runData.sumMag[2]*(1.0f / (float)RUN_SENSOR_HIST),
 						   	   	  &state,
 						   	   	  &ukf_params);
-				//}
+				}
 				navUkfFinish();
 				// Publish attitude
 				att.R_valid = false;

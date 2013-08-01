@@ -60,7 +60,7 @@ void UKFPressureAdjust(float altitude) {
 void navUkfCalcEarthRadius(double lat) {
     float sinLat2;
 
-    sinLat2 = sinf(lat * DEG_TO_RAD);
+    sinLat2 = __aq_sinf(lat * DEG_TO_RAD);
     sinLat2 = sinLat2 * sinLat2;
 
     navUkfData.r1 = NAV_EQUATORIAL_RADIUS * DEG_TO_RAD * (1.0f - NAV_E_2) / powf(1.0f - (NAV_E_2 * sinLat2), (3.0f / 2.0f));
@@ -69,7 +69,7 @@ void navUkfCalcEarthRadius(double lat) {
 
 void navUkfCalcDistance(double lat, double lon, float *posNorth, float *posEast) {
     *posNorth = (lat - navUkfData.holdLat) * navUkfData.r1;
-    *posEast = (lon - navUkfData.holdLon) * cosf(lat * DEG_TO_RAD) * navUkfData.r2;
+    *posEast = (lon - navUkfData.holdLon) * __aq_cosf(lat * DEG_TO_RAD) * navUkfData.r2;
 }
 
 void navUkfResetPosition(float deltaN, float deltaE, float deltaD) {
@@ -218,8 +218,8 @@ void navUkfFinish(void) {
 
     //    x' = x cos f - y sin f
     //    y' = y cos f + x sin f
-    navUkfData.yawCos = cosf(navUkfData.yaw);
-    navUkfData.yawSin = sinf(navUkfData.yaw);
+    navUkfData.yawCos = __aq_cosf(navUkfData.yaw);
+    navUkfData.yawSin = __aq_sinf(navUkfData.yaw);
 }
 
 float navUkfInertialUpdate(const struct sensor_combined_s* raw) {
@@ -596,8 +596,8 @@ void navUkfInit(const struct quat_position_control_UKF_params* params,
     mag[2] = -sinf(COMPASS_INCLINATION * DEG_TO_RAD);
 
     // rotate local mag vector to align with true north
-    navUkfData.v0m[0] = mag[0] * cosf(COMPASS_DECLINATION * DEG_TO_RAD) - mag[1] * sinf(COMPASS_DECLINATION  * DEG_TO_RAD);
-    navUkfData.v0m[1] = mag[1] * cosf(COMPASS_DECLINATION  * DEG_TO_RAD) + mag[0] * sinf(COMPASS_DECLINATION  * DEG_TO_RAD);
+    navUkfData.v0m[0] = mag[0] * __aq_cosf(COMPASS_DECLINATION * DEG_TO_RAD) - mag[1] * sinf(COMPASS_DECLINATION  * DEG_TO_RAD);
+    navUkfData.v0m[1] = mag[1] * __aq_cosf(COMPASS_DECLINATION  * DEG_TO_RAD) + mag[0] * sinf(COMPASS_DECLINATION  * DEG_TO_RAD);
     navUkfData.v0m[2] = mag[2];
 
     navUkfData.kf = srcdkfInit(SIM_S, SIM_M, SIM_V, SIM_N, navUkfTimeUpdate);

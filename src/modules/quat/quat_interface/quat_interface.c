@@ -9,6 +9,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
+#include <poll.h>
 #include <unistd.h>
 #include <math.h>
 #include <fcntl.h>
@@ -92,7 +93,15 @@ static int quat_interface_thread_main(int argc, char *argv[])
 
 	/* subscribe to attitude, motor setpoints and system state */
 	int actuator_controls_sub = orb_subscribe(ORB_ID_VEHICLE_ATTITUDE_CONTROLS);
+	/* rate-limit raw data updates to 143Hz */
+	orb_set_interval(actuator_controls_sub, 7);
 	int armed_sub = orb_subscribe(ORB_ID(actuator_armed));
+	/* rate-limit raw data updates to 5Hz */
+	orb_set_interval(armed_sub, 200);
+	struct pollfd fds[1] = {
+		{ .fd = actuator_controls_sub,   .events = POLLIN },
+		{ .fd = armed_sub,   .events = POLLIN }
+	};
 
 	printf("[quat_interface] Motors initialized - ready.\n");
 	fflush(stdout);
@@ -112,28 +121,42 @@ static int quat_interface_thread_main(int argc, char *argv[])
 		} else {
 			/* MAIN OPERATION MODE */
 			/* get a local copy of the actuator controls */
-			int ret = OK;
-			ret |= orb_copy(ORB_ID_VEHICLE_ATTITUDE_CONTROLS, actuator_controls_sub, &actuator_controls);
-			ret |= orb_copy(ORB_ID(actuator_armed), armed_sub, &armed);
-			if (ret != OK) {
-				static int error_count = 0;
-				if(error_count > 200) {
-					error_count = 0;
-					printf("[quat_interface]: Could not read attitude control\n");
+
+			int ret = poll(fds, 2, 5000);
+			if (ret < 0)
+			{
+				/* XXX this is seriously bad - should be an emergency */
+			}
+			else if (ret == 0)
+			{
+				/* XXX this means no sensor data - should be critical or emergency */
+				printf("[quat_interface]: Could not read attitude control\n");
+			}
+			else
+			{
+				/* only update parameters if state changed */
+				if (fds[1].revents & POLLIN)
+				{
+					orb_copy(ORB_ID(actuator_armed), armed_sub, &armed);
+					if(!armed.armed || armed.lockdown) {
+						/* Silently lock down motor speeds to zero */
+						quat_write_motor_commands(simulator_mode, 0, 0, 0, 0);
+					}
 				}
-				error_count++;
-			} else if (armed.armed && !armed.lockdown) {
-				quat_mixing_and_output(simulator_mode, &actuator_controls);
-			} else {
-				/* Silently lock down motor speeds to zero */
-				quat_write_motor_commands(simulator_mode, 0, 0, 0, 0);
+				/* only update parameters if they changed */
+				if (fds[0].revents & POLLIN)
+				{
+					orb_copy(ORB_ID_VEHICLE_ATTITUDE_CONTROLS, actuator_controls_sub, &actuator_controls);
+					if (armed.armed && !armed.lockdown) {
+						quat_mixing_and_output(simulator_mode, &actuator_controls);
+					} else {
+						/* Silently lock down motor speeds to zero */
+						quat_write_motor_commands(simulator_mode, 0, 0, 0, 0);
+					}
+				}
 			}
 		}
-
-		/* run at approximately 200 Hz */
-		usleep(5000);
 	}
-
 	fflush(stdout);
 
 	thread_running = false;

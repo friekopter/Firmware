@@ -230,7 +230,7 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 	perf_counter_t quat_flow_pos_sensor_perf = perf_alloc(PC_ELAPSED, "quat_flow_pos_sensor_control");
 	perf_counter_t quat_flow_pos_inertial_perf = perf_alloc(PC_ELAPSED, "quat_flow_pos_inertial_control");
 	perf_counter_t quat_flow_pos_nav_perf = perf_alloc(PC_ELAPSED, "quat_flow_pos_nav_control");
-
+	perf_counter_t quat_flow_ukf_finish_perf = perf_alloc(PC_ELAPSED, "quat_flow_ukf_finish_perf");
 	struct pollfd fds[5] = {
 		{ .fd = sub_raw,   .events = POLLIN },
 		{ .fd = flow_sub, .events = POLLIN },
@@ -516,12 +516,13 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 				   	   	   			&ukf_params);
 				}
 				else if (!((loopcounter+14) % 20)) {
-				navFlowDoMagUpdate(runData.sumMag[0]*(1.0 / (float)RUN_SENSOR_HIST),
-						   	   	  runData.sumMag[1]*(1.0 / (float)RUN_SENSOR_HIST),
-						   	   	  runData.sumMag[2]*(1.0 / (float)RUN_SENSOR_HIST),
-						   	   	  &state,
-						   	   	  &ukf_params);
+					navFlowDoMagUpdate(runData.sumMag[0]*(1.0f / (float)RUN_SENSOR_HIST),
+									  runData.sumMag[1]*(1.0f / (float)RUN_SENSOR_HIST),
+									  runData.sumMag[2]*(1.0f / (float)RUN_SENSOR_HIST),
+									  &state,
+									  &ukf_params);
 				}
+				perf_begin(quat_flow_ukf_finish_perf);
 				navFlowUkfFinish();
 				// Publish attitude
 				att.R_valid = true;
@@ -534,6 +535,7 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 				att.yawspeed = raw.gyro_rad_s[2];
 				att.q_valid = false;
 				orb_publish(ORB_ID(vehicle_attitude), pub_att, &att);
+				perf_end(quat_flow_ukf_finish_perf);
 				perf_end(quat_flow_pos_sensor_perf);
 			}
 			// observe that the rates are exactly 0 if not flying or moving
