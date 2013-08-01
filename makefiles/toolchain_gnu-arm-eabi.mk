@@ -50,7 +50,7 @@ OBJDUMP			 = $(CROSSDEV)objdump
 
 # XXX this is pulled pretty directly from the fmu Make.defs - needs cleanup
 
-MAXOPTIMIZATION		 ?= -O3
+MAXOPTIMIZATION		 ?= -ffast-math -Ofast
 
 # Base CPU flags for each of the supported architectures.
 #
