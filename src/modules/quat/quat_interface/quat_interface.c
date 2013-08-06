@@ -98,7 +98,7 @@ static int quat_interface_thread_main(int argc, char *argv[])
 	int armed_sub = orb_subscribe(ORB_ID(actuator_armed));
 	/* rate-limit raw data updates to 5Hz */
 	orb_set_interval(armed_sub, 200);
-	struct pollfd fds[1] = {
+	struct pollfd fds[2] = {
 		{ .fd = actuator_controls_sub,   .events = POLLIN },
 		{ .fd = armed_sub,   .events = POLLIN }
 	};
