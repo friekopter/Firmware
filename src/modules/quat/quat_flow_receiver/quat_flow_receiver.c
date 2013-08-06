@@ -85,6 +85,9 @@ int att_sub;
 
 static int baudrate = 57600;
 
+static int printcounter = 0;
+static bool debug = false;
+
 void handleMessage(mavlink_message_t *msg);
 
 int quat_flow_receiver_open_uart(int baudrate, const char *uart_name, struct termios *uart_config_original, bool *is_usb);
@@ -163,11 +166,11 @@ void handleMessage(mavlink_message_t *msg)
 			}
 			else {
 				// Rotate speed to earth frame
-				utilRotateVecByMatrix2(&speedEarth, speedBody, att.R);
+				utilRotateVecByMatrix2(speedEarth, speedBody, att.R);
 				absoluteDistanceEarthFrame[0] += speedEarth[0] * dt;
 				absoluteDistanceEarthFrame[1] += speedEarth[1] * dt;
 				lastTime = currentTime;
-				utilRotateVecByRevMatrix2(&absoluteDistanceBodyFrame, absoluteDistanceEarthFrame, att.R);
+				utilRotateVecByRevMatrix2(absoluteDistanceBodyFrame, absoluteDistanceEarthFrame, att.R);
 				flow_result.sumx = absoluteDistanceBodyFrame[0];
 				flow_result.sumy = absoluteDistanceBodyFrame[1];
 			}
@@ -179,6 +182,17 @@ void handleMessage(mavlink_message_t *msg)
 				orb_publish(ORB_ID(filtered_bottom_flow), flow_pub, &flow_result);
 			}
 		}
+		if (debug == true && !(printcounter % 1000))
+		{
+			float frequence = 0;
+			static uint32_t last_measure = 0;
+			uint32_t current = hrt_absolute_time();
+			frequence = 1000.0f*1000000.0f/(float)(current - last_measure);
+			last_measure = current;
+			printf("------\n");
+			printf("");
+		}
+		printcounter++;
 	}
 }
 
@@ -319,7 +333,8 @@ int quat_flow_receiver_thread_main(int argc, char *argv[])
 			}
 		} else if (strcmp(argv[i], "-e") == 0 || strcmp(argv[i], "--exit-allowed") == 0) {
 			mavlink_link_termination_allowed = true;
-		} else {
+		}
+		else {
 			usage("out of order or invalid argument");
 			return 1;
 		}
@@ -407,8 +422,10 @@ int quat_flow_receiver_main(int argc, char *argv[])
 {
 	if (argc < 1)
 		usage("missing command");
-
-	if (!strcmp(argv[1], "start")) {
+	if (!strcmp(argv[1], "debug")){
+		debug = true;
+	}
+	if (!strcmp(argv[1], "start") || !strcmp(argv[1], "debug")) {
 
 		if (thread_running) {
 			printf("quat_flow_receiver already running\n");
