@@ -55,12 +55,10 @@
 #include <systemlib/systemlib.h>
 
 #define QUAT_FLOW_SUM 10.0f
-#define QUAT_FLOW_QUALITY_LIMIT 100
+#define QUAT_FLOW_QUALITY_LIMIT 50
 
 __EXPORT int quat_flow_receiver_main(int argc, char *argv[]);
 int quat_flow_receiver_thread_main(int argc, char *argv[]);
-
-static int uart_fd;
 
 static bool thread_should_exit = false;
 static bool thread_running = false;
@@ -99,10 +97,12 @@ static void usage(const char *reason);
 
 void handleMessage(mavlink_message_t *msg)
 {
+	static float absoluteDistanceEarthFrame[3] = {0.0f,0.0f,0.0f};
+	static float absoluteDistanceBodyFrame[3] = {0.0f,0.0f,0.0f};
 	if (msg->msgid == MAVLINK_MSG_ID_OPTICAL_FLOW) {
 	    static int8_t index = 0;
-	    static float sumVX;
-	    static float sumVY;
+	    static float sumVX = 0.0f;
+	    static float sumVY = 0.0f;
 		hrt_abstime currentTime = hrt_absolute_time();
 
 		mavlink_optical_flow_t flow;
@@ -129,6 +129,12 @@ void handleMessage(mavlink_message_t *msg)
 			sumVX = 0.0f;
 			sumVY = 0.0f;
 			index = 0;
+			absoluteDistanceEarthFrame[0] = 0.0f;
+			absoluteDistanceEarthFrame[1] = 0.0f;
+			absoluteDistanceEarthFrame[2] = 0.0f;
+			absoluteDistanceBodyFrame[0] = 0.0f;
+			absoluteDistanceBodyFrame[1] = 0.0f;
+			absoluteDistanceBodyFrame[2] = 0.0f;
 		}
 		else {
 			sumVX += flow.flow_comp_m_x;
@@ -137,15 +143,13 @@ void handleMessage(mavlink_message_t *msg)
 		}
 
 		if(index >= QUAT_FLOW_SUM) {
+			index = 0;
 			float speedBody[3];
 			float speedEarth[3];
-			static float absoluteDistanceEarthFrame[3] = {0.0f,0.0f,0.0f};
-			static float absoluteDistanceBodyFrame[3];
 			static hrt_abstime lastTime = 0;
 			if (lastTime == 0) {
 				lastTime = currentTime;
 			}
-			hrt_abstime dt = currentTime - lastTime;
 			speedBody[0] = sumVX / QUAT_FLOW_SUM;
 			speedBody[1] = sumVY / QUAT_FLOW_SUM;
 			speedBody[2] = 0.0f;
@@ -153,7 +157,6 @@ void handleMessage(mavlink_message_t *msg)
 			flow_result.vy = speedBody[1];
 			sumVX = 0.0f;
 			sumVY = 0.0f;
-			index = 0;
 			flow_result.timestamp = currentTime;
 			bool updated;
 			orb_check(att_sub, &updated);
@@ -167,8 +170,9 @@ void handleMessage(mavlink_message_t *msg)
 			else {
 				// Rotate speed to earth frame
 				utilRotateVecByMatrix2(speedEarth, speedBody, att.R);
-				absoluteDistanceEarthFrame[0] += speedEarth[0] * dt;
-				absoluteDistanceEarthFrame[1] += speedEarth[1] * dt;
+				hrt_abstime dt = currentTime - lastTime;
+				absoluteDistanceEarthFrame[0] += speedEarth[0] * (dt / 10e6f);
+				absoluteDistanceEarthFrame[1] += speedEarth[1] * (dt / 10e6f);
 				lastTime = currentTime;
 				utilRotateVecByRevMatrix2(absoluteDistanceBodyFrame, absoluteDistanceEarthFrame, att.R);
 				flow_result.sumx = absoluteDistanceBodyFrame[0];
@@ -182,15 +186,12 @@ void handleMessage(mavlink_message_t *msg)
 				orb_publish(ORB_ID(filtered_bottom_flow), flow_pub, &flow_result);
 			}
 		}
-		if (debug == true && !(printcounter % 1000))
+		if (debug == true && !(printcounter % 100))
 		{
-			float frequence = 0;
-			static uint32_t last_measure = 0;
-			uint32_t current = hrt_absolute_time();
-			frequence = 1000.0f*1000000.0f/(float)(current - last_measure);
-			last_measure = current;
-			printf("------\n");
-			printf("");
+			printf("Flow Speed x:%8.4f\ty:%8.4f\n",(double)flow_result.vx,(double)flow_result.vy);
+			printf("Flow Distance x:%8.4f\ty:%8.4f\n",(double)flow_result.sumx,(double)flow_result.sumy);
+			printf("Flow Distance Earth n:%8.4f\te:%8.4f\n",(double)absoluteDistanceEarthFrame[0],(double)absoluteDistanceEarthFrame[1]);
+			printf("Flow quality:%d\n",raw_flow_result.quality);
 		}
 		printcounter++;
 	}
@@ -304,8 +305,8 @@ int quat_flow_receiver_thread_main(int argc, char *argv[])
 	printf("[quat_flow_receiver] MAVLink v1.0 serial interface starting..\n");
 
 	/* default values for arguments */
-	char *uart_name = "/dev/ttyS0";
-	baudrate = 57600;
+	char *uart_name = "/dev/ttyS2";
+	baudrate = 115200;
 
 	/* read program arguments */
 	int i;
@@ -351,10 +352,7 @@ int quat_flow_receiver_thread_main(int argc, char *argv[])
 		goto exit_cleanup;
 	}
 
-	/* Flush UART */
-	fflush(stdout);
-
-	uart_fd = open(MAVLINK_LOG_DEVICE, 0);
+	mavlink_msg_param_set_send(MAVLINK_COMM_0, 81, 50, "IMAGE_L_LIGHT", 1.0f, MAV_PARAM_TYPE_REAL32);
 
 	/* advertise to ORB */
 	flow_pub = orb_advertise(ORB_ID(filtered_bottom_flow), &flow_result);
@@ -368,20 +366,23 @@ int quat_flow_receiver_thread_main(int argc, char *argv[])
 	orb_copy(ORB_ID(vehicle_attitude), att_sub, &att);
 
 	while (!thread_should_exit) {
-		struct pollfd fds[] = { { .fd = uart_fd, .events = POLLIN } };
+		struct pollfd fds[] = { { .fd = uart, .events = POLLIN } };
 
 		if (poll(fds, 1, timeout) > 0) {
 			/* non-blocking read until buffer is empty */
 			int nread = 0;
 
 			do {
-				nread = read(uart_fd, &ch, 1);
+				nread = read(uart, &ch, 1);
 
 				if (mavlink_parse_char(chan, ch, &msg, &status)) { //parse the char
 					/* handle generic messages and commands */
 					handleMessage(&msg);
 				}
 			} while (nread > 0);
+		}
+		else {
+			printf("[quat_flow_receiver] Timeout poll");
 		}
 	}
 

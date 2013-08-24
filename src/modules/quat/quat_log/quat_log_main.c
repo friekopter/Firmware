@@ -427,7 +427,7 @@ int quat_log_thread_main(int argc, char *argv[])
 				buf.accel_report.x = - buf.accel_report.x;
 				buf.accel_report.z = - buf.accel_report.z;
 
-				buf.mag_report.x = - buf.mag_report.x;
+				//buf.mag_report.x = - buf.mag_report.x;
 				buf.mag_report.z = - buf.mag_report.z;
 
 				buf.gyro_report.y = - buf.gyro_report.y;

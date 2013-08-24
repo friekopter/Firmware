@@ -154,6 +154,7 @@ private:
 		// float ex[_rc_max_chan_count];
 		float scaling_factor[_rc_max_chan_count];
 
+		float gyro_bias[3];
 		float gyro_bias1[3];
 		float gyro_bias2[3];
 		float gyro_bias3[3];
@@ -194,6 +195,7 @@ private:
 		float mag_scale1[3];
 		float mag_scale2[3];
 		float mag_scale3[3];
+		float mag_inclination;
 
 		int diff_pres_offset_pa;
 
@@ -239,6 +241,7 @@ private:
 
 		param_t rc_demix;
 
+		param_t gyro_bias[3];
 		param_t gyro_bias1[3];
 		param_t gyro_bias2[3];
 		param_t gyro_bias3[3];
@@ -279,6 +282,7 @@ private:
 		param_t mag_scale1[3];
 		param_t mag_scale2[3];
 		param_t mag_scale3[3];
+		param_t mag_inclination;
 
 		param_t diff_pres_offset_pa;
 
@@ -529,6 +533,9 @@ Quat_Sensors::Quat_Sensors() :
 	_parameter_handles.gyro_scale[0] = param_find("IMU_GYO_SCAL_X");
 	_parameter_handles.gyro_scale[1] = param_find("IMU_GYO_SCAL_Y");
 	_parameter_handles.gyro_scale[2] = param_find("IMU_GYO_SCAL_Z");
+	_parameter_handles.gyro_bias[0] = param_find("IMU_GYO_BIAS_X");
+	_parameter_handles.gyro_bias[1] = param_find("IMU_GYO_BIAS_Y");
+	_parameter_handles.gyro_bias[2] = param_find("IMU_GYO_BIAS_Z");
 	_parameter_handles.gyro_bias1[0] = param_find("IMU_GYO_BIAS1_X");
 	_parameter_handles.gyro_bias1[1] = param_find("IMU_GYO_BIAS1_Y");
 	_parameter_handles.gyro_bias1[2] = param_find("IMU_GYO_BIAS1_Z");
@@ -608,6 +615,7 @@ Quat_Sensors::Quat_Sensors() :
 	_parameter_handles.mag_align_yz = param_find("IMU_MAG_ALGN_YZ");
 	_parameter_handles.mag_align_zx = param_find("IMU_MAG_ALGN_ZX");
 	_parameter_handles.mag_align_zy = param_find("IMU_MAG_ALGN_ZY");
+	_parameter_handles.mag_inclination = param_find("IMU_MAG_INCL");
 
 	/* Differential pressure offset */
 	_parameter_handles.diff_pres_offset_pa = param_find("SENS_DPRES_OFF");
@@ -798,6 +806,9 @@ Quat_Sensors::parameters_update()
 	_rc.function[AUX_5] = _parameters.rc_map_aux5 - 1;
 
 	/* gyro offsets */
+	param_get(_parameter_handles.gyro_bias[0], &(_parameters.gyro_bias[0]));
+	param_get(_parameter_handles.gyro_bias[1], &(_parameters.gyro_bias[1]));
+	param_get(_parameter_handles.gyro_bias[2], &(_parameters.gyro_bias[2]));
 	param_get(_parameter_handles.gyro_bias1[0], &(_parameters.gyro_bias1[0]));
 	param_get(_parameter_handles.gyro_bias1[1], &(_parameters.gyro_bias1[1]));
 	param_get(_parameter_handles.gyro_bias1[2], &(_parameters.gyro_bias1[2]));
@@ -881,6 +892,7 @@ Quat_Sensors::parameters_update()
 	param_get(_parameter_handles.mag_scale3[0], &(_parameters.mag_scale3[0]));
 	param_get(_parameter_handles.mag_scale3[1], &(_parameters.mag_scale3[1]));
 	param_get(_parameter_handles.mag_scale3[2], &(_parameters.mag_scale3[2]));
+	param_get(_parameter_handles.mag_inclination, &(_parameters.mag_inclination));
 
 	/* Airspeed offset */
 	param_get(_parameter_handles.diff_pres_offset_pa, &(_parameters.diff_pres_offset_pa));
@@ -1042,7 +1054,7 @@ Quat_Sensors::correctMagMeasurement(struct mag_report &mag_report)
 {
 	float x,y,z, a,b,c;
 	// rates
-	x = -(-mag_report.x + _parameters.mag_bias1[0]*temp + _parameters.mag_bias2[0]*temp2 + _parameters.mag_bias3[0]*temp3);
+	x = +(+mag_report.x + _parameters.mag_bias1[0]*temp + _parameters.mag_bias2[0]*temp2 + _parameters.mag_bias3[0]*temp3);
 	y = +(+mag_report.y + _parameters.mag_bias1[1]*temp + _parameters.mag_bias2[1]*temp2 + _parameters.mag_bias3[1]*temp3);
 	z = -(-mag_report.z + _parameters.mag_bias1[2]*temp + _parameters.mag_bias2[2]*temp2 + _parameters.mag_bias3[2]*temp3);
 
@@ -1064,9 +1076,9 @@ Quat_Sensors::correctGyroMeasurement(struct  gyro_report &gyro_report)
 {
 	float x,y,z, a,b,c;
 	// rates
-	x = +(+gyro_report.x + _parameters.gyro_bias1[0]*temp + _parameters.gyro_bias2[0]*temp2 + _parameters.gyro_bias3[0]*temp3);
-	y = -(-gyro_report.y + _parameters.gyro_bias1[1]*temp + _parameters.gyro_bias2[1]*temp2 + _parameters.gyro_bias3[1]*temp3);
-	z = -(-gyro_report.z + _parameters.gyro_bias1[2]*temp + _parameters.gyro_bias2[2]*temp2 + _parameters.gyro_bias3[2]*temp3);
+	x = +(+gyro_report.x + _parameters.gyro_bias[0] + _parameters.gyro_bias1[0]*temp + _parameters.gyro_bias2[0]*temp2 + _parameters.gyro_bias3[0]*temp3);
+	y = -(-gyro_report.y + _parameters.gyro_bias[1] + _parameters.gyro_bias1[1]*temp + _parameters.gyro_bias2[1]*temp2 + _parameters.gyro_bias3[1]*temp3);
+	z = -(-gyro_report.z + _parameters.gyro_bias[2] + _parameters.gyro_bias1[2]*temp + _parameters.gyro_bias2[2]*temp2 + _parameters.gyro_bias3[2]*temp3);
 
 	a = x + y*_parameters.gyro_align_xy + z*_parameters.gyro_align_xz;
 	b = x*_parameters.gyro_align_yx + y + z*_parameters.gyro_align_yz;
@@ -1688,9 +1700,9 @@ Quat_Sensors::gyro_calibrate()
    	arm_mean_f32(y,RATE_CALIB_SAMPLES,&meanRate[1]);
    	arm_mean_f32(z,RATE_CALIB_SAMPLES,&meanRate[2]);
 
-    float rateBiasX = -(meanRate[0] + _parameters.gyro_bias1[0]*temp + _parameters.gyro_bias2[0]*temp2 + _parameters.gyro_bias3[0]*temp3);
-    float rateBiasY = -(meanRate[1] + _parameters.gyro_bias1[1]*temp + _parameters.gyro_bias2[1]*temp2 + _parameters.gyro_bias3[1]*temp3);
-    float rateBiasZ = -(meanRate[2] + _parameters.gyro_bias1[2]*temp + _parameters.gyro_bias2[2]*temp2 + _parameters.gyro_bias3[2]*temp3);
+    float rateBiasX = -(meanRate[0] + _parameters.gyro_bias[0] + _parameters.gyro_bias1[0]*temp + _parameters.gyro_bias2[0]*temp2 + _parameters.gyro_bias3[0]*temp3);
+    float rateBiasY = -(meanRate[1] + _parameters.gyro_bias[1] + _parameters.gyro_bias1[1]*temp + _parameters.gyro_bias2[1]*temp2 + _parameters.gyro_bias3[1]*temp3);
+    float rateBiasZ = -(meanRate[2] + _parameters.gyro_bias[2] + _parameters.gyro_bias1[2]*temp + _parameters.gyro_bias2[2]*temp2 + _parameters.gyro_bias3[2]*temp3);
 
     // set offsets
 	fd = open(GYRO_DEVICE_PATH, 0);
@@ -1702,7 +1714,7 @@ Quat_Sensors::gyro_calibrate()
 		-rateBiasZ,
 		1.0f,
 	};
-	printf("[Quat Sensors]: Set gyro bias: %8.4f\t %8.4f\t %8.4f\t",rateBiasX,rateBiasY,rateBiasZ);
+	printf("[Quat Sensors]: Set gyro bias: %8.4f\t %8.4f\t %8.4f\n",rateBiasX,rateBiasY,rateBiasZ);
 
 	if (OK != ioctl(fd, GYROIOCSSCALE, (long unsigned int)&gscale)) {
 		warn("WARNING: failed to set scale / offsets for gyro");
