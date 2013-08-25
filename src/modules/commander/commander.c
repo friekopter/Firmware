@@ -1876,7 +1876,7 @@ int commander_thread_main(int argc, char *argv[])
 				/* check manual override switch - switch to manual or auto mode */
 				if (sp_man.manual_override_switch > STICK_ON_OFF_LIMIT) {
 					/* enable manual override */
-					update_state_machine_mode_manual(stat_pub, &current_status, mavlink_fd);
+					update_state_machine_mode_stabilized(stat_pub, &current_status, mavlink_fd);
 
 				} else if (sp_man.manual_override_switch < -STICK_ON_OFF_LIMIT) {
 					// /* check auto mode switch for correct mode */
@@ -1892,7 +1892,7 @@ int commander_thread_main(int argc, char *argv[])
 
 				} else {
 					/* center stick position, set SAS for all vehicle types */
-					update_state_machine_mode_stabilized(stat_pub, &current_status, mavlink_fd);
+					update_state_machine_mode_guided(stat_pub, &current_status, mavlink_fd);
 				}
 
 				/* handle the case where RC signal was regained */
