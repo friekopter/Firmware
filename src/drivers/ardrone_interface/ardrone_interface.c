@@ -196,13 +196,18 @@ int ardrone_interface_thread_main(int argc, char *argv[])
 	/* File descriptors */
 	int gpios;
 
-	char *commandline_usage = "\tusage: ardrone_interface start|status|stop [-t for motor test (10%% thrust)]\n";
+	char *commandline_usage = "\tusage: ardrone_interface start|status|stop [-t for motor test (10%% thrust)][-s for motor simulation 0%% thrust]\n";
 
 	bool motor_test_mode = false;
+	bool motor_simulation_mode = false;
 	int test_motor = -1;
 
 	/* read commandline arguments */
 	for (int i = 0; i < argc && argv[i]; i++) {
+		if (strcmp(argv[i], "-s") == 0 || strcmp(argv[i], "--simulation") == 0) {
+			motor_simulation_mode = true;
+				}
+
 		if (strcmp(argv[i], "-t") == 0 || strcmp(argv[i], "--test") == 0) {
 			motor_test_mode = true;
 		}
@@ -236,6 +241,10 @@ int ardrone_interface_thread_main(int argc, char *argv[])
 
 	if (motor_test_mode) {
 		printf("[ardrone_interface] Motor test mode enabled, setting 10 %% thrust.\n");
+	}
+
+	if (motor_simulation_mode) {
+			printf("[ardrone_interface] Motor simulation mode enabled, 0 %% thrust.\n");
 	}
 
 	/* Led animation */
@@ -278,7 +287,7 @@ int ardrone_interface_thread_main(int argc, char *argv[])
 		exit(ERROR);
 	}
 
-	ardrone_write_motor_commands(ardrone_write, 0, 0, 0, 0);
+	ardrone_write_motor_commands(ardrone_write, 0, 0, 0, 0, motor_simulation_mode);
 
 
 	// XXX Re-done initialization to make sure it is accepted by the motors
@@ -314,9 +323,9 @@ int ardrone_interface_thread_main(int argc, char *argv[])
 			if (test_motor > 0 && test_motor < 5) {
 				int motors[4] = {0, 0, 0, 0};
 				motors[test_motor - 1] = 10;
-				ardrone_write_motor_commands(ardrone_write, motors[0], motors[1], motors[2], motors[3]);
+				ardrone_write_motor_commands(ardrone_write, motors[0], motors[1], motors[2], motors[3], motor_simulation_mode);
 			} else {
-				ardrone_write_motor_commands(ardrone_write, 10, 10, 10, 10);
+				ardrone_write_motor_commands(ardrone_write, 10, 10, 10, 10, motor_simulation_mode);
 			}
 
 		} else {
@@ -332,11 +341,11 @@ int ardrone_interface_thread_main(int argc, char *argv[])
 			 * if in failsafe
 			 */
 			if (armed.armed && !armed.lockdown) {
-				ardrone_mixing_and_output(ardrone_write, &actuator_controls);
+				ardrone_mixing_and_output(ardrone_write, &actuator_controls, motor_simulation_mode);
 
 			} else {
 				/* Silently lock down motor speeds to zero */
-				ardrone_write_motor_commands(ardrone_write, 0, 0, 0, 0);
+				ardrone_write_motor_commands(ardrone_write, 0, 0, 0, 0, motor_simulation_mode);
 			}
 		}
 

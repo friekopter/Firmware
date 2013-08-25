@@ -298,7 +298,7 @@ int ar_init_motors(int ardrone_uart, int gpios)
 	usleep(UART_TRANSFER_TIME_BYTE_US * sizeof(multicastbuf));
 
 	/* set motors to zero speed (fsync is part of the write command */
-	ardrone_write_motor_commands(ardrone_uart, 0, 0, 0, 0);
+	ardrone_write_motor_commands(ardrone_uart, 0, 0, 0, 0, false);
 
 	if (errcounter != 0) {
 		fprintf(stderr, "[ardrone_interface] init sequence incomplete, failed %d times", -errcounter);
@@ -327,7 +327,7 @@ void ar_set_leds(int ardrone_uart, uint8_t led1_red, uint8_t led1_green, uint8_t
 	write(ardrone_uart, leds, 2);
 }
 
-int ardrone_write_motor_commands(int ardrone_fd, uint16_t motor1, uint16_t motor2, uint16_t motor3, uint16_t motor4) {
+int ardrone_write_motor_commands(int ardrone_fd, uint16_t motor1, uint16_t motor2, uint16_t motor3, uint16_t motor4, const bool simulation) {
 	const unsigned int min_motor_interval = 4900;
 	static uint64_t last_motor_time = 0;
 
@@ -344,7 +344,11 @@ int ardrone_write_motor_commands(int ardrone_fd, uint16_t motor1, uint16_t motor
 
 	if (hrt_absolute_time() - last_motor_time > min_motor_interval) {
 		uint8_t buf[5] = {0};
-		ar_get_motor_packet(buf, motor1, motor2, motor3, motor4);
+		if(simulation) {
+			ar_get_motor_packet(buf, 0, 0, 0, 0);
+		} else {
+			ar_get_motor_packet(buf, motor1, motor2, motor3, motor4);
+		}
 		int ret;
 		ret = write(ardrone_fd, buf, sizeof(buf));
 		fsync(ardrone_fd);
@@ -362,7 +366,7 @@ int ardrone_write_motor_commands(int ardrone_fd, uint16_t motor1, uint16_t motor
 	}
 }
 
-void ardrone_mixing_and_output(int ardrone_write, const struct actuator_controls_s *actuators) {
+void ardrone_mixing_and_output(int ardrone_write, const struct actuator_controls_s *actuators, const bool simulation) {
 
 	float roll_control = actuators->control[0];
 	float pitch_control = actuators->control[1];
@@ -488,5 +492,5 @@ void ardrone_mixing_and_output(int ardrone_write, const struct actuator_controls
 	motor_pwm[3] = (motor_pwm[3] <= 511) ? motor_pwm[3] : 511;
 
 	/* send motors via UART */
-	ardrone_write_motor_commands(ardrone_write, motor_pwm[0], motor_pwm[1], motor_pwm[2], motor_pwm[3]);
+	ardrone_write_motor_commands(ardrone_write, motor_pwm[0], motor_pwm[1], motor_pwm[2], motor_pwm[3], simulation);
 }

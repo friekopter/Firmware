@@ -75,7 +75,7 @@ int ar_multiplexing_deinit(int fd);
  * on some motor controller firmware revisions a minimum value of 10 is
  * required to spin the motors.
  */
-int ardrone_write_motor_commands(int ardrone_fd, uint16_t motor1, uint16_t motor2, uint16_t motor3, uint16_t motor4);
+int ardrone_write_motor_commands(int ardrone_fd, uint16_t motor1, uint16_t motor2, uint16_t motor3, uint16_t motor4, const bool simulation);
 
 /**
  * Initialize the motors.
@@ -90,4 +90,4 @@ void ar_set_leds(int ardrone_uart, uint8_t led1_red, uint8_t led1_green, uint8_t
 /**
  * Mix motors and output actuators
  */
-void ardrone_mixing_and_output(int ardrone_write, const struct actuator_controls_s *actuators);
+void ardrone_mixing_and_output(int ardrone_write, const struct actuator_controls_s *actuators, const bool simulation);
