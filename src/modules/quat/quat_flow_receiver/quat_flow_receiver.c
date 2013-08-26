@@ -55,7 +55,7 @@
 #include <systemlib/systemlib.h>
 
 #define QUAT_FLOW_SUM 10.0f
-#define QUAT_FLOW_QUALITY_LIMIT 50
+#define QUAT_FLOW_QUALITY_LIMIT 20
 
 __EXPORT int quat_flow_receiver_main(int argc, char *argv[]);
 int quat_flow_receiver_thread_main(int argc, char *argv[]);
@@ -77,6 +77,9 @@ struct filtered_bottom_flow_s flow_result;
 static orb_advert_t flow_pub;
 struct optical_flow_s raw_flow_result;
 static orb_advert_t raw_flow_pub;
+/* init local position and filtered flow struct */
+struct vehicle_local_position_s local_pos_result;
+static orb_advert_t local_pos_pub;
 
 static struct vehicle_attitude_s att;
 int att_sub;
@@ -177,13 +180,26 @@ void handleMessage(mavlink_message_t *msg)
 				utilRotateVecByRevMatrix2(absoluteDistanceBodyFrame, absoluteDistanceEarthFrame, att.R);
 				flow_result.sumx = absoluteDistanceBodyFrame[0];
 				flow_result.sumy = absoluteDistanceBodyFrame[1];
-			}
-			/* check if topic is advertised */
-			if (flow_pub <= 0) {
-				flow_pub = orb_advertise(ORB_ID(filtered_bottom_flow), &flow_result);
-			} else {
-				/* publish */
-				orb_publish(ORB_ID(filtered_bottom_flow), flow_pub, &flow_result);
+
+				/* check if topic is advertised */
+				if (flow_pub <= 0) {
+					flow_pub = orb_advertise(ORB_ID(filtered_bottom_flow), &flow_result);
+				} else {
+					/* publish */
+					orb_publish(ORB_ID(filtered_bottom_flow), flow_pub, &flow_result);
+				}
+				local_pos_result.x = flow_result.sumx;
+				local_pos_result.y = flow_result.sumy;
+				local_pos_result.vx = flow_result.vx;
+				local_pos_result.vy = flow_result.vy;
+				local_pos_result.z = flow.ground_distance;
+
+				if (local_pos_pub <= 0) {
+					local_pos_pub = orb_advertise(ORB_ID(vehicle_local_position), &local_pos_result);
+				} else {
+					/* publish */
+					orb_publish(ORB_ID(vehicle_local_position), local_pos_pub, &local_pos_result);
+				}
 			}
 		}
 		if (debug == true && !(printcounter % 100))
@@ -364,6 +380,8 @@ int quat_flow_receiver_thread_main(int argc, char *argv[])
 	memset(&att, 0, sizeof(att));
 	att_sub = orb_subscribe(ORB_ID(vehicle_attitude));
 	orb_copy(ORB_ID(vehicle_attitude), att_sub, &att);
+
+	memset(&local_pos_result,0,sizeof(local_pos_result));
 
 	while (!thread_should_exit) {
 		struct pollfd fds[] = { { .fd = uart, .events = POLLIN } };
