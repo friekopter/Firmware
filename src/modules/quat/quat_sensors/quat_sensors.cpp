@@ -1032,9 +1032,9 @@ Quat_Sensors::correctAccMeasurement(struct accel_report &acc_report)
 {
 	float x,y,z, a,b,c;
 	// rates
-	x = -(-acc_report.x + _parameters.acc_bias1[0]*temp + _parameters.acc_bias2[0]*temp2 + _parameters.acc_bias3[0]*temp3);
-	y = +(+acc_report.y + _parameters.acc_bias1[1]*temp + _parameters.acc_bias2[1]*temp2 + _parameters.acc_bias3[1]*temp3);
-	z = -(-acc_report.z + _parameters.acc_bias1[2]*temp + _parameters.acc_bias2[2]*temp2 + _parameters.acc_bias3[2]*temp3);
+	x = -(-acc_report.x + _parameters.acc_bias[0] + _parameters.acc_bias1[0]*temp + _parameters.acc_bias2[0]*temp2 + _parameters.acc_bias3[0]*temp3);
+	y = +(+acc_report.y + _parameters.acc_bias[1] + _parameters.acc_bias1[1]*temp + _parameters.acc_bias2[1]*temp2 + _parameters.acc_bias3[1]*temp3);
+	z = -(-acc_report.z + _parameters.acc_bias[2] + _parameters.acc_bias1[2]*temp + _parameters.acc_bias2[2]*temp2 + _parameters.acc_bias3[2]*temp3);
 
 	a = x + y*_parameters.acc_align_xy + z*_parameters.acc_align_xz;
 	b = x*_parameters.acc_align_yx + y + z*_parameters.acc_align_yz;
@@ -1054,9 +1054,9 @@ Quat_Sensors::correctMagMeasurement(struct mag_report &mag_report)
 {
 	float x,y,z, a,b,c;
 	// rates
-	x = +(+mag_report.x + _parameters.mag_bias1[0]*temp + _parameters.mag_bias2[0]*temp2 + _parameters.mag_bias3[0]*temp3);
-	y = +(+mag_report.y + _parameters.mag_bias1[1]*temp + _parameters.mag_bias2[1]*temp2 + _parameters.mag_bias3[1]*temp3);
-	z = -(-mag_report.z + _parameters.mag_bias1[2]*temp + _parameters.mag_bias2[2]*temp2 + _parameters.mag_bias3[2]*temp3);
+	x = +(+mag_report.x + _parameters.mag_bias[0] + _parameters.mag_bias1[0]*temp + _parameters.mag_bias2[0]*temp2 + _parameters.mag_bias3[0]*temp3);
+	y = +(+mag_report.y + _parameters.mag_bias[1] + _parameters.mag_bias1[1]*temp + _parameters.mag_bias2[1]*temp2 + _parameters.mag_bias3[1]*temp3);
+	z = -(-mag_report.z + _parameters.mag_bias[2] + _parameters.mag_bias1[2]*temp + _parameters.mag_bias2[2]*temp2 + _parameters.mag_bias3[2]*temp3);
 
 	a = x + y*_parameters.mag_align_xy + z*_parameters.mag_align_xz;
 	b = x*_parameters.mag_align_yx + y + z*_parameters.mag_align_yz;
@@ -1104,13 +1104,13 @@ Quat_Sensors::gyro_poll(struct sensor_combined_s &raw)
 
 		orb_copy(ORB_ID(sensor_gyro), _gyro_sub, &gyro_report);
 
-		correctGyroMeasurement(gyro_report);
-
 		if(!raw.gyro_counter % 100){
 			temp = gyro_report.temperature - IMU_ROOM_TEMP;
 			temp2 = temp*temp;
 			temp3 = temp2*temp;
 		}
+
+		correctGyroMeasurement(gyro_report);
 
 		raw.gyro_rad_s[0] = gyro_report.x;
 		raw.gyro_rad_s[1] = gyro_report.y;
@@ -1561,7 +1561,7 @@ Quat_Sensors::task_main()
 	parameter_update_poll(true /* forced */);
 
 	/* calibrate sensors */
-	gyro_calibrate();
+	//gyro_calibrate();
 
 	/* advertise the sensor_combined topic and make the initial publication */
 	_sensor_pub = orb_advertise(ORB_ID(sensor_combined), &raw);
@@ -1700,18 +1700,18 @@ Quat_Sensors::gyro_calibrate()
    	arm_mean_f32(y,RATE_CALIB_SAMPLES,&meanRate[1]);
    	arm_mean_f32(z,RATE_CALIB_SAMPLES,&meanRate[2]);
 
-    float rateBiasX = -(meanRate[0] + _parameters.gyro_bias[0] + _parameters.gyro_bias1[0]*temp + _parameters.gyro_bias2[0]*temp2 + _parameters.gyro_bias3[0]*temp3);
-    float rateBiasY = -(meanRate[1] + _parameters.gyro_bias[1] + _parameters.gyro_bias1[1]*temp + _parameters.gyro_bias2[1]*temp2 + _parameters.gyro_bias3[1]*temp3);
-    float rateBiasZ = -(meanRate[2] + _parameters.gyro_bias[2] + _parameters.gyro_bias1[2]*temp + _parameters.gyro_bias2[2]*temp2 + _parameters.gyro_bias3[2]*temp3);
+    float rateBiasX = (+meanRate[0] + _parameters.gyro_bias[0] + _parameters.gyro_bias1[0]*temp + _parameters.gyro_bias2[0]*temp2 + _parameters.gyro_bias3[0]*temp3);
+    float rateBiasY = (-meanRate[1] + _parameters.gyro_bias[1] + _parameters.gyro_bias1[1]*temp + _parameters.gyro_bias2[1]*temp2 + _parameters.gyro_bias3[1]*temp3);
+    float rateBiasZ = (-meanRate[2] + _parameters.gyro_bias[2] + _parameters.gyro_bias1[2]*temp + _parameters.gyro_bias2[2]*temp2 + _parameters.gyro_bias3[2]*temp3);
 
     // set offsets
 	fd = open(GYRO_DEVICE_PATH, 0);
 	struct gyro_scale gscale = {
-		-rateBiasX,
+		rateBiasX,
 		1.0f,
-		-rateBiasY,
+		rateBiasY,
 		1.0f,
-		-rateBiasZ,
+		rateBiasZ,
 		1.0f,
 	};
 	printf("[Quat Sensors]: Set gyro bias: %8.4f\t %8.4f\t %8.4f\n",rateBiasX,rateBiasY,rateBiasZ);
