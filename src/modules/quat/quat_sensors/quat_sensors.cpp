@@ -1056,7 +1056,7 @@ Quat_Sensors::correctMagMeasurement(struct mag_report &mag_report)
 	// rates
 	x = +(+mag_report.x + _parameters.mag_bias[0] + _parameters.mag_bias1[0]*temp + _parameters.mag_bias2[0]*temp2 + _parameters.mag_bias3[0]*temp3);
 	y = +(+mag_report.y + _parameters.mag_bias[1] + _parameters.mag_bias1[1]*temp + _parameters.mag_bias2[1]*temp2 + _parameters.mag_bias3[1]*temp3);
-	z = -(-mag_report.z + _parameters.mag_bias[2] + _parameters.mag_bias1[2]*temp + _parameters.mag_bias2[2]*temp2 + _parameters.mag_bias3[2]*temp3);
+	z = -(+mag_report.z + _parameters.mag_bias[2] + _parameters.mag_bias1[2]*temp + _parameters.mag_bias2[2]*temp2 + _parameters.mag_bias3[2]*temp3);
 
 	a = x + y*_parameters.mag_align_xy + z*_parameters.mag_align_xz;
 	b = x*_parameters.mag_align_yx + y + z*_parameters.mag_align_yz;
@@ -1561,7 +1561,7 @@ Quat_Sensors::task_main()
 	parameter_update_poll(true /* forced */);
 
 	/* calibrate sensors */
-	//gyro_calibrate();
+	gyro_calibrate();
 
 	/* advertise the sensor_combined topic and make the initial publication */
 	_sensor_pub = orb_advertise(ORB_ID(sensor_combined), &raw);
@@ -1700,9 +1700,9 @@ Quat_Sensors::gyro_calibrate()
    	arm_mean_f32(y,RATE_CALIB_SAMPLES,&meanRate[1]);
    	arm_mean_f32(z,RATE_CALIB_SAMPLES,&meanRate[2]);
 
-    float rateBiasX = (+meanRate[0] + _parameters.gyro_bias[0] + _parameters.gyro_bias1[0]*temp + _parameters.gyro_bias2[0]*temp2 + _parameters.gyro_bias3[0]*temp3);
-    float rateBiasY = (-meanRate[1] + _parameters.gyro_bias[1] + _parameters.gyro_bias1[1]*temp + _parameters.gyro_bias2[1]*temp2 + _parameters.gyro_bias3[1]*temp3);
-    float rateBiasZ = (-meanRate[2] + _parameters.gyro_bias[2] + _parameters.gyro_bias1[2]*temp + _parameters.gyro_bias2[2]*temp2 + _parameters.gyro_bias3[2]*temp3);
+    float rateBiasX = +(meanRate[0] + _parameters.gyro_bias[0] + _parameters.gyro_bias1[0]*temp + _parameters.gyro_bias2[0]*temp2 + _parameters.gyro_bias3[0]*temp3);
+    float rateBiasY = -(-meanRate[1] + _parameters.gyro_bias[1] + _parameters.gyro_bias1[1]*temp + _parameters.gyro_bias2[1]*temp2 + _parameters.gyro_bias3[1]*temp3);
+    float rateBiasZ = -(-meanRate[2] + _parameters.gyro_bias[2] + _parameters.gyro_bias1[2]*temp + _parameters.gyro_bias2[2]*temp2 + _parameters.gyro_bias3[2]*temp3);
 
     // set offsets
 	fd = open(GYRO_DEVICE_PATH, 0);
