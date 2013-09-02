@@ -36,6 +36,8 @@ void control_quadrotor_attitude(
 
 void control_quadrotor_set_yaw(float yaw);
 
+float control_quadrotor_get_yaw();
+
 typedef struct {
     float yawSetpoint;
 

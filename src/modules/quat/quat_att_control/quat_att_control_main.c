@@ -262,30 +262,8 @@ quat_att_control_thread_main(int argc, char *argv[])
 		    //navSetHoldHeading(att.yaw);
 		    // Reset all PIDs
 		    control_quadrotor_attitude_reset();
-		}
-		else if (state.flag_control_offboard_enabled) {
-
-					/* offboard inputs */
-					if (offboard_sp.mode == OFFBOARD_CONTROL_MODE_DIRECT_RATES) {
-						rates_sp.roll = offboard_sp.p1;
-						rates_sp.pitch = offboard_sp.p2;
-						rates_sp.yaw = offboard_sp.p3;
-						rates_sp.thrust = offboard_sp.p4;
-						// printf("thrust_rate=%8.4f\n",offboard_sp.p4);
-						rates_sp.timestamp = hrt_absolute_time();
-						orb_publish(ORB_ID(vehicle_rates_setpoint), rates_sp_pub, &rates_sp);
-					} else if (offboard_sp.mode == OFFBOARD_CONTROL_MODE_DIRECT_ATTITUDE) {
-						att_sp.roll_body = offboard_sp.p1;
-						att_sp.pitch_body = offboard_sp.p2;
-						att_sp.yaw_body = offboard_sp.p3;
-						att_sp.thrust = offboard_sp.p4;
-						// printf("thrust_att=%8.4f\n",offboard_sp.p4);
-						att_sp.timestamp = hrt_absolute_time();
-						/* STEP 2: publish the result to the vehicle actuators */
-						orb_publish(ORB_ID(vehicle_attitude_setpoint), att_sp_pub, &att_sp);
-					}
-
-					/* decide whether we want rate or position input */
+		    //Set yaw setpoint to current yaw
+		    control_quadrotor_set_yaw(att.yaw);
 		}
 		else if (state.flag_control_manual_enabled) {
 			/* manual inputs, from RC control or joystick */
@@ -302,6 +280,7 @@ quat_att_control_thread_main(int argc, char *argv[])
 				{
 					rates_sp.yaw = 0.0f;
 				}
+				att_sp.yaw_body = control_quadrotor_get_yaw();
 				att_sp.thrust = manual.throttle * control.controlThrottleF;
 				att_sp.timestamp = hrt_absolute_time();
 
@@ -314,8 +293,6 @@ quat_att_control_thread_main(int argc, char *argv[])
 				att_sp.yaw_body = 0.0f;
 				att_sp.thrust = 0.1f;
 				att_sp.timestamp = hrt_absolute_time();
-				/* STEP 2: publish the result to the vehicle actuators */
-				orb_publish(ORB_ID(vehicle_attitude_setpoint), att_sp_pub, &att_sp);
 			}
 		}
 		else if (state.state_machine == SYSTEM_STATE_STABILIZED) {
@@ -327,6 +304,7 @@ quat_att_control_thread_main(int argc, char *argv[])
 			{
 				rates_sp.yaw = 0.0f;
 			}
+			att_sp.yaw_body = control_quadrotor_get_yaw();
 		}
 		else {
 			// switch to yaw absolute control for the automatic control
@@ -346,6 +324,11 @@ quat_att_control_thread_main(int argc, char *argv[])
 				&rates_sp,
 				&control,
 				&actuators);
+
+		if (state.flag_control_manual_enabled) {
+			orb_publish(ORB_ID(vehicle_attitude_setpoint), att_sp_pub, &att_sp);
+			orb_publish(ORB_ID(vehicle_rates_setpoint), rates_sp_pub, &rates_sp);
+		}
 
 	    if(isnan(actuators.control[0]) || isnan(actuators.control[1]) || isnan(actuators.control[2]) || isnan(actuators.control[3])) {
 	    	/* init control */
@@ -367,6 +350,7 @@ quat_att_control_thread_main(int argc, char *argv[])
 		}
 		printcounter++;
 
+		/* STEP 2: publish the result to the vehicle actuators */
 		orb_publish(ORB_ID_VEHICLE_ATTITUDE_CONTROLS, actuator_pub, &actuators);
 
 		perf_end(mc_loop_perf);

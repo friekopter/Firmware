@@ -46,6 +46,7 @@ struct flow_position_estimator_params {
 	float sonar_upper_lp_threshold;
 	float sonar_lower_lp_threshold;
 	int debug;
+	int minimum_quality;
 };
 
 struct flow_position_estimator_param_handles {
@@ -53,6 +54,7 @@ struct flow_position_estimator_param_handles {
 	param_t sonar_upper_lp_threshold;
 	param_t sonar_lower_lp_threshold;
 	param_t debug;
+	param_t minimum_quality;
 };
 
 /**

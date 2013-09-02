@@ -40,6 +40,7 @@
 runStruct_t runData __attribute__((section(".ccm")));
 // Struct for data output. Defined here to reduce stack frame size
 static struct vehicle_attitude_setpoint_s att_sp __attribute__((section(".ccm")));
+static struct vehicle_local_position_setpoint_s local_position_sp __attribute__((section(".ccm")));
 static struct vehicle_attitude_s att __attribute__((section(".ccm")));
 static struct manual_control_setpoint_s manual;
 static struct vehicle_status_s state;
@@ -182,6 +183,10 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 	orb_advert_t att_sp_pub = orb_advertise(ORB_ID(vehicle_attitude_setpoint), &att_sp);
 	memset(&att_sp, 0, sizeof(att_sp));
 
+	//publish position setpoint
+	orb_advert_t local_pos_sp_pub = orb_advertise(ORB_ID(vehicle_local_position_setpoint), &local_position_sp);
+	memset(&local_position_sp, 0, sizeof(local_position_sp));
+
 	// Attitude
 	orb_advert_t pub_att = orb_advertise(ORB_ID(vehicle_attitude), &att);
 	memset(&att, 0, sizeof(att));
@@ -207,8 +212,8 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 	// Raw data
 	int sub_raw = orb_subscribe(ORB_ID(sensor_combined));
 	memset(&raw, 0, sizeof(raw));
-	/* rate-limit raw data updates to 200Hz */
-	orb_set_interval(sub_raw, 5);
+	/* rate-limit raw data updates to 150Hz(200Hz) */
+	orb_set_interval(sub_raw, 7);
 
 	// Flow Velocity
 	int flow_sub = orb_subscribe(ORB_ID(filtered_bottom_flow));
@@ -242,6 +247,7 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 	//sleep(1);
 	bool firstReadCompleted = false;
 	while (!firstReadCompleted) {
+		usleep(1000);
 		int ret = poll(fds, 1, 1000);
 		if (ret < 0)
 		{
@@ -305,7 +311,8 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 				    arm_std_f32(accZ, UKF_GYO_AVG_NUM, &stdZ);
 				}
 				i++;
-			    if (i <= UKF_GYO_AVG_NUM || (stdX + stdY + stdZ) > IMU_STATIC_STD) {
+			    if (i <= UKF_GYO_AVG_NUM ||
+			    		(stdX + stdY + stdZ) > IMU_STATIC_STD) {
 			    	// imu not static
 			    	continue;
 			    }
@@ -351,8 +358,6 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 				//printf("[quat flow pos control] Estmag X: %8.4f\t Y: %8.4f\t Z: %8.4f\n", (double)estMag[0], (double)estMag[1], (double)estMag[2]);
 				//printf("[quat flow pos control] Mag X: %8.4f\t Y: %8.4f\t Z: %8.4f\n", (double)mag[0], (double)mag[1], (double)mag[2]);
 				//printf("[quat flow pos control] Mag error errorX: %8.4f\t errorY: %8.4f\t errorZ: %8.4f\n", (double)rotError[0], (double)rotError[1], (double)rotError[2]);
-
-
 				rotError[0] += -(acc[2] * estAcc[1] - estAcc[2] * acc[1]) * 1.0f;
 				rotError[1] += -(acc[0] * estAcc[2] - estAcc[0] * acc[2]) * 1.0f;
 				rotError[2] += -(acc[1] * estAcc[0] - estAcc[1] * acc[0]) * 1.0f;
@@ -394,7 +399,7 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 							navFlowUkfData.x[10],navFlowUkfData.x[11],navFlowUkfData.x[12],navFlowUkfData.x[13]);
 
 			    }
-
+				//usleep(1000);
 			}
 		}
 	}
@@ -583,11 +588,23 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 			att_sp.thrust = pidUpdate(navFlowData.altSpeedPID, navFlowData.holdSpeedAlt, -UKF_FLOW_VELD);
 			att_sp.yaw_body = navFlowData.holdHeading;
 			att_sp.timestamp = hrt_absolute_time();
-
-			orb_publish(ORB_ID(vehicle_attitude_setpoint), att_sp_pub, &att_sp);
+			if(!state.flag_control_manual_enabled) {
+				orb_publish(ORB_ID(vehicle_attitude_setpoint), att_sp_pub, &att_sp);
+			}
 			perf_end(quat_flow_pos_loop_perf);
 			// print debug information every 1000th time
-
+			if(printcounter % 100) {
+				static float positionEarthFrame[3] = {0.0f,0.0f,0.0f};
+				static float positionBodyFrame[3] = {0.0f,0.0f,0.0f};
+				positionBodyFrame[0] = navFlowData.holdPositionX;
+				positionBodyFrame[1] = navFlowData.holdPositionY;
+				utilRotateVecByMatrix2(positionEarthFrame, positionBodyFrame, att.R);
+				local_position_sp.x = positionEarthFrame[0];
+				local_position_sp.y = positionEarthFrame[1];
+				local_position_sp.z = navFlowData.holdAlt;
+				local_position_sp.yaw = navFlowData.holdHeading;
+				orb_publish(ORB_ID(vehicle_local_position_setpoint), local_pos_sp_pub, &local_position_sp);
+			}
 			if (debug == true && !(printcounter % 1000))
 			{
 				float frequence = 0;

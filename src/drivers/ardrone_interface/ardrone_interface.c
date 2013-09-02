@@ -55,6 +55,7 @@
 #include <uORB/uORB.h>
 #include <uORB/topics/vehicle_status.h>
 #include <uORB/topics/actuator_controls.h>
+#include <uORB/topics/subsystem_info.h>
 
 #include <systemlib/systemlib.h>
 
@@ -62,7 +63,13 @@
 
 __EXPORT int ardrone_interface_main(int argc, char *argv[]);
 
-
+static orb_advert_t ardrone_motor_subsystem_info_pub = -1;
+struct subsystem_info_s ardrone_motor_control_info = {
+	true,
+	false,
+	true,
+	SUBSYSTEM_TYPE_MOTORCONTROL
+};
 static bool thread_should_exit = false;		/**< Deamon exit flag */
 static bool thread_running = false;		/**< Deamon status flag */
 static int ardrone_interface_task;		/**< Handle of deamon task / thread */
@@ -263,6 +270,7 @@ int ardrone_interface_thread_main(int argc, char *argv[])
 	int actuator_controls_sub = orb_subscribe(ORB_ID_VEHICLE_ATTITUDE_CONTROLS);
 	int state_sub = orb_subscribe(ORB_ID(vehicle_status));
 	int armed_sub = orb_subscribe(ORB_ID(actuator_armed));
+	ardrone_motor_subsystem_info_pub = orb_advertise(ORB_ID(subsystem_info), &ardrone_motor_control_info);
 
 	printf("[ardrone_interface] Motors initialized - ready.\n");
 	fflush(stdout);
@@ -270,14 +278,20 @@ int ardrone_interface_thread_main(int argc, char *argv[])
 	/* enable UART, writes potentially an empty buffer, but multiplexing is disabled */
 	ardrone_write = ardrone_open_uart(device, &uart_config_original);
 
+	usleep(5000);
+
 	/* initialize multiplexing, deactivate all outputs - must happen after UART open to claim GPIOs on PX4FMU */
 	gpios = ar_multiplexing_init();
+
+	usleep(5000);
 
 	if (ardrone_write < 0) {
 		fprintf(stderr, "[ardrone_interface] Failed opening AR.Drone UART, exiting.\n");
 		thread_running = false;
 		exit(ERROR);
 	}
+
+	//usleep(500000);
 
 	/* initialize motors */
 	if (OK != ar_init_motors(ardrone_write, gpios)) {
@@ -287,19 +301,28 @@ int ardrone_interface_thread_main(int argc, char *argv[])
 		exit(ERROR);
 	}
 
-	ardrone_write_motor_commands(ardrone_write, 0, 0, 0, 0, motor_simulation_mode);
+	usleep(5000);
+
+	if(OK != ardrone_write_motor_commands(ardrone_write, 0, 0, 0, 0, motor_simulation_mode)) {
+		close(ardrone_write);
+		fprintf(stderr, "[ardrone_interface] Failed initializing AR.Drone motors, exiting.\n");
+		thread_running = false;
+		exit(ERROR);
+	}
+
+	usleep(5000);
 
 
 	// XXX Re-done initialization to make sure it is accepted by the motors
 	// XXX should be removed after more testing, but no harm
 
-	/* close uarts */
+	// close uarts
 	close(ardrone_write);
 
-	/* enable UART, writes potentially an empty buffer, but multiplexing is disabled */
+	// enable UART, writes potentially an empty buffer, but multiplexing is disabled
 	ardrone_write = ardrone_open_uart(device, &uart_config_original);
 
-	/* initialize multiplexing, deactivate all outputs - must happen after UART open to claim GPIOs on PX4FMU */
+	// initialize multiplexing, deactivate all outputs - must happen after UART open to claim GPIOs on PX4FMU
 	gpios = ar_multiplexing_init();
 
 	if (ardrone_write < 0) {
@@ -308,7 +331,7 @@ int ardrone_interface_thread_main(int argc, char *argv[])
 		exit(ERROR);
 	}
 
-	/* initialize motors */
+	// initialize motors
 	if (OK != ar_init_motors(ardrone_write, gpios)) {
 		close(ardrone_write);
 		fprintf(stderr, "[ardrone_interface] Failed initializing AR.Drone motors, exiting.\n");
@@ -316,6 +339,8 @@ int ardrone_interface_thread_main(int argc, char *argv[])
 		exit(ERROR);
 	}
 
+	ardrone_motor_control_info.enabled = true;
+	orb_publish(ORB_ID(subsystem_info), ardrone_motor_subsystem_info_pub, &ardrone_motor_control_info);
 	while (!thread_should_exit) {
 
 		if (motor_test_mode) {
@@ -384,6 +409,11 @@ int ardrone_interface_thread_main(int argc, char *argv[])
 
 		counter++;
 	}
+
+	ardrone_motor_control_info.enabled = false;
+	ardrone_motor_control_info.present = false;
+	ardrone_motor_control_info.ok = false;
+	orb_publish(ORB_ID(subsystem_info), ardrone_motor_subsystem_info_pub, &ardrone_motor_control_info);
 
 	/* restore old UART config */
 	int termios_state;

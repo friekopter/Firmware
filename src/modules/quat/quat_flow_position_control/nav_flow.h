@@ -89,5 +89,6 @@ extern void navFlowNavigate(
 		);
 extern void navFlowResetHoldAlt(float delta);
 extern void navFlowSetHoldHeading(float targetHeading);
+extern void navPublishSystemInfo(void);
 
 #endif

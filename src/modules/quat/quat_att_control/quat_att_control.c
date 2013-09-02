@@ -24,6 +24,11 @@ void control_quadrotor_set_yaw(float yaw)
 	controlData.yawSetpoint = yaw;
 }
 
+float control_quadrotor_get_yaw()
+{
+	return controlData.yawSetpoint;
+}
+
 void control_quadrotor_attitude_reset()
 {
 	pidZeroIntegral(controlData.pitchRate,0.0f,0.0f);
@@ -84,19 +89,16 @@ void control_quadrotor_attitude(
 		struct actuator_controls_s *actuators)
 {
     float pitchCommand, rollCommand, ruddCommand, throttleCommand;
-    if(fabsf(rate_sp->yaw) < FLT_MIN)
-    {
+    if(fabsf(rate_sp->yaw) < FLT_MIN) {
     	// hold heading
     	float yawRateTarget = pidUpdate(controlData.yawAngle, 0.0f, compassDifferenceRad(controlData.yawSetpoint, att->yaw));	// seek a 0 deg difference between hold heading and actual yaw
     	ruddCommand = constrainFloat(pidUpdate(controlData.yawRate, yawRateTarget, att->yawspeed), -control->controlMax, control->controlMax);
     }
-    else
-    {
+    else {
     	// rate controls
     	ruddCommand = constrainFloat(pidUpdate(controlData.yawRate, rate_sp->yaw, att->yawspeed), -control->controlMax, control->controlMax);
     	control_quadrotor_set_yaw(att->yaw);
     }
-
     // smooth
    	float rollTarget = utilFilter3(controlData.rollFilter, att_sp->roll_body);
     // roll angle

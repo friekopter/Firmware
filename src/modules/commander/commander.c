@@ -1605,7 +1605,7 @@ int commander_thread_main(int argc, char *argv[])
 				critical_battery_voltage_actions_done = true;
 				mavlink_log_critical(mavlink_fd, "[cmd] EMERGENCY! CRITICAL BATTERY!");
 				current_status.battery_warning = VEHICLE_BATTERY_WARNING_ALERT;
-				state_machine_emergency(stat_pub, &current_status, mavlink_fd);
+				//state_machine_emergency(stat_pub, &current_status, mavlink_fd);
 			}
 
 			critical_voltage_counter++;

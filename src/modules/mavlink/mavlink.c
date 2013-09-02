@@ -73,6 +73,7 @@
 #include "util.h"
 #include "waypoints.h"
 #include "mavlink_parameters.h"
+#include <uORB/topics/subsystem_info.h>
 
 /* define MAVLink specific parameters */
 PARAM_DEFINE_INT32(MAV_SYS_ID, 1);

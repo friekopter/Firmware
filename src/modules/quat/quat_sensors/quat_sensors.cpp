@@ -9,6 +9,7 @@
 #include <stdio.h>
 #include <errno.h>
 #include <math.h>
+#include <float.h>
 
 #include <nuttx/analog/adc.h>
 
@@ -37,6 +38,7 @@
 #include <uORB/topics/battery_status.h>
 #include <uORB/topics/differential_pressure.h>
 #include <uORB/topics/airspeed.h>
+#include <quat/utils/aq_math.h>
 
 #include <mathlib/CMSIS/Include/arm_math.h>
 
@@ -1673,7 +1675,8 @@ Quat_Sensors::gyro_calibrate()
 	}
 	close(fd);
 
-	while(i <= RATE_CALIB_SAMPLES || (stdX + stdY + stdZ) > IMU_STATIC_STD)
+	while(i <= 2 * RATE_CALIB_SAMPLES ||
+			(stdX + stdY + stdZ) > IMU_STATIC_STD)
 	{
 		bool gyro_updated;
 		orb_check(_gyro_sub, &gyro_updated);
@@ -1684,6 +1687,9 @@ Quat_Sensors::gyro_calibrate()
 			x[j] = gyro_report.x;
 			y[j] = gyro_report.y;
 			z[j] = gyro_report.z;
+			temp = gyro_report.temperature - IMU_ROOM_TEMP;
+			temp2 = temp*temp;
+			temp3 = temp2*temp;
 			if (i >= RATE_CALIB_SAMPLES) {
 			    arm_std_f32(x, RATE_CALIB_SAMPLES, &stdX);
 			    arm_std_f32(y, RATE_CALIB_SAMPLES, &stdY);

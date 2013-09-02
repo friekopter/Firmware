@@ -61,7 +61,8 @@ struct filtered_bottom_flow_s
 	float sumy;				/**< Integrated bodyframe y flow in meters			   		   */
 
 	float vx; 				/**< Flow bodyframe x speed, m/s							   */
-	float vy;				/**< Flow bodyframe y Speed, m/s 							   */
+	float vy;				/**< Flow bodyframe y Speed, m/s 				   */
+	float ground_distance;  /**< Ground distance in m */
 };
 
 /**

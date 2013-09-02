@@ -28,12 +28,27 @@
 #include <quat/utils/aq_math.h>
 #include <stdio.h>
 #include <uORB/topics/manual_control_setpoint.h>
+#include <uORB/topics/subsystem_info.h>
 
-#define CTRL_DEAD_BAND (5.0f/1000.0f)
+#define CTRL_DEAD_BAND (30.0f/1000.0f)
+
+static orb_advert_t subsystem_info_pub = -1;
 
 void navFlowSetHoldAlt(float alt, uint8_t relative);
 void navFlowSetHoldPosition(const struct filtered_bottom_flow_s* flow_data);
 navFlowStruct_t navFlowData __attribute__((section(".ccm")));
+struct subsystem_info_s altitude_control_info = {
+	true,
+	false,
+	true,
+	SUBSYSTEM_TYPE_ALTITUDECONTROL
+};
+struct subsystem_info_s position_control_info = {
+	true,
+	false,
+	true,
+	SUBSYSTEM_TYPE_POSITIONCONTROL
+};
 
 void navFlowResetHoldAlt(float delta) {
     navFlowData.holdAlt += delta;
@@ -70,7 +85,7 @@ void navFlowNavigate(
 		) {
     uint64_t currentTime = imu_timestamp;
     float tmp;
-
+    float measured_altitude = flow_data->ground_distance;//=UKF_FLOW_PRES_ALT
 
     if ((currentTime - flow_data->timestamp) < NAV_MAX_FIX_AGE) {
     	navFlowData.navCapable = 1;
@@ -86,13 +101,14 @@ void navFlowNavigate(
 		// always allow alt hold
 		if (navFlowData.mode < NAV_STATUS_ALTHOLD) {
 			// record this altitude as the hold altitude
-			navFlowSetHoldAlt(UKF_FLOW_PRES_ALT, 0);
+			navFlowSetHoldAlt(measured_altitude, 0);
 
 			// set integral to current RC throttle setting
 			pidZeroIntegral(navFlowData.altSpeedPID, -UKF_FLOW_VELD, manual_control->throttle);
-			pidZeroIntegral(navFlowData.altPosPID, UKF_FLOW_PRES_ALT, 0.0f);
+			pidZeroIntegral(navFlowData.altPosPID, measured_altitude, 0.0f);
 
 			navFlowData.mode = NAV_STATUS_ALTHOLD;
+			navPublishSystemInfo();
 			navFlowData.holdSpeedAlt = -UKF_FLOW_VELD;
 			printf("[quat_flow_pos_control]: Altitude hold activated\n");
 		}
@@ -122,6 +138,7 @@ void navFlowNavigate(
 
 			// activate pos hold
 			navFlowData.mode = NAV_STATUS_POSHOLD;
+			navPublishSystemInfo();
 			printf("[quat_flow_pos_control]: Position hold activated\n");
 		}
 		// DVH
@@ -131,6 +148,7 @@ void navFlowNavigate(
 			manual_control->roll > CTRL_DEAD_BAND ||
 			manual_control->roll < -CTRL_DEAD_BAND)) {
 				navFlowData.mode = NAV_STATUS_DVH;
+				navPublishSystemInfo();
 				//printf("[quat_flow_pos_control]: DVH activated\n");
 		}
 		else if (navFlowData.navCapable && navFlowData.mode == NAV_STATUS_DVH) {
@@ -143,6 +161,7 @@ void navFlowNavigate(
 			//		||
 			//		RADIO_AUX2 < -250) {
 				navFlowData.mode = NAV_STATUS_POSHOLD;
+				navPublishSystemInfo();
 				navFlowData.holdSpeedX = 0.0f;
 				navFlowData.holdSpeedY = 0.0f;
 				navFlowSetHoldPosition(flow_data);
@@ -153,8 +172,9 @@ void navFlowNavigate(
     else {
 		// switch to manual mode
 		navFlowData.mode = NAV_STATUS_MANUAL;
+		navPublishSystemInfo();
 		// keep up with changing altitude
-		navFlowSetHoldAlt(UKF_FLOW_PRES_ALT, 0);
+		navFlowSetHoldAlt(measured_altitude, 0);
     }
 
     // DVH
@@ -209,14 +229,14 @@ void navFlowNavigate(
 
 			// set new hold altitude to wherever we are during vertical speed overrides
 			if (navFlowData.mode != NAV_STATUS_MISSION)
-			navFlowSetHoldAlt(UKF_FLOW_PRES_ALT, 0);
+			navFlowSetHoldAlt(measured_altitude, 0);
 		}
 		/*// are we trying to land?
 		else if (navFlowData.mode == NAV_STATUS_MISSION && navFlowData.missionLegs[leg].type == NAV_LEG_LAND) {
 			navFlowData.targetHoldSpeedAlt = -navFlowData.holdMaxVertSpeed;
 		}*/
 		else {
-			navFlowData.targetHoldSpeedAlt = pidUpdate(navFlowData.altPosPID, navFlowData.holdAlt, UKF_FLOW_PRES_ALT);
+			navFlowData.targetHoldSpeedAlt = pidUpdate(navFlowData.altPosPID, navFlowData.holdAlt, measured_altitude);
 		}
 
 		// constrain vertical velocity
@@ -227,6 +247,35 @@ void navFlowNavigate(
 		navFlowData.holdSpeedAlt += (navFlowData.targetHoldSpeedAlt - navFlowData.holdSpeedAlt) * 0.01f;
     }
     navFlowData.lastUpdate = currentTime;
+}
+
+void navPublishSystemInfo(void) {
+	static uint8_t oldMode = NAV_STATUS_MANUAL;
+	if(navFlowData.mode == oldMode) {
+		return;
+	}
+	oldMode = navFlowData.mode;
+
+	if(navFlowData.mode > NAV_STATUS_MANUAL) {
+		// alt hold enabled
+		/* notify about state change */
+		altitude_control_info.enabled = true;
+		orb_publish(ORB_ID(subsystem_info), subsystem_info_pub, &altitude_control_info);
+	}
+	else {
+		altitude_control_info.enabled = false;
+		orb_publish(ORB_ID(subsystem_info), subsystem_info_pub, &altitude_control_info);
+	}
+	if(navFlowData.mode > NAV_STATUS_ALTHOLD) {
+		// alt hold enabled
+		/* notify about state change */
+		position_control_info.enabled = true;
+		orb_publish(ORB_ID(subsystem_info), subsystem_info_pub, &position_control_info);
+	}
+	else {
+		position_control_info.enabled = false;
+		orb_publish(ORB_ID(subsystem_info), subsystem_info_pub, &position_control_info);
+	}
 }
 
 void navFlowInit(const struct quat_position_control_NAV_params* params,
@@ -246,4 +295,7 @@ void navFlowInit(const struct quat_position_control_NAV_params* params,
     navFlowData.mode = NAV_STATUS_MANUAL;
     navFlowSetHoldHeading(holdYaw);
     navFlowSetHoldAlt(holdAlt, 0);
+	/* notify about state change */
+    subsystem_info_pub = orb_advertise(ORB_ID(subsystem_info), &altitude_control_info);
+    subsystem_info_pub = orb_advertise(ORB_ID(subsystem_info), &position_control_info);
 }

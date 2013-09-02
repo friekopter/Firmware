@@ -63,6 +63,7 @@
 #include <uORB/topics/sensor_combined.h>
 #include <uORB/topics/optical_flow.h>
 #include <uORB/topics/filtered_bottom_flow.h>
+#include <uORB/topics/subsystem_info.h>
 #include <systemlib/perf_counter.h>
 #include <poll.h>
 
@@ -72,6 +73,14 @@ __EXPORT int flow_position_estimator_main(int argc, char *argv[]);
 static bool thread_should_exit = false;		/**< Daemon exit flag */
 static bool thread_running = false;		/**< Daemon status flag */
 static int daemon_task;				/**< Handle of daemon task / thread */
+static bool flow_valid = false;
+static orb_advert_t flow_subsystem_info_pub = -1;
+struct subsystem_info_s flow_control_info = {
+	true,
+	false,
+	true,
+	SUBSYSTEM_TYPE_OPTICALFLOW
+};
 
 int flow_position_estimator_thread_main(int argc, char *argv[]);
 static void usage(const char *reason);
@@ -143,8 +152,8 @@ int flow_position_estimator_thread_main(int argc, char *argv[])
 	printf("[flow position estimator] starting\n");
 
 	/* rotation matrix for transformation of optical flow speed vectors */
-	static const int8_t rotM_flow_sensor[3][3] =   {{  0, 1, 0 },
-													{ -1, 0, 0 },
+	static const int8_t rotM_flow_sensor[3][3] =   {{  0,-1, 0 },
+													{  1, 0, 0 },
 													{  0, 0, 1 }}; // 90deg rotated
 	const float time_scale = powf(10.0f,-6.0f);
 	static float speed[3] = {0.0f, 0.0f, 0.0f};
@@ -156,6 +165,7 @@ int flow_position_estimator_thread_main(int argc, char *argv[])
 	static float sonar_last = 0.0f;
 	static bool sonar_valid = false;
 	static float sonar_lp = 0.0f;
+	static float quality = 0;
 
 	/* subscribe to vehicle status, attitude, sensors and flow*/
 	struct vehicle_status_s vstatus;
@@ -195,7 +205,8 @@ int flow_position_estimator_thread_main(int argc, char *argv[])
 			.sumx = 0.0f,
 			.sumy = 0.0f,
 			.vx = 0.0f,
-			.vy = 0.0f
+			.vy = 0.0f,
+			.ground_distance = 0.0f
 	};
 
 	/* advert pub messages */
@@ -211,6 +222,8 @@ int flow_position_estimator_thread_main(int argc, char *argv[])
 	struct flow_position_estimator_param_handles param_handles;
 	parameters_init(&param_handles);
 	parameters_update(&param_handles, &params);
+
+	flow_subsystem_info_pub = orb_advertise(ORB_ID(subsystem_info), &flow_control_info);
 
 	perf_counter_t mc_loop_perf = perf_alloc(PC_ELAPSED, "flow_position_estimator_runtime");
 	perf_counter_t mc_interval_perf = perf_alloc(PC_INTERVAL, "flow_position_estimator_interval");
@@ -264,7 +277,13 @@ int flow_position_estimator_thread_main(int argc, char *argv[])
 					orb_copy(ORB_ID(vehicle_attitude), vehicle_attitude_sub, &att);
 					orb_copy(ORB_ID(vehicle_attitude_setpoint), vehicle_attitude_setpoint_sub, &att_sp);
 					orb_copy(ORB_ID(vehicle_status), vehicle_status_sub, &vstatus);
-
+					if(vstatus.flag_control_manual_enabled) {
+						local_pos.x = 0.0f;
+						local_pos.y = 0.0f;
+						local_pos.z = 0.0f;
+						filtered_flow.sumx = 0.0f;
+						filtered_flow.sumy = 0.0f;
+					}
 					/* vehicle state estimation */
 					float sonar_new = flow.ground_distance_m;
 
@@ -374,27 +393,44 @@ int flow_position_estimator_thread_main(int argc, char *argv[])
 						if (height_diff < -params.sonar_lower_lp_threshold || height_diff > params.sonar_upper_lp_threshold)
 						{
 							local_pos.z = -sonar_lp;
+							filtered_flow.ground_distance = -sonar_lp;
 						}
 						else
 						{
 							local_pos.z = -sonar_new;
+							filtered_flow.ground_distance = -sonar_new;
 						}
 					}
 
-					filtered_flow.timestamp = hrt_absolute_time();
-					local_pos.timestamp = hrt_absolute_time();
+					quality = (quality + ((float)flow.quality)*0.1f)/1.1f;
 
-					/* publish local position */
-					if(isfinite(local_pos.x) && isfinite(local_pos.y) && isfinite(local_pos.z)
-							&& isfinite(local_pos.vx) && isfinite(local_pos.vy))
-					{
-						orb_publish(ORB_ID(vehicle_local_position), local_pos_pub, &local_pos);
+					if(!flow_valid && quality >= (float)params.minimum_quality) {
+						flow_valid  = true;
+						flow_control_info.enabled = true;
+						orb_publish(ORB_ID(subsystem_info), flow_subsystem_info_pub, &flow_control_info);
+					} else if (flow_valid && quality < (float)params.minimum_quality) {
+						flow_valid = false;
+						flow_control_info.enabled = false;
+						orb_publish(ORB_ID(subsystem_info), flow_subsystem_info_pub, &flow_control_info);
 					}
 
-					/* publish filtered flow */
-					if(isfinite(filtered_flow.sumx) && isfinite(filtered_flow.sumy) && isfinite(filtered_flow.vx) && isfinite(filtered_flow.vy))
-					{
-						orb_publish(ORB_ID(filtered_bottom_flow), filtered_flow_pub, &filtered_flow);
+					if( vehicle_liftoff &&
+						quality >= (float)params.minimum_quality ) {
+						filtered_flow.timestamp = hrt_absolute_time();
+						local_pos.timestamp = hrt_absolute_time();
+
+						/* publish local position */
+						if(isfinite(local_pos.x) && isfinite(local_pos.y) && isfinite(local_pos.z)
+								&& isfinite(local_pos.vx) && isfinite(local_pos.vy))
+						{
+							orb_publish(ORB_ID(vehicle_local_position), local_pos_pub, &local_pos);
+						}
+
+						/* publish filtered flow */
+						if(isfinite(filtered_flow.sumx) && isfinite(filtered_flow.sumy) && isfinite(filtered_flow.vx) && isfinite(filtered_flow.vy))
+						{
+							orb_publish(ORB_ID(filtered_bottom_flow), filtered_flow_pub, &filtered_flow);
+						}
 					}
 
 					/* measure in what intervals the position estimator runs */

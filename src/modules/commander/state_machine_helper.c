@@ -232,13 +232,13 @@ void state_machine_publish(int status_pub, struct vehicle_status_s *current_stat
 
 	current_status->onboard_control_sensors_present |= (current_status->flag_control_attitude_enabled) ? 0x800 : 0;
 	current_status->onboard_control_sensors_present |= (current_status->flag_control_attitude_enabled) ? 0x1000 : 0;
-	current_status->onboard_control_sensors_present |= (current_status->flag_control_velocity_enabled || current_status->flag_control_position_enabled) ? 0x2000 : 0;
+	//current_status->onboard_control_sensors_present |= (current_status->flag_control_velocity_enabled || current_status->flag_control_position_enabled) ? 0x2000 : 0;
 	current_status->onboard_control_sensors_present |= (current_status->flag_control_velocity_enabled || current_status->flag_control_position_enabled) ? 0x4000 : 0;
 
 	current_status->onboard_control_sensors_enabled |= (current_status->flag_control_rates_enabled) ? 0x400 : 0;
 	current_status->onboard_control_sensors_enabled |= (current_status->flag_control_attitude_enabled) ? 0x800 : 0;
 	current_status->onboard_control_sensors_enabled |= (current_status->flag_control_attitude_enabled) ? 0x1000 : 0;
-	current_status->onboard_control_sensors_enabled |= (current_status->flag_control_velocity_enabled || current_status->flag_control_position_enabled) ? 0x2000 : 0;
+	//current_status->onboard_control_sensors_enabled |= (current_status->flag_control_velocity_enabled || current_status->flag_control_position_enabled) ? 0x2000 : 0;
 	current_status->onboard_control_sensors_enabled |= (current_status->flag_control_velocity_enabled || current_status->flag_control_position_enabled) ? 0x4000 : 0;
 
 	orb_publish(ORB_ID(vehicle_status), status_pub, current_status);
@@ -587,8 +587,8 @@ void update_state_machine_mode_stabilized(int status_pub, struct vehicle_status_
 void update_state_machine_mode_guided(int status_pub, struct vehicle_status_s *current_status, const int mavlink_fd)
 {
 	if (!current_status->flag_vector_flight_mode_ok) {
-		mavlink_log_critical(mavlink_fd, "NO POS LOCK, REJ. GUIDED MODE");
-		tune_error();
+		//mavlink_log_critical(mavlink_fd, "NO POS LOCK, REJ. GUIDED MODE");
+		//tune_error();
 		return;
 	}
 
@@ -609,7 +609,7 @@ void update_state_machine_mode_guided(int status_pub, struct vehicle_status_s *c
 void update_state_machine_mode_auto(int status_pub, struct vehicle_status_s *current_status, const int mavlink_fd)
 {
 	if (!current_status->flag_vector_flight_mode_ok) {
-		mavlink_log_critical(mavlink_fd, "NO POS LOCK, REJ. AUTO MODE");
+		//mavlink_log_critical(mavlink_fd, "NO POS LOCK, REJ. AUTO MODE");
 		return;
 	}
 
