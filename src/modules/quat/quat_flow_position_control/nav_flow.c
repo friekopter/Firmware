@@ -194,6 +194,7 @@ void navFlowNavigate(
 
 		navFlowData.holdSpeedX = x;
 		navFlowData.holdSpeedY = y;
+		navFlowSetHoldPosition(flow_data);
     }
     else {
 		// distance => velocity
