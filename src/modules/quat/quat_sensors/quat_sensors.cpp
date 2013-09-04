@@ -136,6 +136,9 @@ private:
 	orb_advert_t	_diff_pres_pub;			/**< differential_pressure */
 
 	perf_counter_t	_loop_perf;			/**< loop performance counter */
+	perf_counter_t	_gyo_perf;			/**< loop performance counter */
+	perf_counter_t	_acc_perf;			/**< loop performance counter */
+	perf_counter_t	_mag_perf;			/**< loop performance counter */
 
 	struct rc_channels_s _rc;			/**< r/c channel data */
 	struct battery_status_s _battery_status;	/**< battery status */
@@ -471,7 +474,10 @@ Quat_Sensors::Quat_Sensors() :
 	_diff_pres_pub(-1),
 
 /* performance counters */
-	_loop_perf(perf_alloc(PC_ELAPSED, "quat sensor task update"))
+	_loop_perf(perf_alloc(PC_ELAPSED, "quat sensor task update")),
+	_gyo_perf(perf_alloc(PC_INTERVAL, "quat sensor gyo event interval")),
+	_acc_perf(perf_alloc(PC_INTERVAL, "quat sensor acc event interval")),
+	_mag_perf(perf_alloc(PC_INTERVAL, "quat sensor mag event interval"))
 {
 
 	/* basic r/c parameters */
@@ -920,10 +926,10 @@ Quat_Sensors::accel_init()
 
 	} else {
 		/* set the accel internal sampling rate up to at leat 500Hz */
-		ioctl(fd, ACCELIOCSSAMPLERATE, 500);
+		ioctl(fd, ACCELIOCSSAMPLERATE, 200);
 
 		/* set the driver to poll at 500Hz */
-		ioctl(fd, SENSORIOCSPOLLRATE, 500);
+		ioctl(fd, SENSORIOCSPOLLRATE, 200);
 
 		warnx("using system accel");
 		close(fd);
@@ -943,10 +949,10 @@ Quat_Sensors::gyro_init()
 
 	} else {
 		/* set the gyro internal sampling rate up to at leat 500Hz */
-		ioctl(fd, GYROIOCSSAMPLERATE, 500);
+		ioctl(fd, GYROIOCSSAMPLERATE, 200);
 
 		/* set the driver to poll at 500Hz */
-		ioctl(fd, SENSORIOCSPOLLRATE, 500);
+		ioctl(fd, SENSORIOCSPOLLRATE, 200);
 
 		warnx("using system gyro");
 		close(fd);
@@ -1012,6 +1018,8 @@ Quat_Sensors::accel_poll(struct sensor_combined_s &raw)
 
 	if (accel_updated) {
 		struct accel_report	accel_report;
+
+		perf_count(_acc_perf);
 
 		orb_copy(ORB_ID(sensor_accel), _accel_sub, &accel_report);
 
@@ -1102,6 +1110,7 @@ Quat_Sensors::gyro_poll(struct sensor_combined_s &raw)
 	orb_check(_gyro_sub, &gyro_updated);
 
 	if (gyro_updated) {
+		perf_count(_gyo_perf);
 		struct gyro_report	gyro_report;
 
 		orb_copy(ORB_ID(sensor_gyro), _gyro_sub, &gyro_report);
@@ -1134,6 +1143,8 @@ Quat_Sensors::mag_poll(struct sensor_combined_s &raw)
 
 	if (mag_updated) {
 		struct mag_report	mag_report;
+
+		perf_count(_mag_perf);
 
 		orb_copy(ORB_ID(sensor_mag), _mag_sub, &mag_report);
 
