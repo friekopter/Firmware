@@ -213,7 +213,7 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 	int sub_raw = orb_subscribe(ORB_ID(sensor_combined));
 	memset(&raw, 0, sizeof(raw));
 	/* rate-limit raw data updates to 150Hz(200Hz) */
-	orb_set_interval(sub_raw, 7);
+	orb_set_interval(sub_raw, 5);
 
 	// Flow Velocity
 	int flow_sub = orb_subscribe(ORB_ID(filtered_bottom_flow));
@@ -599,8 +599,8 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 				positionBodyFrame[0] = navFlowData.holdPositionX;
 				positionBodyFrame[1] = navFlowData.holdPositionY;
 				utilRotateVecByMatrix2(positionEarthFrame, positionBodyFrame, att.R);
-				local_position_sp.x = positionEarthFrame[0];
-				local_position_sp.y = positionEarthFrame[1];
+				local_position_sp.x = - positionEarthFrame[0];
+				local_position_sp.y = - positionEarthFrame[1];
 				local_position_sp.z = navFlowData.holdAlt;
 				local_position_sp.yaw = navFlowData.holdHeading;
 				orb_publish(ORB_ID(vehicle_local_position_setpoint), local_pos_sp_pub, &local_position_sp);
