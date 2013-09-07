@@ -43,14 +43,30 @@
 #include <fcntl.h>
 #include <sched.h>
 #include <signal.h>
-#include <sys/stat.h>
 #include <unistd.h>
 #include <float.h>
 #include <string.h>
 
+#include <sys/stat.h>
+#include <sys/types.h>
+
+#include <stm32_pwr.h>
+
 #include "systemlib.h"
 
-static void kill_task(FAR _TCB *tcb, FAR void *arg);
+void
+systemreset(bool to_bootloader)
+{
+	if (to_bootloader) {
+		stm32_pwr_enablebkp();
+
+		/* XXX wow, this is evil - write a magic number into backup register zero */
+		*(uint32_t *)0x40002850 = 0xb007b007;
+	}
+	up_systemreset();
+}
+
+static void kill_task(FAR struct tcb_s *tcb, FAR void *arg);
 
 void killall()
 {
@@ -60,12 +76,12 @@ void killall()
 	sched_foreach(kill_task, NULL);
 }
 
-static void kill_task(FAR _TCB *tcb, FAR void *arg)
+static void kill_task(FAR struct tcb_s *tcb, FAR void *arg)
 {
 	kill(tcb->pid, SIGUSR1);
 }
 
-int task_spawn(const char *name, int scheduler, int priority, int stack_size, main_t entry, const char *argv[])
+int task_spawn_cmd(const char *name, int scheduler, int priority, int stack_size, main_t entry, const char *argv[])
 {
 	int pid;
 

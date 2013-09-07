@@ -45,6 +45,7 @@
 #include <unistd.h>
 #include <stdio.h>
 
+#include "mavlink_bridge_header.h"
 #include "missionlib.h"
 #include "waypoints.h"
 #include "util.h"
@@ -293,16 +294,13 @@ void mavlink_wpm_send_waypoint_reached(uint16_t seq)
  */
 float mavlink_wpm_distance_to_point_global_wgs84(uint16_t seq, float lat, float lon, float alt)
 {
-	//TODO: implement for z once altidude contoller is implemented
-
 	static uint16_t counter;
 
-//	if(counter % 10 == 0) printf(" x = %.10f, y = %.10f\n", x, y);
 	if (seq < wpm->size) {
-		mavlink_mission_item_t *cur = &(wpm->waypoints[seq]);
+		mavlink_mission_item_t *wp = &(wpm->waypoints[seq]);
 
-		double current_x_rad = cur->x / 180.0 * M_PI;
-		double current_y_rad = cur->y / 180.0 * M_PI;
+		double current_x_rad = wp->x / 180.0 * M_PI;
+		double current_y_rad = wp->y / 180.0 * M_PI;
 		double x_rad = lat / 180.0 * M_PI;
 		double y_rad = lon / 180.0 * M_PI;
 
@@ -314,7 +312,10 @@ float mavlink_wpm_distance_to_point_global_wgs84(uint16_t seq, float lat, float 
 
 		const double radius_earth = 6371000.0;
 
-		return radius_earth * c;
+		float dxy = radius_earth * c;
+		float dz = alt - wp->z;
+
+		return sqrtf(dxy * dxy + dz * dz);
 
 	} else {
 		return -1.0f;
@@ -347,15 +348,24 @@ void check_waypoints_reached(uint64_t now, const struct vehicle_global_position_
 {
 	static uint16_t counter;
 
-	// Do not flood the precious wireless link with debug data
-	// if (wpm->size > 0 && counter % 10 == 0) {
-	// 	printf("Currect active waypoint id: %i\n", wpm->current_active_wp_id);
-	// }
-
-
 	if (wpm->current_active_wp_id < wpm->size) {
 
-		float orbit = wpm->waypoints[wpm->current_active_wp_id].param2;
+		float orbit;
+		if (wpm->waypoints[wpm->current_active_wp_id].command == (int)MAV_CMD_NAV_WAYPOINT) {
+
+			orbit = wpm->waypoints[wpm->current_active_wp_id].param2;
+
+		} else if (wpm->waypoints[wpm->current_active_wp_id].command == (int)MAV_CMD_NAV_LOITER_TURNS ||
+				wpm->waypoints[wpm->current_active_wp_id].command == (int)MAV_CMD_NAV_LOITER_TIME ||
+				wpm->waypoints[wpm->current_active_wp_id].command == (int)MAV_CMD_NAV_LOITER_UNLIM) {
+
+			orbit = wpm->waypoints[wpm->current_active_wp_id].param3;
+		} else {
+
+			// XXX set default orbit via param
+			orbit = 15.0f;
+		}
+
 		int coordinate_frame = wpm->waypoints[wpm->current_active_wp_id].frame;
 		float dist = -1.0f;
 
@@ -363,7 +373,7 @@ void check_waypoints_reached(uint64_t now, const struct vehicle_global_position_
 			dist = mavlink_wpm_distance_to_point_global_wgs84(wpm->current_active_wp_id, (float)global_pos->lat * 1e-7f, (float)global_pos->lon * 1e-7f, global_pos->alt);
 
 		} else if (coordinate_frame == (int)MAV_FRAME_GLOBAL_RELATIVE_ALT) {
-			dist = mavlink_wpm_distance_to_point_global_wgs84(wpm->current_active_wp_id, global_pos->lat, global_pos->lon, global_pos->relative_alt);
+			dist = mavlink_wpm_distance_to_point_global_wgs84(wpm->current_active_wp_id, (float)global_pos->lat * 1e-7f, (float)global_pos->lon * 1e-7f, global_pos->relative_alt);
 
 		} else if (coordinate_frame == (int)MAV_FRAME_LOCAL_ENU || coordinate_frame == (int)MAV_FRAME_LOCAL_NED) {
 			dist = mavlink_wpm_distance_to_point_local(wpm->current_active_wp_id, local_pos->x, local_pos->y, local_pos->z);
@@ -373,50 +383,61 @@ void check_waypoints_reached(uint64_t now, const struct vehicle_global_position_
 			// XXX TODO
 		}
 
-		if (dist >= 0.f && dist <= orbit /*&& wpm->yaw_reached*/) { //TODO implement yaw
+		if (dist >= 0.f && dist <= orbit) {
 			wpm->pos_reached = true;
-
-			if (counter % 100 == 0)
-				printf("Setpoint reached: %0.4f, orbit: %.4f\n", dist, orbit);
 		}
-
-//		else
-//		{
-//			if(counter % 100 == 0)
-//				printf("Setpoint not reached yet: %0.4f, orbit: %.4f, coordinate frame: %d\n",dist, orbit, coordinate_frame);
-//		}
+		// check if required yaw reached
+		float yaw_sp = _wrap_pi(wpm->waypoints[wpm->current_active_wp_id].param4 / 180.0f * FM_PI);
+		float yaw_err = _wrap_pi(yaw_sp - local_pos->yaw);
+		if (fabsf(yaw_err) < 0.05f) {
+			wpm->yaw_reached = true;
+		}
 	}
 
 	//check if the current waypoint was reached
-	if (wpm->pos_reached /*wpm->yaw_reached &&*/ && !wpm->idle) {
+	if (wpm->pos_reached && /*wpm->yaw_reached &&*/ !wpm->idle) {
 		if (wpm->current_active_wp_id < wpm->size) {
 			mavlink_mission_item_t *cur_wp = &(wpm->waypoints[wpm->current_active_wp_id]);
 
 			if (wpm->timestamp_firstinside_orbit == 0) {
 				// Announce that last waypoint was reached
-				printf("Reached waypoint %u for the first time \n", cur_wp->seq);
 				mavlink_wpm_send_waypoint_reached(cur_wp->seq);
 				wpm->timestamp_firstinside_orbit = now;
 			}
 
 			// check if the MAV was long enough inside the waypoint orbit
 			//if (now-timestamp_lastoutside_orbit > (cur_wp->hold_time*1000))
-			if (now - wpm->timestamp_firstinside_orbit >= cur_wp->param2 * 1000) {
-				printf("Reached waypoint %u long enough \n", cur_wp->seq);
 
+			bool time_elapsed = false;
+
+			if (now - wpm->timestamp_firstinside_orbit >= cur_wp->param1 * 1000 * 1000) {
+				time_elapsed = true;
+			} else if (cur_wp->command == (int)MAV_CMD_NAV_TAKEOFF) {
+				time_elapsed = true;
+			}
+
+			if (time_elapsed) {
 				if (cur_wp->autocontinue) {
 					cur_wp->current = 0;
 
-					if (wpm->current_active_wp_id == wpm->size - 1 && wpm->size > 1) {
-						/* the last waypoint was reached, if auto continue is
-						 * activated restart the waypoint list from the beginning
-						 */
-						wpm->current_active_wp_id = 0;
+					/* only accept supported navigation waypoints, skip unknown ones */
+					do {
 
-					} else {
-						if ((uint16_t)(wpm->current_active_wp_id + 1) < wpm->size)
-							wpm->current_active_wp_id++;
-					}
+						if (wpm->current_active_wp_id == wpm->size - 1 && wpm->size > 1) {
+							/* the last waypoint was reached, if auto continue is
+							 * activated restart the waypoint list from the beginning
+							 */
+							wpm->current_active_wp_id = 0;
+
+						} else {
+							if ((uint16_t)(wpm->current_active_wp_id + 1) < wpm->size)
+								wpm->current_active_wp_id++;
+						}
+			
+					} while (!(wpm->waypoints[wpm->current_active_wp_id].command == (int)MAV_CMD_NAV_WAYPOINT ||
+				wpm->waypoints[wpm->current_active_wp_id].command == (int)MAV_CMD_NAV_LOITER_TURNS ||
+				wpm->waypoints[wpm->current_active_wp_id].command == (int)MAV_CMD_NAV_LOITER_TIME ||
+				wpm->waypoints[wpm->current_active_wp_id].command == (int)MAV_CMD_NAV_LOITER_UNLIM));
 
 					// Fly to next waypoint
 					wpm->timestamp_firstinside_orbit = 0;
@@ -466,7 +487,7 @@ int mavlink_waypoint_eventloop(uint64_t now, const struct vehicle_global_positio
 	// 	mavlink_wpm_send_setpoint(wpm->current_active_wp_id);
 	// }
 
-	check_waypoints_reached(now, global_position , local_position);
+	check_waypoints_reached(now, global_position, local_position);
 
 	return OK;
 }

@@ -1,29 +1,12 @@
 #!nsh
 #
 # PX4FMU startup script.
-#
-# This script is responsible for:
-#
-# - mounting the microSD card (if present)
-# - running the user startup script from the microSD card (if present)
-# - detecting the configuration of the system and picking a suitable
-#   startup script to continue with
-#
-# Note: DO NOT add configuration-specific commands to this script;
-#       add them to the per-configuration scripts instead.
-#
 
 #
 # Default to auto-start mode.  An init script on the microSD card
 # can change this to prevent automatic startup of the flight script.
 #
 set MODE autostart
-set USB autoconnect
-
-#
-
-#
-
 
 #
 # Try to mount the microSD card.
@@ -37,7 +20,7 @@ then
 else
 	echo "[init] no microSD card found"
 	# Play SOS
-	tone_alarm 2
+	tone_alarm error
 fi
 
 #
@@ -58,26 +41,181 @@ then
 	sh /fs/microsd/etc/rc.txt
 fi
 
-#
-# Check for USB host
-#
-if [ $USB != autoconnect ]
-then
-	echo "[init] not connecting USB"
-else
-	if sercon
-	then
-		echo "[init] USB interface connected"
-	else
-		echo "[init] No USB connected"
-	fi
-fi
-
 # if this is an APM build then there will be a rc.APM script
 # from an EXTERNAL_SCRIPTS build option
 if [ -f /etc/init.d/rc.APM ]
 then
-	echo Running rc.APM
+	if sercon
+	then
+		echo "[init] USB interface connected"
+	fi
+
+	echo "Running rc.APM"
 	# if APM startup is successful then nsh will exit
 	sh /etc/init.d/rc.APM
+fi
+
+if [ $MODE == autostart ]
+then
+	#
+	# Start terminal
+	#
+	if sercon
+	then
+		echo "USB connected"
+	fi
+	
+	#
+	# Start the ORB (first app to start)
+	#
+	uorb start
+	
+	#
+	# Load microSD params
+	#
+	if ramtron start
+	then
+		param select /ramtron/params
+		if [ -f /ramtron/params ]
+		then
+			param load /ramtron/params
+		fi
+	else
+		param select /fs/microsd/params
+		if [ -f /fs/microsd/params ]
+		then
+			param load /fs/microsd/params
+		fi
+	fi
+	
+	#
+	# Start system state indicator
+	#
+	if rgbled start
+	then
+		echo "Using external RGB Led"
+	else
+		if blinkm start
+		then
+			blinkm systemstate
+		fi
+	fi
+
+	# Try to get an USB console
+	nshterm /dev/ttyACM0 &
+	
+	#
+	# Upgrade PX4IO firmware
+	#
+	if px4io detect
+	then
+		echo "PX4IO running, not upgrading"
+	else
+		echo "Attempting to upgrade PX4IO"
+		if px4io update
+		then
+			if [ -d /fs/microsd ]
+			then
+				echo "Flashed PX4IO Firmware OK" > /fs/microsd/px4io.log
+			fi
+
+			# Allow IO to safely kick back to app
+			usleep 200000
+		else
+			echo "No PX4IO to upgrade here"
+		fi
+	fi
+	
+	#
+	# Check if auto-setup from one of the standard scripts is wanted
+	# SYS_AUTOSTART = 0 means no autostart (default)
+	#
+	
+	if param compare SYS_AUTOSTART 8
+	then
+		sh /etc/init.d/08_ardrone
+		set MODE custom
+	fi
+	
+	if param compare SYS_AUTOSTART 9
+	then
+		sh /etc/init.d/09_ardrone_flow
+		set MODE custom
+	fi
+	
+	if param compare SYS_AUTOSTART 10
+	then
+		sh /etc/init.d/10_dji_f330
+		set MODE custom
+	fi
+
+	if param compare SYS_AUTOSTART 11
+	then
+		sh /etc/init.d/11_dji_f450
+		set MODE custom
+	fi
+	
+	if param compare SYS_AUTOSTART 15
+	then
+		sh /etc/init.d/15_tbs_discovery
+		set MODE custom
+	fi
+
+	if param compare SYS_AUTOSTART 16
+	then
+		sh /etc/init.d/16_3dr_iris
+		set MODE custom
+	fi
+	
+	if param compare SYS_AUTOSTART 30
+	then
+		sh /etc/init.d/30_io_camflyer
+		set MODE custom
+	fi
+	
+	if param compare SYS_AUTOSTART 31
+	then
+		sh /etc/init.d/31_io_phantom
+		set MODE custom
+	fi
+	
+	# Start any custom extensions that might be missing
+	if [ -f /fs/microsd/etc/rc.local ]
+	then
+		sh /fs/microsd/etc/rc.local
+	fi
+	
+	# If none of the autostart scripts triggered, get a minimal setup
+	if [ $MODE == autostart ]
+	then
+		# Telemetry port is on both FMU boards ttyS1
+		mavlink start -b 57600 -d /dev/ttyS1
+		usleep 5000
+	
+		# Start commander
+		commander start
+	
+		# Start px4io if present
+		if px4io detect
+		then
+			px4io start
+		else
+			if fmu mode_serial
+			then
+				echo "FMU driver (no PWM) started"
+			fi
+		fi
+	
+		# Start sensors
+		sh /etc/init.d/rc.sensors
+	
+		# Start one of the estimators
+		attitude_estimator_ekf start
+	
+		# Start GPS
+		gps start
+	
+	fi
+
+# End of autostart
 fi

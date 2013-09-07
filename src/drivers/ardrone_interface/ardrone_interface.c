@@ -53,8 +53,11 @@
 #include <sys/prctl.h>
 #include <drivers/drv_hrt.h>
 #include <uORB/uORB.h>
+#include <uORB/topics/safety.h>
 #include <uORB/topics/vehicle_status.h>
 #include <uORB/topics/actuator_controls.h>
+#include <uORB/topics/actuator_armed.h>
+#include <uORB/topics/vehicle_control_mode.h>
 #include <uORB/topics/subsystem_info.h>
 
 #include <systemlib/systemlib.h>
@@ -121,7 +124,7 @@ int ardrone_interface_main(int argc, char *argv[])
 		}
 
 		thread_should_exit = false;
-		ardrone_interface_task = task_spawn("ardrone_interface",
+		ardrone_interface_task = task_spawn_cmd("ardrone_interface",
 						    SCHED_DEFAULT,
 						    SCHED_PRIORITY_MAX - 15,
 						    2048,
@@ -259,16 +262,14 @@ int ardrone_interface_thread_main(int argc, char *argv[])
 	int led_counter = 0;
 
 	/* declare and safely initialize all structs */
-	struct vehicle_status_s state;
-	memset(&state, 0, sizeof(state));
 	struct actuator_controls_s actuator_controls;
 	memset(&actuator_controls, 0, sizeof(actuator_controls));
 	struct actuator_armed_s armed;
+	//XXX is this necessairy?
 	armed.armed = false;
 
 	/* subscribe to attitude, motor setpoints and system state */
 	int actuator_controls_sub = orb_subscribe(ORB_ID_VEHICLE_ATTITUDE_CONTROLS);
-	int state_sub = orb_subscribe(ORB_ID(vehicle_status));
 	int armed_sub = orb_subscribe(ORB_ID(actuator_armed));
 	ardrone_motor_subsystem_info_pub = orb_advertise(ORB_ID(subsystem_info), &ardrone_motor_control_info);
 
@@ -356,8 +357,6 @@ int ardrone_interface_thread_main(int argc, char *argv[])
 		} else {
 			/* MAIN OPERATION MODE */
 
-			/* get a local copy of the vehicle state */
-			orb_copy(ORB_ID(vehicle_status), state_sub, &state);
 			/* get a local copy of the actuator controls */
 			orb_copy(ORB_ID_VEHICLE_ATTITUDE_CONTROLS, actuator_controls_sub, &actuator_controls);
 			orb_copy(ORB_ID(actuator_armed), armed_sub, &armed);

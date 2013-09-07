@@ -57,9 +57,8 @@
 #include <uORB/topics/debug_key_value.h>
 #include <uORB/topics/sensor_combined.h>
 #include <uORB/topics/vehicle_attitude.h>
-#include <uORB/topics/vehicle_status.h>
+#include <uORB/topics/vehicle_control_mode.h>
 #include <uORB/topics/parameter_update.h>
-#include <mavlink/mavlink_log.h>
 #include <drivers/drv_hrt.h>
 
 #include <systemlib/systemlib.h>
@@ -81,8 +80,6 @@ extern "C" __EXPORT int attitude_estimator_ekf_main(int argc, char *argv[]);
 static bool thread_should_exit = false;		/**< Deamon exit flag */
 static bool thread_running = false;		/**< Deamon status flag */
 static int attitude_estimator_ekf_task;				/**< Handle of deamon task / thread */
-static int mavlink_fd;				/**< Handle of deamon task / thread */
-static bool debug = false;
 
 /**
  * Mainloop of attitude_estimator_ekf.
@@ -100,7 +97,7 @@ usage(const char *reason)
 	if (reason)
 		fprintf(stderr, "%s\n", reason);
 
-	fprintf(stderr, "usage: attitude_estimator_ekf {start|stop|status|debug} [-p <additional params>]\n\n");
+	fprintf(stderr, "usage: attitude_estimator_ekf {start|stop|status} [-p <additional params>]\n\n");
 	exit(1);
 }
 
@@ -117,9 +114,6 @@ int attitude_estimator_ekf_main(int argc, char *argv[])
 	if (argc < 1)
 		usage("missing command");
 
-	if (!strcmp(argv[1], "debug")){
-		debug = true;
-	}
 	if (!strcmp(argv[1], "start")) {
 
 		if (thread_running) {
@@ -129,7 +123,7 @@ int attitude_estimator_ekf_main(int argc, char *argv[])
 		}
 
 		thread_should_exit = false;
-		attitude_estimator_ekf_task = task_spawn("attitude_estimator_ekf",
+		attitude_estimator_ekf_task = task_spawn_cmd("attitude_estimator_ekf",
 					      SCHED_DEFAULT,
 					      SCHED_PRIORITY_MAX - 5,
 					      14000,
@@ -145,10 +139,12 @@ int attitude_estimator_ekf_main(int argc, char *argv[])
 
 	if (!strcmp(argv[1], "status")) {
 		if (thread_running) {
-			printf("\tattitude_estimator_ekf app is running\n");
+			warnx("running");
+			exit(0);
 
 		} else {
-			printf("\tattitude_estimator_ekf app not started\n");
+			warnx("not started");
+			exit(1);
 		}
 
 		exit(0);
@@ -220,30 +216,28 @@ const unsigned int loop_interval_alarm = 6500;	// loop interval in microseconds
 	memset(&raw, 0, sizeof(raw));
 	struct vehicle_attitude_s att;
 	memset(&att, 0, sizeof(att));
-	struct vehicle_status_s state;
-	memset(&state, 0, sizeof(state));
+	struct vehicle_control_mode_s control_mode;
+	memset(&control_mode, 0, sizeof(control_mode));
 
 	uint64_t last_data = 0;
 	uint64_t last_measurement = 0;
 
 	/* subscribe to raw data */
 	int sub_raw = orb_subscribe(ORB_ID(sensor_combined));
-	/* rate-limit raw data updates to 200Hz */
-	orb_set_interval(sub_raw, 4);
+	/* rate-limit raw data updates to 333 Hz (sensors app publishes at 200, so this is just paranoid) */
+	orb_set_interval(sub_raw, 3);
 
 	/* subscribe to param changes */
 	int sub_params = orb_subscribe(ORB_ID(parameter_update));
 
-	/* subscribe to system state*/
-	int sub_state = orb_subscribe(ORB_ID(vehicle_status));
+	/* subscribe to control mode*/
+	int sub_control_mode = orb_subscribe(ORB_ID(vehicle_control_mode));
 
 	/* advertise attitude */
 	orb_advert_t pub_att = orb_advertise(ORB_ID(vehicle_attitude), &att);
 
-
 	int loopcounter = 0;
 	int printcounter = 0;
-	int printcounterDebug = 0;
 
 	thread_running = true;
 
@@ -276,10 +270,6 @@ const unsigned int loop_interval_alarm = 6500;	// loop interval in microseconds
 
 	/* Main loop*/
 	while (!thread_should_exit) {
-		if(mavlink_fd <= 0){
-			mavlink_fd = open(MAVLINK_LOG_DEVICE, 0);
-			mavlink_log_info(mavlink_fd,"[attitude estimator ekf] estimator starting.\n");
-		}
 
 		struct pollfd fds[2];
 		fds[0].fd = sub_raw;
@@ -292,12 +282,11 @@ const unsigned int loop_interval_alarm = 6500;	// loop interval in microseconds
 			/* XXX this is seriously bad - should be an emergency */
 		} else if (ret == 0) {
 			/* check if we're in HIL - not getting sensor data is fine then */
-			orb_copy(ORB_ID(vehicle_status), sub_state, &state);
+			orb_copy(ORB_ID(vehicle_control_mode), sub_control_mode, &control_mode);
 
-			if (!state.flag_hil_enabled) {
+			if (!control_mode.flag_system_hil_enabled) {
 				fprintf(stderr,
 					"[att ekf] WARNING: Not getting sensors - sensor app running?\n");
-				mavlink_log_info(mavlink_fd,"[att ekf] WARNING: Not getting sensors - sensor app running?\n");
 			}
 
 		} else {
@@ -319,18 +308,20 @@ const unsigned int loop_interval_alarm = 6500;	// loop interval in microseconds
 				orb_copy(ORB_ID(sensor_combined), sub_raw, &raw);
 
 				if (!initialized) {
+					// XXX disabling init for now
+					initialized = true;
 
-					gyro_offsets[0] += raw.gyro_rad_s[0];
-					gyro_offsets[1] += raw.gyro_rad_s[1];
-					gyro_offsets[2] += raw.gyro_rad_s[2];
-					offset_count++;
+					// gyro_offsets[0] += raw.gyro_rad_s[0];
+					// gyro_offsets[1] += raw.gyro_rad_s[1];
+					// gyro_offsets[2] += raw.gyro_rad_s[2];
+					// offset_count++;
 
-					if (hrt_absolute_time() - start_time > 3000000LL) {
-						initialized = true;
-						gyro_offsets[0] /= offset_count;
-						gyro_offsets[1] /= offset_count;
-						gyro_offsets[2] /= offset_count;
-					}
+					// if (hrt_absolute_time() - start_time > 3000000LL) {
+					// 	initialized = true;
+					// 	gyro_offsets[0] /= offset_count;
+					// 	gyro_offsets[1] /= offset_count;
+					// 	gyro_offsets[2] /= offset_count;
+					// }
 
 				} else {
 
@@ -394,7 +385,7 @@ const unsigned int loop_interval_alarm = 6500;	// loop interval in microseconds
 					static bool const_initialized = false;
 
 					/* initialize with good values once we have a reasonable dt estimate */
-					if (!const_initialized && dt < 0.05f && dt > 0.005f) {
+					if (!const_initialized && dt < 0.05f && dt > 0.001f) {
 						dt = 0.005f;
 						parameters_update(&ekf_param_handles, &ekf_params);
 
@@ -431,18 +422,11 @@ const unsigned int loop_interval_alarm = 6500;	// loop interval in microseconds
 
 					} else {
 						/* due to inputs or numerical failure the output is invalid, skip it */
-						if (printcounter % 200 == 0) {
-							printf("[attitude_estimator_ekf] invalid result");
-							mavlink_log_info(mavlink_fd,"[attitude estimator ekf] invalid result.\n");
-						}
-						printcounter++;
 						continue;
 					}
 
-					if (last_data > 0 && raw.timestamp - last_data > 12000) {
+					if (last_data > 0 && raw.timestamp - last_data > 12000)
 						printf("[attitude estimator ekf] sensor data missed! (%llu)\n", raw.timestamp - last_data);
-						mavlink_log_info(mavlink_fd,"[attitude estimator ekf] sensor data missed!\n");
-					}
 
 					last_data = raw.timestamp;
 
@@ -478,17 +462,6 @@ const unsigned int loop_interval_alarm = 6500;	// loop interval in microseconds
 					}
 
 					perf_end(ekf_loop_perf);
-					// /* print debug information every 200th time */
-					if (debug == true && printcounterDebug % 2000 == 0)
-					{
-						printf("sensor inputs: g: %8.4f\t%8.4f\t%8.4f\ta: %8.4f\t%8.4f\t%8.4f\t m: %8.4f\t%8.4f\t%8.4f\n", (double)z_k[0], (double)z_k[1], (double)z_k[2], (double)z_k[3], (double)z_k[4], (double)z_k[5], (double)z_k[6], (double)z_k[7], (double)z_k[8]);
-						//printf("quat params: accdist: %8.4f\tka: %8.4f\t ki:%8.4f\tkm1: %8.4f\tkm2: %8.4f\t kp: %8.4f\n",(double)quat_params.accdist, (double)quat_params.ka, (double)quat_params.ki, (double)quat_params.km1, (double)quat_params.km2, (double)quat_params.kp);
-						printf("quat attitude iteration: %d, dt: %d us (%d Hz)\n", loopcounter, (int)(dt * 1000000.0f), (int)(1.0f / dt));
-						printf("roll: %8.4f\tpitch: %8.4f\tyaw:%8.4f\n", (double)att.roll, (double)att.pitch, (double)att.yaw);
-						printf("update rates gyro: %8.4f\taccel: %8.4f\tmag:%8.4f\n", (double)sensor_update_hz[0], (double)sensor_update_hz[1], (double)sensor_update_hz[2]);
-					}
-					printcounterDebug++;
-
 				}
 			}
 		}

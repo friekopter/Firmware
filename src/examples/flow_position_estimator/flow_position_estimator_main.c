@@ -56,7 +56,8 @@
 #include <math.h>
 #include <uORB/uORB.h>
 #include <uORB/topics/parameter_update.h>
-#include <uORB/topics/vehicle_status.h>
+#include <uORB/topics/actuator_armed.h>
+#include <uORB/topics/vehicle_control_mode.h>
 #include <uORB/topics/vehicle_attitude.h>
 #include <uORB/topics/vehicle_attitude_setpoint.h>
 #include <uORB/topics/vehicle_local_position.h>
@@ -99,7 +100,7 @@ static void usage(const char *reason)
  * Makefile does only apply to this management task.
  *
  * The actual stack size should be set in the call
- * to task_create().
+ * to task_spawn_cmd().
  */
 int flow_position_estimator_main(int argc, char *argv[])
 {
@@ -116,7 +117,7 @@ int flow_position_estimator_main(int argc, char *argv[])
 		}
 
 		thread_should_exit = false;
-		daemon_task = task_spawn("flow_position_estimator",
+		daemon_task = task_spawn_cmd("flow_position_estimator",
 					 SCHED_RR,
 					 SCHED_PRIORITY_MAX - 5,
 					 4096,
@@ -168,8 +169,10 @@ int flow_position_estimator_thread_main(int argc, char *argv[])
 	static float quality = 0;
 
 	/* subscribe to vehicle status, attitude, sensors and flow*/
-	struct vehicle_status_s vstatus;
-	memset(&vstatus, 0, sizeof(vstatus));
+	struct actuator_armed_s armed;
+	memset(&armed, 0, sizeof(armed));
+	struct vehicle_control_mode_s control_mode;
+	memset(&control_mode, 0, sizeof(control_mode));
 	struct vehicle_attitude_s att;
 	memset(&att, 0, sizeof(att));
 	struct vehicle_attitude_setpoint_s att_sp;
@@ -180,8 +183,11 @@ int flow_position_estimator_thread_main(int argc, char *argv[])
 	/* subscribe to parameter changes */
 	int parameter_update_sub = orb_subscribe(ORB_ID(parameter_update));
 
-	/* subscribe to vehicle status */
-	int vehicle_status_sub = orb_subscribe(ORB_ID(vehicle_status));
+	/* subscribe to armed topic */
+	int armed_sub = orb_subscribe(ORB_ID(actuator_armed));
+
+	/* subscribe to safety topic */
+	int control_mode_sub = orb_subscribe(ORB_ID(vehicle_control_mode));
 
 	/* subscribe to attitude */
 	int vehicle_attitude_sub = orb_subscribe(ORB_ID(vehicle_attitude));
@@ -231,6 +237,7 @@ int flow_position_estimator_thread_main(int argc, char *argv[])
 
 	while (!thread_should_exit)
 	{
+
 		if (sensors_ready)
 		{
 			/*This runs at the rate of the sensors */
@@ -276,7 +283,8 @@ int flow_position_estimator_thread_main(int argc, char *argv[])
 					/* got flow, updating attitude and status as well */
 					orb_copy(ORB_ID(vehicle_attitude), vehicle_attitude_sub, &att);
 					orb_copy(ORB_ID(vehicle_attitude_setpoint), vehicle_attitude_setpoint_sub, &att_sp);
-					orb_copy(ORB_ID(vehicle_status), vehicle_status_sub, &vstatus);
+					orb_copy(ORB_ID(actuator_armed), armed_sub, &armed);
+					orb_copy(ORB_ID(vehicle_control_mode), control_mode_sub, &control_mode);
 					if(vstatus.flag_control_manual_enabled) {
 						local_pos.x = 0.0f;
 						local_pos.y = 0.0f;
@@ -292,14 +300,15 @@ int flow_position_estimator_thread_main(int argc, char *argv[])
 					 * -> accept sonar measurements after reaching calibration distance (values between 0.3m and 1.0m for some time)
 					 * -> minimum sonar value 0.3m
 					 */
+
 					if (!vehicle_liftoff)
 					{
-						if (vstatus.flag_system_armed && att_sp.thrust > params.minimum_liftoff_thrust && sonar_new > 0.3f && sonar_new < 1.0f)
+						if (armed.armed && att_sp.thrust > params.minimum_liftoff_thrust && sonar_new > 0.3f && sonar_new < 1.0f)
 							vehicle_liftoff = true;
 					}
 					else
 					{
-						if (!vstatus.flag_system_armed || (att_sp.thrust < params.minimum_liftoff_thrust && sonar_new <= 0.3f))
+						if (!armed.armed || (att_sp.thrust < params.minimum_liftoff_thrust && sonar_new <= 0.3f))
 							vehicle_liftoff = false;
 					}
 
@@ -366,7 +375,7 @@ int flow_position_estimator_thread_main(int argc, char *argv[])
 					}
 
 					/* filtering ground distance */
-					if (!vehicle_liftoff || !vstatus.flag_system_armed)
+					if (!vehicle_liftoff || !armed.armed)
 					{
 						/* not possible to fly */
 						sonar_valid = false;
@@ -480,7 +489,9 @@ int flow_position_estimator_thread_main(int argc, char *argv[])
 
 	close(vehicle_attitude_setpoint_sub);
 	close(vehicle_attitude_sub);
+	close(armed_sub);
 	close(vehicle_status_sub);
+	close(control_mode_sub);
 	close(parameter_update_sub);
 	close(optical_flow_sub);
 

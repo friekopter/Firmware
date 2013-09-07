@@ -3,6 +3,7 @@
  *   Copyright (C) 2008-2013 PX4 Development Team. All rights reserved.
  *   Author: Thomas Gubler <thomasgubler@student.ethz.ch>
  *           Julian Oes <joes@student.ethz.ch>
+ *           Anton Babushkin <anton.babushkin@me.com>
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -51,38 +52,38 @@
 #define UBX_CLASS_TIM 0x0d
 
 /* MessageIDs (the ones that are used) */
+#define UBX_MESSAGE_TIM_TP 0x01 //Timepulse message
 #define UBX_MESSAGE_NAV_POSLLH 0x02
+//#define UBX_MESSAGE_NAV_DOP 0x04
 #define UBX_MESSAGE_NAV_SOL 0x06
-#define UBX_MESSAGE_NAV_TIMEUTC 0x21
-#define UBX_MESSAGE_NAV_DOP 0x04
-#define UBX_MESSAGE_NAV_SVINFO 0x30
 #define UBX_MESSAGE_NAV_VELNED 0x12
 //#define UBX_MESSAGE_RXM_SVSI 0x20
-#define UBX_MESSAGE_ACK_ACK 0x01
+#define UBX_MESSAGE_NAV_TIMEUTC 0x21
+#define UBX_MESSAGE_NAV_SVINFO 0x30
 #define UBX_MESSAGE_ACK_NAK 0x00
+#define UBX_MESSAGE_ACK_ACK 0x01
 #define UBX_MESSAGE_CFG_PRT 0x00
-#define UBX_MESSAGE_CFG_NAV5 0x24
 #define UBX_MESSAGE_CFG_MSG 0x01
 #define UBX_MESSAGE_CFG_RATE 0x08
-#define UBX_MESSAGE_TIM_TP 0x01
+#define UBX_MESSAGE_CFG_NAV5 0x24
 
 #define UBX_CFG_PRT_LENGTH 20
-#define UBX_CFG_PRT_PAYLOAD_PORTID 0x01         /**< UART1 */
-#define UBX_CFG_PRT_PAYLOAD_MODE 0x000008D0     /**< 0b0000100011010000: 8N1 */
-#define UBX_CFG_PRT_PAYLOAD_BAUDRATE 38400      /**< always choose 38400 as GPS baudrate */
-#define UBX_CFG_PRT_PAYLOAD_INPROTOMASK 0x01    /**< UBX in */
-#define UBX_CFG_PRT_PAYLOAD_OUTPROTOMASK 0x01   /**< UBX out */
+#define UBX_CFG_PRT_PAYLOAD_PORTID 0x01			/**< UART1 */
+#define UBX_CFG_PRT_PAYLOAD_MODE 0x000008D0		/**< 0b0000100011010000: 8N1 */
+#define UBX_CFG_PRT_PAYLOAD_BAUDRATE 38400		/**< choose 38400 as GPS baudrate */
+#define UBX_CFG_PRT_PAYLOAD_INPROTOMASK 0x01		/**< UBX in */
+#define UBX_CFG_PRT_PAYLOAD_OUTPROTOMASK 0x01		/**< UBX out */
 
 #define UBX_CFG_RATE_LENGTH 6
-#define UBX_CFG_RATE_PAYLOAD_MEASRATE 200		/**< 200ms for 5Hz */
+#define UBX_CFG_RATE_PAYLOAD_MEASINTERVAL 200		/**< 200ms for 5Hz */
 #define UBX_CFG_RATE_PAYLOAD_NAVRATE 1			/**< cannot be changed */
 #define UBX_CFG_RATE_PAYLOAD_TIMEREF 0			/**< 0: UTC, 1: GPS time */
 
 
 #define UBX_CFG_NAV5_LENGTH 36
-#define UBX_CFG_NAV5_PAYLOAD_MASK 0x0001		/**< only update dynamic model and fix mode */
+#define UBX_CFG_NAV5_PAYLOAD_MASK 0x0005		/**< XXX only update dynamic model and fix mode */
 #define UBX_CFG_NAV5_PAYLOAD_DYNMODEL 7			/**< 0: portable, 2: stationary, 3: pedestrian, 4: automotive, 5: sea, 6: airborne <1g, 7: airborne <2g, 8: airborne <4g */
-#define UBX_CFG_NAV5_PAYLOAD_FIXMODE 2          /**< 1: 2D only, 2: 3D only, 3: Auto 2D/3D */
+#define UBX_CFG_NAV5_PAYLOAD_FIXMODE 2			/**< 1: 2D only, 2: 3D only, 3: Auto 2D/3D */
 
 #define UBX_CFG_MSG_LENGTH 8
 #define UBX_CFG_MSG_PAYLOAD_RATE1_5HZ 0x01 		/**< {0x00, 0x01, 0x00, 0x00, 0x00, 0x00} the second entry is for UART1 */
@@ -95,6 +96,14 @@
 // ************
 /** the structures of the binary packets */
 #pragma pack(push, 1)
+
+struct ubx_header {
+	uint8_t sync1;
+	uint8_t sync2;
+	uint8_t msg_class;
+	uint8_t msg_id;
+	uint16_t length;
+};
 
 typedef struct {
 	uint32_t time_milliseconds;		/**<  GPS Millisecond Time of Week */
@@ -278,10 +287,16 @@ typedef struct {
 	uint16_t length;
 	uint8_t msgClass_payload;
 	uint8_t msgID_payload;
-	uint8_t rate[6];
+	uint8_t rate;
 	uint8_t ck_a;
 	uint8_t ck_b;
 } type_gps_bin_cfg_msg_packet_t;
+
+struct ubx_cfg_msg_rate {
+	uint8_t msg_class;
+	uint8_t msg_id;
+	uint8_t rate;
+};
 
 // Timepulse Timedata
 typedef struct {
@@ -295,46 +310,6 @@ typedef struct {
 
 // END the structures of the binary packets
 // ************
-
-typedef enum {
-	UBX_CONFIG_STATE_PRT = 0,
-	UBX_CONFIG_STATE_PRT_NEW_BAUDRATE,
-	UBX_CONFIG_STATE_RATE,
-	UBX_CONFIG_STATE_NAV5,
-	UBX_CONFIG_STATE_MSG_NAV_POSLLH,
-	UBX_CONFIG_STATE_MSG_NAV_TIMEUTC,
-	UBX_CONFIG_STATE_MSG_NAV_DOP,
-	UBX_CONFIG_STATE_MSG_NAV_SVINFO,
-	UBX_CONFIG_STATE_MSG_NAV_SOL,
-	UBX_CONFIG_STATE_MSG_NAV_VELNED,
-//	UBX_CONFIG_STATE_MSG_RXM_SVSI,
-	UBX_CONFIG_STATE_CONFIGURED
-} ubx_config_state_t;
-
-typedef enum {
-	CLASS_UNKNOWN = 0,
-	NAV = 1,
-	RXM = 2,
-	ACK = 3,
-	CFG = 4,
-	TIM = 5
-} ubx_message_class_t;
-
-typedef enum {
-	//these numbers do NOT correspond to the message id numbers of the ubx protocol
-	ID_UNKNOWN = 0,
-	NAV_POSLLH,
-	NAV_SOL,
-	NAV_TIMEUTC,
-	NAV_DOP,
-	NAV_SVINFO,
-	NAV_VELNED,
-//	RXM_SVSI,
-	CFG_NAV5,
-	ACK_ACK,
-	ACK_NAK,
-	TIM_TP
-} ubx_message_id_t;
 
 typedef enum {
 	UBX_DECODE_UNINIT = 0,
@@ -356,60 +331,64 @@ class UBX : public GPS_Helper
 public:
 	UBX(const int &fd, struct vehicle_gps_position_s *gps_position);
 	~UBX();
-	int					receive(unsigned timeout);
-	int					configure(unsigned &baudrate);
+	int			receive(unsigned timeout);
+	int			configure(unsigned &baudrate);
 
 private:
 
 	/**
 	 * Parse the binary MTK packet
 	 */
-	int					parse_char(uint8_t b);
+	int			parse_char(uint8_t b);
 
 	/**
 	 * Handle the package once it has arrived
 	 */
-	int					handle_message(void);
+	int			handle_message(void);
 
 	/**
 	 * Reset the parse state machine for a fresh start
 	 */
-	void				decode_init(void);
+	void			decode_init(void);
 
 	/**
 	 * While parsing add every byte (except the sync bytes) to the checksum
 	 */
-	void				add_byte_to_checksum(uint8_t);
+	void			add_byte_to_checksum(uint8_t);
 
 	/**
 	 * Add the two checksum bytes to an outgoing message
 	 */
-	void				add_checksum_to_message(uint8_t* message, const unsigned length);
+	void			add_checksum_to_message(uint8_t* message, const unsigned length);
 
 	/**
 	 * Helper to send a config packet
 	 */
-	void				send_config_packet(const int &fd, uint8_t *packet, const unsigned length);
+	void			send_config_packet(const int &fd, uint8_t *packet, const unsigned length);
 
-	/**
-	 * Initialize timepulse port
-	 */
-	void 				config_tp_port(void);
+	void			configure_message_rate(uint8_t msg_class, uint8_t msg_id, uint8_t rate);
 
-	int 				_fd;
+	void			send_message(uint8_t msg_class, uint8_t msg_id, void *msg, uint8_t size);
+
+	void			add_checksum(uint8_t* message, const unsigned length, uint8_t &ck_a, uint8_t &ck_b);
+
+	int			wait_for_ack(unsigned timeout);
+
+	int			_fd;
 	struct vehicle_gps_position_s *_gps_position;
-	ubx_config_state_t	_config_state;
-	bool 				_waiting_for_ack;
-	uint8_t				_clsID_needed;
-	uint8_t				_msgID_needed;
+	bool			_configured;
+	bool			_waiting_for_ack;
+	uint8_t			_message_class_needed;
+	uint8_t			_message_id_needed;
 	ubx_decode_state_t	_decode_state;
-	uint8_t				_rx_buffer[RECV_BUFFER_SIZE];
-	unsigned			_rx_count;
-	uint8_t 			_rx_ck_a;
-	uint8_t				_rx_ck_b;
-	ubx_message_class_t _message_class;
-	ubx_message_id_t	_message_id;
-	unsigned			_payload_size;
+	uint8_t			_rx_buffer[RECV_BUFFER_SIZE];
+	unsigned		_rx_count;
+	uint8_t			_rx_ck_a;
+	uint8_t			_rx_ck_b;
+	uint8_t			_message_class;
+	uint8_t			_message_id;
+	unsigned		_payload_size;
+	uint8_t			_disable_cmd_counter;
 };
 
 #endif /* UBX_H_ */

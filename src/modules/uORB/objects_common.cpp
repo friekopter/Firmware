@@ -1,6 +1,6 @@
 /****************************************************************************
  *
- *   Copyright (C) 2012 PX4 Development Team. All rights reserved.
+ *   Copyright (C) 2012, 2013 PX4 Development Team. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -35,6 +35,10 @@
  * @file objects_common.cpp
  *
  * Common object definitions without a better home.
+ */
+
+/**
+ * @defgroup topics List of all uORB topics.
  */
 
 #include <nuttx/config.h>
@@ -77,6 +81,9 @@ ORB_DEFINE(home_position, struct home_position_s);
 #include "topics/vehicle_status.h"
 ORB_DEFINE(vehicle_status, struct vehicle_status_s);
 
+#include "topics/safety.h"
+ORB_DEFINE(safety, struct safety_s);
+
 #include "topics/battery_status.h"
 ORB_DEFINE(battery_status, struct battery_status_s);
 
@@ -98,6 +105,9 @@ ORB_DEFINE(rc_channels, struct rc_channels_s);
 #include "topics/vehicle_command.h"
 ORB_DEFINE(vehicle_command, struct vehicle_command_s);
 
+#include "topics/vehicle_control_mode.h"
+ORB_DEFINE(vehicle_control_mode, struct vehicle_control_mode_s);
+
 #include "topics/vehicle_local_position_setpoint.h"
 ORB_DEFINE(vehicle_local_position_setpoint, struct vehicle_local_position_setpoint_s);
 
@@ -110,11 +120,20 @@ ORB_DEFINE(vehicle_global_position_setpoint, struct vehicle_global_position_setp
 #include "topics/vehicle_global_position_set_triplet.h"
 ORB_DEFINE(vehicle_global_position_set_triplet, struct vehicle_global_position_set_triplet_s);
 
+#include "topics/vehicle_global_velocity_setpoint.h"
+ORB_DEFINE(vehicle_global_velocity_setpoint, struct vehicle_global_velocity_setpoint_s);
+
+#include "topics/mission.h"
+ORB_DEFINE(mission, struct mission_s);
+
 #include "topics/vehicle_attitude_setpoint.h"
 ORB_DEFINE(vehicle_attitude_setpoint, struct vehicle_attitude_setpoint_s);
 
 #include "topics/manual_control_setpoint.h"
 ORB_DEFINE(manual_control_setpoint, struct manual_control_setpoint_s);
+
+#include "topics/vehicle_control_debug.h"
+ORB_DEFINE(vehicle_control_debug, struct vehicle_control_debug_s);
 
 #include "topics/offboard_control_setpoint.h"
 ORB_DEFINE(offboard_control_setpoint, struct offboard_control_setpoint_s);
@@ -143,6 +162,8 @@ ORB_DEFINE(actuator_controls_0, struct actuator_controls_s);
 ORB_DEFINE(actuator_controls_1, struct actuator_controls_s);
 ORB_DEFINE(actuator_controls_2, struct actuator_controls_s);
 ORB_DEFINE(actuator_controls_3, struct actuator_controls_s);
+
+#include "topics/actuator_armed.h"
 ORB_DEFINE(actuator_armed, struct actuator_armed_s);
 
 /* actuator controls, as set by actuators / mixers after limiting */
@@ -158,5 +179,14 @@ ORB_DEFINE(actuator_outputs_1, struct actuator_outputs_s);
 ORB_DEFINE(actuator_outputs_2, struct actuator_outputs_s);
 ORB_DEFINE(actuator_outputs_3, struct actuator_outputs_s);
 
+#include "topics/telemetry_status.h"
+ORB_DEFINE(telemetry_status, struct telemetry_status_s);
+
 #include "topics/debug_key_value.h"
 ORB_DEFINE(debug_key_value, struct debug_key_value_s);
+
+#include "topics/navigation_capabilities.h"
+ORB_DEFINE(navigation_capabilities, struct navigation_capabilities_s);
+
+#include "topics/esc_status.h"
+ORB_DEFINE(esc_status, struct esc_status_s);

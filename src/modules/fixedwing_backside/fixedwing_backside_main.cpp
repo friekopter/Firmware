@@ -45,11 +45,12 @@
 #include <stdlib.h>
 #include <string.h>
 #include <systemlib/systemlib.h>
-#include <controllib/fixedwing.hpp>
 #include <systemlib/param/param.h>
 #include <systemlib/err.h>
 #include <drivers/drv_hrt.h>
 #include <math.h>
+
+#include "fixedwing.hpp"
 
 static bool thread_should_exit = false;     /**< Deamon exit flag */
 static bool thread_running = false;     /**< Deamon status flag */
@@ -108,7 +109,8 @@ int fixedwing_backside_main(int argc, char *argv[])
 		}
 
 		thread_should_exit = false;
-		deamon_task = task_spawn("fixedwing_backside",
+
+		deamon_task = task_spawn_cmd("fixedwing_backside",
 					 SCHED_DEFAULT,
 					 SCHED_PRIORITY_MAX - 10,
 					 5120,
