@@ -4,6 +4,7 @@
 #include <unistd.h>
 #include <string.h>
 #include <math.h>
+#include <geo/geo.h>
 #include <systemlib/conversions.h>
 
 #include "quat/utils/quat_constants.h"

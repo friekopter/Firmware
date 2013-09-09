@@ -26,6 +26,7 @@
 #include <math.h>
 #include <float.h>
 #include <quat/utils/aq_math.h>
+#include <quat/utils/compass_utils.h>
 #include <stdio.h>
 #include <uORB/topics/manual_control_setpoint.h>
 #include <uORB/topics/subsystem_info.h>
@@ -77,7 +78,7 @@ void navFlowSetHoldHeading(float targetHeading) {
 }
 
 void navFlowNavigate(
-		const struct vehicle_status_s *current_status,
+		const struct vehicle_control_mode_s *control_mode,
 		const struct quat_position_control_NAV_params* params,
 		const struct manual_control_setpoint_s* manual_control,
 		const struct filtered_bottom_flow_s* flow_data,
@@ -96,23 +97,25 @@ void navFlowNavigate(
     	navFlowData.navCapable = 0;
     }
 
+	// allow alt hold
+	if (control_mode->flag_control_altitude_enabled &&
+			navFlowData.mode < NAV_STATUS_ALTHOLD) {
+		// record this altitude as the hold altitude
+		navFlowSetHoldAlt(measured_altitude, 0);
+
+		// set integral to current RC throttle setting
+		pidZeroIntegral(navFlowData.altSpeedPID, -UKF_FLOW_VELD, manual_control->throttle);
+		pidZeroIntegral(navFlowData.altPosPID, measured_altitude, 0.0f);
+
+		navFlowData.mode = NAV_STATUS_ALTHOLD;
+		navPublishSystemInfo();
+		navFlowData.holdSpeedAlt = -UKF_FLOW_VELD;
+		printf("[quat_flow_pos_control]: Altitude hold activated\n");
+	}
+
     // do we want to be in position hold mode?
-    if (current_status->state_machine == SYSTEM_STATE_STABILIZED) {
-		// always allow alt hold
-		if (navFlowData.mode < NAV_STATUS_ALTHOLD) {
-			// record this altitude as the hold altitude
-			navFlowSetHoldAlt(measured_altitude, 0);
-
-			// set integral to current RC throttle setting
-			pidZeroIntegral(navFlowData.altSpeedPID, -UKF_FLOW_VELD, manual_control->throttle);
-			pidZeroIntegral(navFlowData.altPosPID, measured_altitude, 0.0f);
-
-			navFlowData.mode = NAV_STATUS_ALTHOLD;
-			navPublishSystemInfo();
-			navFlowData.holdSpeedAlt = -UKF_FLOW_VELD;
-			printf("[quat_flow_pos_control]: Altitude hold activated\n");
-		}
-
+    if (control_mode->flag_control_position_enabled &&
+    		control_mode->flag_control_velocity_enabled	) {
 		// are we not in position hold mode now?
 		if (navFlowData.navCapable &&
 			navFlowData.mode != NAV_STATUS_POSHOLD &&

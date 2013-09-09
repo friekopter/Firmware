@@ -21,7 +21,7 @@
 
 //#include <CoOS.h>
 #include <uORB/topics/vehicle_gps_position.h>
-#include <uORB/topics/vehicle_status.h>
+#include <uORB/topics/vehicle_control_mode.h>
 #include <uORB/topics/manual_control_setpoint.h>
 #include <uORB/topics/filtered_bottom_flow.h>
 #include <quat/quat_position_control/quat_pos_control_params.h>
@@ -81,7 +81,7 @@ extern void navFlowInit(const struct quat_position_control_NAV_params* params,
 		float holdYaw,
 		float holdAlt);
 extern void navFlowNavigate(
-		const struct vehicle_status_s *current_status,
+		const struct vehicle_control_mode_s *control_mode,
 		const struct quat_position_control_NAV_params* params,
 		const struct manual_control_setpoint_s* manual_control,
 		const struct filtered_bottom_flow_s* flow_data,

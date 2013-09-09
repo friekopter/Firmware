@@ -326,7 +326,7 @@ static void *uorb_receiveloop(void *arg)
 				int16_t vy = (int16_t)(buf.global.vy * 100.0f);
 				int16_t vz = (int16_t)(buf.global.vz * 100.0f);
 				/* heading in degrees * 10, from 0 to 36.000) */
-				uint16_t hdg = (buf.global.hdg / M_PI_F) * (180.0f * 10.0f) + (180.0f * 10.0f);
+				uint16_t hdg = (buf.global.yaw / M_PI_F) * (180.0f * 10.0f) + (180.0f * 10.0f);
 
 				mavlink_msg_global_position_int_send(chan, timestamp / 1000, lat, lon, alt,
 					relative_alt, vx, vy, vz, hdg);
@@ -435,28 +435,28 @@ void handleMessage(mavlink_message_t *msg)
 			// Do nothing, only initial state
 			break;
 		case MAV_MODE_MANUAL_DISARMED:
-			if(quad_status.state_machine == SYSTEM_STATE_STANDBY) break;
-			quad_status.flag_system_armed = false;
-			quad_status.state_machine = SYSTEM_STATE_STANDBY;
+			//if(quad_status.state_machine == SYSTEM_STATE_STANDBY) break;
+			//quad_status.flag_system_armed = false;
+			//quad_status.state_machine = SYSTEM_STATE_STANDBY;
 			/* publish current state machine */
-			state_machine_publish(stat_pub, &quad_status, mavlink_fd);
-			publish_armed_status(&quad_status);
+			//state_machine_publish(stat_pub, &quad_status, mavlink_fd);
+			//publish_armed_status(&quad_status);
 			break;
 		case MAV_MODE_MANUAL_ARMED:
-			if(quad_status.state_machine == SYSTEM_STATE_STANDBY){
+			//if(quad_status.state_machine == SYSTEM_STATE_STANDBY){
 				// set to ground ready, otherwise we can't switch to manual
-				quad_status.state_machine = SYSTEM_STATE_GROUND_READY;
-			}
-			update_state_machine_mode_request(stat_pub,&quad_status,mavlink_fd,base_mode);
+			//	quad_status.state_machine = SYSTEM_STATE_GROUND_READY;
+			//}
+			//update_state_machine_mode_request(stat_pub,&quad_status,mavlink_fd,base_mode);
 			break;
 		case MAV_MODE_GUIDED_ARMED:
 			// set vector flight mode valid, otherwise no guided mode is possible
-			quad_status.flag_vector_flight_mode_ok = true;
+			//quad_status.flag_vector_flight_mode_ok = true;
 			// This should work with the base_mode parameter, for some reason MAV_MODE_GUIDED_ARMED = 216 =  11011000
-			update_state_machine_mode_request(stat_pub,&quad_status,mavlink_fd,VEHICLE_MODE_FLAG_SAFETY_ARMED | VEHICLE_MODE_FLAG_GUIDED_ENABLED);
+			//update_state_machine_mode_request(stat_pub,&quad_status,mavlink_fd,VEHICLE_MODE_FLAG_SAFETY_ARMED | VEHICLE_MODE_FLAG_GUIDED_ENABLED);
 			break;
 		case MAV_MODE_AUTO_ARMED:
-			update_state_machine_mode_request(stat_pub,&quad_status,mavlink_fd,base_mode);
+			//update_state_machine_mode_request(stat_pub,&quad_status,mavlink_fd,base_mode);
 			break;
 		default:
 			// unsupported state

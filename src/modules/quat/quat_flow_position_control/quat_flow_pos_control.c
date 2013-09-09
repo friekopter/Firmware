@@ -10,6 +10,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
+#include <float.h>
 #include <poll.h>
 #include <unistd.h>
 #include <fcntl.h>
@@ -21,6 +22,7 @@
 #include <drivers/drv_hrt.h>
 #include <uORB/uORB.h>
 #include <uORB/topics/vehicle_status.h>
+#include <uORB/topics/vehicle_control_mode.h>
 #include <uORB/topics/vehicle_attitude.h>
 #include <uORB/topics/manual_control_setpoint.h>
 #include <uORB/topics/vehicle_attitude_setpoint.h>
@@ -28,6 +30,7 @@
 #include <uORB/topics/vehicle_local_position_setpoint.h>
 #include <uORB/topics/parameter_update.h>
 #include <uORB/topics/filtered_bottom_flow.h>
+#include <v1.0/mavlink_types.h>
 #include <systemlib/systemlib.h>
 #include <systemlib/perf_counter.h>
 #include <quat/quat_position_control/quat_pos_control_params.h>
@@ -43,7 +46,7 @@ static struct vehicle_attitude_setpoint_s att_sp __attribute__((section(".ccm"))
 static struct vehicle_local_position_setpoint_s local_position_sp __attribute__((section(".ccm")));
 static struct vehicle_attitude_s att __attribute__((section(".ccm")));
 static struct manual_control_setpoint_s manual;
-static struct vehicle_status_s state;
+static struct vehicle_control_mode_s control_mode;
 static struct sensor_combined_s raw;
 static struct filtered_bottom_flow_s flow_data;
 
@@ -199,8 +202,8 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 	//orb_set_interval(manual_sub, 20);
 
 	// System state
-	int state_sub = orb_subscribe(ORB_ID(vehicle_status));
-	memset(&state, 0, sizeof(state));
+	int control_mode_sub = orb_subscribe(ORB_ID(vehicle_control_mode));
+	memset(&control_mode, 0, sizeof(control_mode));
 	/* rate-limit parameter updates to 10Hz */
 	//orb_set_interval(state_sub, 100);
 
@@ -241,7 +244,7 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 		{ .fd = flow_sub, .events = POLLIN },
 		{ .fd = manual_sub,   .events = POLLIN },
 		{ .fd = sub_params, .events = POLLIN },
-		{ .fd = state_sub, .events = POLLIN }
+		{ .fd = control_mode_sub, .events = POLLIN }
 	};
 
 	//sleep(1);
@@ -426,9 +429,8 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 			/* only update parameters if state changed */
 			bool updated = false;
 			orb_check(fds[4].fd, &updated);
-			if (updated)
-			{
-				orb_copy(ORB_ID(vehicle_status), state_sub, &state);
+			if (updated) {
+				orb_copy(ORB_ID(vehicle_control_mode), control_mode_sub, &control_mode);
 			}
 			/* only update parameters if they changed */
 			orb_check(fds[3].fd, &updated);
@@ -512,19 +514,19 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 				   navFlowDoAccUpdate(	runData.sumAcc[0]*(1.0f / (float)RUN_SENSOR_HIST),
 						   	   	   	runData.sumAcc[1]*(1.0f / (float)RUN_SENSOR_HIST),
 						   	   	   	runData.sumAcc[2]*(1.0f / (float)RUN_SENSOR_HIST),
-						   	   	   	&state,
+						   	   	   	&control_mode,
 						   	   	   	&ukf_params);
 				}
 				else if (!((loopcounter+7) % 20)) {
 					navFlowDoPresUpdate(runData.sumPres*(1.0f / (float)RUN_SENSOR_HIST),
-				   	   	   			&state,
+				   	   	   			&control_mode,
 				   	   	   			&ukf_params);
 				}
 				else if (!((loopcounter+14) % 20)) {
 					navFlowDoMagUpdate(runData.sumMag[0]*(1.0f / (float)RUN_SENSOR_HIST),
 									  runData.sumMag[1]*(1.0f / (float)RUN_SENSOR_HIST),
 									  runData.sumMag[2]*(1.0f / (float)RUN_SENSOR_HIST),
-									  &state,
+									  &control_mode,
 									  &ukf_params);
 				}
 				perf_begin(quat_flow_ukf_finish_perf);
@@ -544,17 +546,17 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 				perf_end(quat_flow_pos_sensor_perf);
 			}
 			// observe that the rates are exactly 0 if not flying or moving
-			bool mightByFlying = state.flag_system_armed;
+			bool mightByFlying = control_mode.flag_armed;
 			if (fds[1].revents & POLLIN)
 			{
 				orb_copy(ORB_ID(filtered_bottom_flow), flow_sub, &flow_data);
 				if(!mightByFlying) {
 						memset(&flow_data,0,sizeof(flow_data));
-						navFlowUkfFlowVelUpate(&flow_data,dt,&state,&ukf_params);
+						navFlowUkfFlowVelUpate(&flow_data,dt,&control_mode,&ukf_params);
 				}
 				else {
 					//printf("flowx:%8.4f\tflowy:%8.4f\n",flow_data.vx, flow_data.vy);
-					navFlowUkfFlowVelUpate(&flow_data,dt,&state,&ukf_params);
+					navFlowUkfFlowVelUpate(&flow_data,dt,&control_mode,&ukf_params);
 				}
 			}
 			if(dt < FLT_MIN) {
@@ -576,7 +578,7 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 
 			perf_begin(quat_flow_pos_nav_perf);
 			if(mightByFlying) {
-				navFlowNavigate(&state,&nav_params,&manual,&flow_data,raw.timestamp);
+				navFlowNavigate(&control_mode,&nav_params,&manual,&flow_data,raw.timestamp);
 			}
 
 			perf_end(quat_flow_pos_nav_perf);
@@ -588,7 +590,7 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 			att_sp.thrust = pidUpdate(navFlowData.altSpeedPID, navFlowData.holdSpeedAlt, -UKF_FLOW_VELD);
 			att_sp.yaw_body = navFlowData.holdHeading;
 			att_sp.timestamp = hrt_absolute_time();
-			if(!state.flag_control_manual_enabled) {
+			if(!control_mode.flag_control_manual_enabled) {
 				orb_publish(ORB_ID(vehicle_attitude_setpoint), att_sp_pub, &att_sp);
 			}
 			perf_end(quat_flow_pos_loop_perf);
@@ -604,6 +606,11 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 				local_position_sp.z = navFlowData.holdAlt;
 				local_position_sp.yaw = navFlowData.holdHeading;
 				orb_publish(ORB_ID(vehicle_local_position_setpoint), local_pos_sp_pub, &local_position_sp);
+				//for debugging only
+				static uint8_t chan = MAVLINK_COMM_0;
+				uint32_t current = hrt_absolute_time();
+				mavlink_msg_debug_vect_send(chan, "acc bias", current, UKF_FLOW_ACC_BIAS_X, UKF_FLOW_ACC_BIAS_Y, UKF_FLOW_ACC_BIAS_Z );
+				mavlink_msg_debug_vect_send(chan, "gyo bias", current, UKF_FLOW_GYO_BIAS_X, UKF_FLOW_GYO_BIAS_Y, UKF_FLOW_GYO_BIAS_Z );
 			}
 			if (debug == true && !(printcounter % 1000))
 			{
@@ -622,8 +629,9 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 					navFlowUkfData.x[0],navFlowUkfData.x[1],navFlowUkfData.x[2],
 					navFlowData.holdSpeedX, navFlowData.holdSpeedY, navFlowData.holdSpeedAlt, navFlowData.targetHoldSpeedAlt,
 					navFlowData.holdTiltX, navFlowData.holdTiltY, att_sp.thrust,
-					navFlowUkfData.x[3],navFlowUkfData.x[4],navFlowUkfData.x[5],navFlowUkfData.x[6],
-					navFlowUkfData.x[7],navFlowUkfData.x[8],navFlowUkfData.x[9],navFlowUkfData.x[10],navFlowUkfData.x[11],
+					navFlowUkfData.x[3],navFlowUkfData.x[4],navFlowUkfData.x[5],
+					navFlowUkfData.x[6],navFlowUkfData.x[7],navFlowUkfData.x[8],
+					navFlowUkfData.x[9],navFlowUkfData.x[10],navFlowUkfData.x[11],
 					navFlowUkfData.x[12],navFlowUkfData.x[13],navFlowData.holdAlt);
 				printf("roll:    %8.4f\tpitch:   %8.4f\tyaw:   %8.4f\n", (double)att.roll, (double)att.pitch, (double)att.yaw);
 				printf("sp_roll: %8.4f\tsp_pitch:%8.4f\tsp_yaw:%8.4f\tthrust:%8.4f\n",

@@ -12,3 +12,4 @@ SRCS				= nav_flow_ukf.c \
 
 INCLUDE_DIRS	 += ../utils
 INCLUDE_DIRS	 += ../quat_position_control
+INCLUDE_DIRS     += $(MAVLINK_SRC)/include/mavlink

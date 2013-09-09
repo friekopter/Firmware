@@ -2,8 +2,10 @@
 #ifndef _nav_flow_ukf_h
 #define _nav_flow_ukf_h
 
+#include <stdbool.h>
 #include <quat/utils/srcdkf.h>
 #include <quat/quat_position_control/quat_pos_control_params.h>
+#include <uORB/topics/vehicle_control_mode.h>
 #include <uORB/topics/vehicle_status.h>
 #include <uORB/topics/sensor_combined.h>
 #include <uORB/topics/vehicle_gps_position.h>
@@ -48,23 +50,23 @@ typedef struct {
 
 extern navFlowUkfStruct_t navFlowUkfData;
 
-bool isFlying(const struct vehicle_status_s *current_status);
+bool navFlowIsFlying(const struct vehicle_status_s *current_status);
 extern void navFlowUkfInit(	const struct quat_position_control_UKF_params* params,
 						const struct sensor_combined_s* sensors);
 extern float navFlowUkfInertialUpdate(const struct sensor_combined_s* raw);
 extern void navFlowDoPresUpdate(float pres,
-		 const struct vehicle_status_s *current_status,
+		 const struct vehicle_control_mode_s *control_mode,
 		 const struct quat_position_control_UKF_params* params);
 extern void navFlowDoAccUpdate(float accX, float accY, float accZ,
-		 const struct vehicle_status_s *current_status,
+		 const struct vehicle_control_mode_s *control_mode,
 		 const struct quat_position_control_UKF_params* params);
 extern void navFlowDoMagUpdate(float magX, float magY, float magZ,
-		 const struct vehicle_status_s *current_status,
+		 const struct vehicle_control_mode_s *control_mode,
 		 const struct quat_position_control_UKF_params* params);
 extern void navFlowUkfFlowVelUpate(
 		const struct filtered_bottom_flow_s* measured_flow,
 		float dt,
-		const struct vehicle_status_s *current_status,
+		const struct vehicle_control_mode_s *control_mode,
 		const struct quat_position_control_UKF_params* params);
 extern void navFlowUKFPressureAdjust(float altitude);
 extern void navFlowUkfZeroRate(float zRate, int axis);

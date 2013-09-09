@@ -202,6 +202,11 @@ private:
 		float mag_scale3[3];
 		float mag_inclination;
 
+		int32_t gyo_sample_rate;
+		int32_t gyo_poll_rate;
+		int32_t acc_sample_rate;
+		int32_t acc_poll_rate;
+
 		int diff_pres_offset_pa;
 
 		int rc_type;
@@ -289,6 +294,11 @@ private:
 		param_t mag_scale3[3];
 		param_t mag_inclination;
 
+		param_t gyo_sample_rate;
+		param_t gyo_poll_rate;
+		param_t acc_sample_rate;
+		param_t acc_poll_rate;
+
 		param_t diff_pres_offset_pa;
 
 		param_t rc_map_roll;
@@ -329,12 +339,12 @@ private:
 	/**
 	 * Do accel-related initialisation.
 	 */
-	void		accel_init();
+	void		accel_init(uint16_t sampleRate, uint16_t pollRate);
 
 	/**
 	 * Do gyro-related initialisation.
 	 */
-	void		gyro_init();
+	void		gyro_init(uint16_t sampleRate, uint16_t pollRate);
 
 	/**
 	 * Do mag-related initialisation.
@@ -384,9 +394,9 @@ private:
 	void		baro_poll(struct sensor_combined_s &raw);
 
 	/**
-	 * Check for changes in vehicle status.
+	 * Check for changes in vehicle control mode.
 	 */
-	void		vehicle_status_poll();
+	void		vehicle_control_mode_poll();
 
 	/**
 	 * Check for changes in parameters.
@@ -625,6 +635,11 @@ Quat_Sensors::Quat_Sensors() :
 	_parameter_handles.mag_align_zy = param_find("IMU_MAG_ALGN_ZY");
 	_parameter_handles.mag_inclination = param_find("IMU_MAG_INCL");
 
+	_parameter_handles.gyo_poll_rate = param_find("IMU_GYO_RA_POLL");
+	_parameter_handles.gyo_sample_rate = param_find("IMU_GYO_RA_SAMP");
+	_parameter_handles.acc_poll_rate = param_find("IMU_ACC_RA_POLL");
+	_parameter_handles.acc_sample_rate = param_find("IMU_ACC_RA_SAMP");
+
 	/* Differential pressure offset */
 	_parameter_handles.diff_pres_offset_pa = param_find("SENS_DPRES_OFF");
 
@@ -667,48 +682,33 @@ Quat_Sensors::parameters_update()
 	/* rc values */
 	for (unsigned int i = 0; i < RC_CHANNELS_MAX; i++) {
 
-		if (param_get(_parameter_handles.min[i], &(_parameters.min[i])) != OK) {
-			warnx("Failed getting min for chan %d", i);
-		}
+		param_get(_parameter_handles.min[i], &(_parameters.min[i]));
+		param_get(_parameter_handles.trim[i], &(_parameters.trim[i]));
+		param_get(_parameter_handles.max[i], &(_parameters.max[i]));
+		param_get(_parameter_handles.rev[i], &(_parameters.rev[i]));
+		param_get(_parameter_handles.dz[i], &(_parameters.dz[i]));
 
-		if (param_get(_parameter_handles.trim[i], &(_parameters.trim[i])) != OK) {
-			warnx("Failed getting trim for chan %d", i);
-		}
-
-		if (param_get(_parameter_handles.max[i], &(_parameters.max[i])) != OK) {
-			warnx("Failed getting max for chan %d", i);
-		}
-
-		if (param_get(_parameter_handles.rev[i], &(_parameters.rev[i])) != OK) {
-			warnx("Failed getting rev for chan %d", i);
-		}
-
-		if (param_get(_parameter_handles.dz[i], &(_parameters.dz[i])) != OK) {
-			warnx("Failed getting dead zone for chan %d", i);
-		}
-
-		_parameters.scaling_factor[i] = (1.0f / ((_parameters.max[i] - _parameters.min[i]) / 2.0f) * _parameters.rev[i]);
+		tmpScaleFactor = (1.0f / ((_parameters.max[i] - _parameters.min[i]) / 2.0f) * _parameters.rev[i]);
+		tmpRevFactor = tmpScaleFactor * _parameters.rev[i];
 
 		/* handle blowup in the scaling factor calculation */
-		if (!isfinite(_parameters.scaling_factor[i]) ||
-		    _parameters.scaling_factor[i] * _parameters.rev[i] < 0.000001f ||
-		    _parameters.scaling_factor[i] * _parameters.rev[i] > 0.2f) {
-
+		if (!isfinite(tmpScaleFactor) ||
+		    (tmpRevFactor < 0.000001f) ||
+		    (tmpRevFactor > 0.2f) ) {
+			warnx("RC chan %u not sane, scaling: %8.6f, rev: %d", i, tmpScaleFactor, (int)(_parameters.rev[i]));
 			/* scaling factors do not make sense, lock them down */
-			_parameters.scaling_factor[i] = 0;
+			_parameters.scaling_factor[i] = 0.0f;
 			rc_valid = false;
 		}
-
+        else {
+            _parameters.scaling_factor[i] = tmpScaleFactor;
+        }
 	}
+
 
 	/* handle wrong values */
 	if (!rc_valid)
 		warnx("WARNING     WARNING     WARNING\n\nRC CALIBRATION NOT SANE!\n\n");
-
-	/* remote control type */
-	if (param_get(_parameter_handles.rc_type, &(_parameters.rc_type)) != OK) {
-		warnx("Failed getting remote control type");
-	}
 
 	/* channel mapping */
 	if (param_get(_parameter_handles.rc_map_roll, &(_parameters.rc_map_roll)) != OK) {
@@ -727,69 +727,39 @@ Quat_Sensors::parameters_update()
 		warnx("Failed getting throttle chan index");
 	}
 
-	if (param_get(_parameter_handles.rc_map_manual_override_sw, &(_parameters.rc_map_manual_override_sw)) != OK) {
-		warnx("Failed getting override sw chan index");
+	if (param_get(_parameter_handles.rc_map_mode_sw, &(_parameters.rc_map_mode_sw)) != OK) {
+		warnx("Failed getting mode sw chan index");
 	}
 
-	if (param_get(_parameter_handles.rc_map_auto_mode_sw, &(_parameters.rc_map_auto_mode_sw)) != OK) {
-		warnx("Failed getting auto mode sw chan index");
+	if (param_get(_parameter_handles.rc_map_return_sw, &(_parameters.rc_map_return_sw)) != OK) {
+		warnx("Failed getting return sw chan index");
+	}
+
+	if (param_get(_parameter_handles.rc_map_assisted_sw, &(_parameters.rc_map_assisted_sw)) != OK) {
+		warnx("Failed getting assisted sw chan index");
+	}
+
+	if (param_get(_parameter_handles.rc_map_mission_sw, &(_parameters.rc_map_mission_sw)) != OK) {
+		warnx("Failed getting mission sw chan index");
 	}
 
 	if (param_get(_parameter_handles.rc_map_flaps, &(_parameters.rc_map_flaps)) != OK) {
 		warnx("Failed getting flaps chan index");
 	}
 
-	if (param_get(_parameter_handles.rc_map_manual_mode_sw, &(_parameters.rc_map_manual_mode_sw)) != OK) {
-		warnx("Failed getting manual mode sw chan index");
-	}
+//	if (param_get(_parameter_handles.rc_map_offboard_ctrl_mode_sw, &(_parameters.rc_map_offboard_ctrl_mode_sw)) != OK) {
+//		warnx("Failed getting offboard control mode sw chan index");
+//	}
 
-	if (param_get(_parameter_handles.rc_map_rtl_sw, &(_parameters.rc_map_rtl_sw)) != OK) {
-		warnx("Failed getting rtl sw chan index");
-	}
-
-	if (param_get(_parameter_handles.rc_map_sas_mode_sw, &(_parameters.rc_map_sas_mode_sw)) != OK) {
-		warnx("Failed getting sas mode sw chan index");
-	}
-
-	if (param_get(_parameter_handles.rc_map_offboard_ctrl_mode_sw, &(_parameters.rc_map_offboard_ctrl_mode_sw)) != OK) {
-		warnx("Failed getting offboard control mode sw chan index");
-	}
-
-	if (param_get(_parameter_handles.rc_map_aux1, &(_parameters.rc_map_aux1)) != OK) {
-		warnx("Failed getting mode aux 1 index");
-	}
-
-	if (param_get(_parameter_handles.rc_map_aux2, &(_parameters.rc_map_aux2)) != OK) {
-		warnx("Failed getting mode aux 2 index");
-	}
-
-	if (param_get(_parameter_handles.rc_map_aux3, &(_parameters.rc_map_aux3)) != OK) {
-		warnx("Failed getting mode aux 3 index");
-	}
-
-	if (param_get(_parameter_handles.rc_map_aux4, &(_parameters.rc_map_aux4)) != OK) {
-		warnx("Failed getting mode aux 4 index");
-	}
-
-	if (param_get(_parameter_handles.rc_map_aux5, &(_parameters.rc_map_aux5)) != OK) {
-		warnx("Failed getting mode aux 5 index");
-	}
-
-	if (param_get(_parameter_handles.rc_scale_roll, &(_parameters.rc_scale_roll)) != OK) {
-		warnx("Failed getting rc scaling for roll");
-	}
-
-	if (param_get(_parameter_handles.rc_scale_pitch, &(_parameters.rc_scale_pitch)) != OK) {
-		warnx("Failed getting rc scaling for pitch");
-	}
-
-	if (param_get(_parameter_handles.rc_scale_yaw, &(_parameters.rc_scale_yaw)) != OK) {
-		warnx("Failed getting rc scaling for yaw");
-	}
-
-	if (param_get(_parameter_handles.rc_scale_flaps, &(_parameters.rc_scale_flaps)) != OK) {
-		warnx("Failed getting rc scaling for flaps");
-	}
+	param_get(_parameter_handles.rc_map_aux1, &(_parameters.rc_map_aux1));
+	param_get(_parameter_handles.rc_map_aux2, &(_parameters.rc_map_aux2));
+	param_get(_parameter_handles.rc_map_aux3, &(_parameters.rc_map_aux3));
+	param_get(_parameter_handles.rc_map_aux4, &(_parameters.rc_map_aux4));
+	param_get(_parameter_handles.rc_map_aux5, &(_parameters.rc_map_aux5));
+	param_get(_parameter_handles.rc_scale_roll, &(_parameters.rc_scale_roll));
+	param_get(_parameter_handles.rc_scale_pitch, &(_parameters.rc_scale_pitch));
+	param_get(_parameter_handles.rc_scale_yaw, &(_parameters.rc_scale_yaw));
+	param_get(_parameter_handles.rc_scale_flaps, &(_parameters.rc_scale_flaps));
 
 	/* update RC function mappings */
 	_rc.function[THROTTLE] = _parameters.rc_map_throttle - 1;
@@ -797,15 +767,14 @@ Quat_Sensors::parameters_update()
 	_rc.function[PITCH] = _parameters.rc_map_pitch - 1;
 	_rc.function[YAW] = _parameters.rc_map_yaw - 1;
 
-	_rc.function[OVERRIDE] = _parameters.rc_map_manual_override_sw - 1;
-	_rc.function[AUTO_MODE] = _parameters.rc_map_auto_mode_sw - 1;
+	_rc.function[MODE] = _parameters.rc_map_mode_sw - 1;
+	_rc.function[RETURN] = _parameters.rc_map_return_sw - 1;
+	_rc.function[ASSISTED] = _parameters.rc_map_assisted_sw - 1;
+	_rc.function[MISSION] = _parameters.rc_map_mission_sw - 1;
 
 	_rc.function[FLAPS] = _parameters.rc_map_flaps - 1;
 
-	_rc.function[MANUAL_MODE] = _parameters.rc_map_manual_mode_sw - 1;
-	_rc.function[RTL] = _parameters.rc_map_rtl_sw - 1;
-	_rc.function[SAS_MODE] = _parameters.rc_map_sas_mode_sw - 1;
-	_rc.function[OFFBOARD_MODE] = _parameters.rc_map_offboard_ctrl_mode_sw - 1;
+//	_rc.function[OFFBOARD_MODE] = _parameters.rc_map_offboard_ctrl_mode_sw - 1;
 
 	_rc.function[AUX_1] = _parameters.rc_map_aux1 - 1;
 	_rc.function[AUX_2] = _parameters.rc_map_aux2 - 1;
@@ -814,29 +783,76 @@ Quat_Sensors::parameters_update()
 	_rc.function[AUX_5] = _parameters.rc_map_aux5 - 1;
 
 	/* gyro offsets */
-	param_get(_parameter_handles.gyro_bias[0], &(_parameters.gyro_bias[0]));
-	param_get(_parameter_handles.gyro_bias[1], &(_parameters.gyro_bias[1]));
-	param_get(_parameter_handles.gyro_bias[2], &(_parameters.gyro_bias[2]));
-	param_get(_parameter_handles.gyro_bias1[0], &(_parameters.gyro_bias1[0]));
-	param_get(_parameter_handles.gyro_bias1[1], &(_parameters.gyro_bias1[1]));
-	param_get(_parameter_handles.gyro_bias1[2], &(_parameters.gyro_bias1[2]));
-	param_get(_parameter_handles.gyro_bias2[0], &(_parameters.gyro_bias2[0]));
-	param_get(_parameter_handles.gyro_bias2[1], &(_parameters.gyro_bias2[1]));
-	param_get(_parameter_handles.gyro_bias2[2], &(_parameters.gyro_bias2[2]));
-	param_get(_parameter_handles.gyro_bias3[0], &(_parameters.gyro_bias3[0]));
-	param_get(_parameter_handles.gyro_bias3[1], &(_parameters.gyro_bias3[1]));
-	param_get(_parameter_handles.gyro_bias3[2], &(_parameters.gyro_bias3[2]));
-	param_get(_parameter_handles.gyro_align_xy, &(_parameters.gyro_align_xy));
-	param_get(_parameter_handles.gyro_align_xz, &(_parameters.gyro_align_xz));
-	param_get(_parameter_handles.gyro_align_yx, &(_parameters.gyro_align_yx));
-	param_get(_parameter_handles.gyro_align_yz, &(_parameters.gyro_align_yz));
-	param_get(_parameter_handles.gyro_align_zx, &(_parameters.gyro_align_zx));
-	param_get(_parameter_handles.gyro_align_zy, &(_parameters.gyro_align_zy));
+	param_get(_parameter_handles.gyro_offset[0], &(_parameters.gyro_offset[0]));
+	param_get(_parameter_handles.gyro_offset[1], &(_parameters.gyro_offset[1]));
+	param_get(_parameter_handles.gyro_offset[2], &(_parameters.gyro_offset[2]));
 	param_get(_parameter_handles.gyro_scale[0], &(_parameters.gyro_scale[0]));
 	param_get(_parameter_handles.gyro_scale[1], &(_parameters.gyro_scale[1]));
 	param_get(_parameter_handles.gyro_scale[2], &(_parameters.gyro_scale[2]));
 
 	/* accel offsets */
+	param_get(_parameter_handles.accel_offset[0], &(_parameters.accel_offset[0]));
+	param_get(_parameter_handles.accel_offset[1], &(_parameters.accel_offset[1]));
+	param_get(_parameter_handles.accel_offset[2], &(_parameters.accel_offset[2]));
+	param_get(_parameter_handles.accel_scale[0], &(_parameters.accel_scale[0]));
+	param_get(_parameter_handles.accel_scale[1], &(_parameters.accel_scale[1]));
+	param_get(_parameter_handles.accel_scale[2], &(_parameters.accel_scale[2]));
+
+	/* mag offsets */
+	param_get(_parameter_handles.mag_offset[0], &(_parameters.mag_offset[0]));
+	param_get(_parameter_handles.mag_offset[1], &(_parameters.mag_offset[1]));
+	param_get(_parameter_handles.mag_offset[2], &(_parameters.mag_offset[2]));
+	/* mag scaling */
+	param_get(_parameter_handles.mag_scale[0], &(_parameters.mag_scale[0]));
+	param_get(_parameter_handles.mag_scale[1], &(_parameters.mag_scale[1]));
+	param_get(_parameter_handles.mag_scale[2], &(_parameters.mag_scale[2]));
+
+	/* Airspeed offset */
+	param_get(_parameter_handles.diff_pres_offset_pa, &(_parameters.diff_pres_offset_pa));
+	param_get(_parameter_handles.diff_pres_analog_enabled, &(_parameters.diff_pres_analog_enabled));
+
+	/* scaling of ADC ticks to battery voltage */
+	if (param_get(_parameter_handles.battery_voltage_scaling, &(_parameters.battery_voltage_scaling)) != OK) {
+		warnx("Failed updating voltage scaling param");
+	}
+
+	param_get(_parameter_handles.mag_align_xy, &(_parameters.mag_align_xy));
+	param_get(_parameter_handles.mag_align_xz, &(_parameters.mag_align_xz));
+	param_get(_parameter_handles.mag_align_yx, &(_parameters.mag_align_yx));
+	param_get(_parameter_handles.mag_align_yz, &(_parameters.mag_align_yz));
+	param_get(_parameter_handles.mag_align_zx, &(_parameters.mag_align_zx));
+	param_get(_parameter_handles.mag_align_zy, &(_parameters.mag_align_zy));
+	param_get(_parameter_handles.mag_bias[0], &(_parameters.mag_bias[0]));
+	param_get(_parameter_handles.mag_bias[1], &(_parameters.mag_bias[1]));
+	param_get(_parameter_handles.mag_bias[2], &(_parameters.mag_bias[2]));
+	param_get(_parameter_handles.mag_bias1[0], &(_parameters.mag_bias1[0]));
+	param_get(_parameter_handles.mag_bias1[1], &(_parameters.mag_bias1[1]));
+	param_get(_parameter_handles.mag_bias1[2], &(_parameters.mag_bias1[2]));
+	param_get(_parameter_handles.mag_bias2[0], &(_parameters.mag_bias2[0]));
+	param_get(_parameter_handles.mag_bias2[1], &(_parameters.mag_bias2[1]));
+	param_get(_parameter_handles.mag_bias2[2], &(_parameters.mag_bias2[2]));
+	param_get(_parameter_handles.mag_bias3[0], &(_parameters.mag_bias3[0]));
+	param_get(_parameter_handles.mag_bias3[1], &(_parameters.mag_bias3[1]));
+	param_get(_parameter_handles.mag_bias3[2], &(_parameters.mag_bias3[2]));
+	param_get(_parameter_handles.mag_scale[0], &(_parameters.mag_scale[0]));
+	param_get(_parameter_handles.mag_scale[1], &(_parameters.mag_scale[1]));
+	param_get(_parameter_handles.mag_scale[2], &(_parameters.mag_scale[2]));
+	param_get(_parameter_handles.mag_scale1[0], &(_parameters.mag_scale1[0]));
+	param_get(_parameter_handles.mag_scale1[1], &(_parameters.mag_scale1[1]));
+	param_get(_parameter_handles.mag_scale1[2], &(_parameters.mag_scale1[2]));
+	param_get(_parameter_handles.mag_scale2[0], &(_parameters.mag_scale2[0]));
+	param_get(_parameter_handles.mag_scale2[1], &(_parameters.mag_scale2[1]));
+	param_get(_parameter_handles.mag_scale2[2], &(_parameters.mag_scale2[2]));
+	param_get(_parameter_handles.mag_scale3[0], &(_parameters.mag_scale3[0]));
+	param_get(_parameter_handles.mag_scale3[1], &(_parameters.mag_scale3[1]));
+	param_get(_parameter_handles.mag_scale3[2], &(_parameters.mag_scale3[2]));
+
+	param_get(_parameter_handles.acc_align_xy, &(_parameters.acc_align_xy));
+	param_get(_parameter_handles.acc_align_xz, &(_parameters.acc_align_xz));
+	param_get(_parameter_handles.acc_align_yx, &(_parameters.acc_align_yx));
+	param_get(_parameter_handles.acc_align_yz, &(_parameters.acc_align_yz));
+	param_get(_parameter_handles.acc_align_zx, &(_parameters.acc_align_zx));
+	param_get(_parameter_handles.acc_align_zy, &(_parameters.acc_align_zy));
 	param_get(_parameter_handles.acc_bias[0], &(_parameters.acc_bias[0]));
 	param_get(_parameter_handles.acc_bias[1], &(_parameters.acc_bias[1]));
 	param_get(_parameter_handles.acc_bias[2], &(_parameters.acc_bias[2]));
@@ -849,12 +865,6 @@ Quat_Sensors::parameters_update()
 	param_get(_parameter_handles.acc_bias3[0], &(_parameters.acc_bias3[0]));
 	param_get(_parameter_handles.acc_bias3[1], &(_parameters.acc_bias3[1]));
 	param_get(_parameter_handles.acc_bias3[2], &(_parameters.acc_bias3[2]));
-	param_get(_parameter_handles.acc_align_xy, &(_parameters.acc_align_xy));
-	param_get(_parameter_handles.acc_align_xz, &(_parameters.acc_align_xz));
-	param_get(_parameter_handles.acc_align_yx, &(_parameters.acc_align_yx));
-	param_get(_parameter_handles.acc_align_yz, &(_parameters.acc_align_yz));
-	param_get(_parameter_handles.acc_align_zx, &(_parameters.acc_align_zx));
-	param_get(_parameter_handles.acc_align_zy, &(_parameters.acc_align_zy));
 	param_get(_parameter_handles.acc_scale[0], &(_parameters.acc_scale[0]));
 	param_get(_parameter_handles.acc_scale[1], &(_parameters.acc_scale[1]));
 	param_get(_parameter_handles.acc_scale[2], &(_parameters.acc_scale[2]));
@@ -868,53 +878,39 @@ Quat_Sensors::parameters_update()
 	param_get(_parameter_handles.acc_scale3[1], &(_parameters.acc_scale3[1]));
 	param_get(_parameter_handles.acc_scale3[2], &(_parameters.acc_scale3[2]));
 
+	param_get(_parameter_handles.gyro_align_xy, &(_parameters.gyro_align_xy));
+	param_get(_parameter_handles.gyro_align_xz, &(_parameters.gyro_align_xz));
+	param_get(_parameter_handles.gyro_align_yx, &(_parameters.gyro_align_yx));
+	param_get(_parameter_handles.gyro_align_yz, &(_parameters.gyro_align_yz));
+	param_get(_parameter_handles.gyro_align_zx, &(_parameters.gyro_align_zx));
+	param_get(_parameter_handles.gyro_align_zy, &(_parameters.gyro_align_zy));
+	param_get(_parameter_handles.gyro_bias[0], &(_parameters.gyro_bias[0]));
+	param_get(_parameter_handles.gyro_bias[1], &(_parameters.gyro_bias[1]));
+	param_get(_parameter_handles.gyro_bias[2], &(_parameters.gyro_bias[2]));
+	param_get(_parameter_handles.gyro_bias1[0], &(_parameters.gyro_bias1[0]));
+	param_get(_parameter_handles.gyro_bias1[1], &(_parameters.gyro_bias1[1]));
+	param_get(_parameter_handles.gyro_bias1[2], &(_parameters.gyro_bias1[2]));
+	param_get(_parameter_handles.gyro_bias2[0], &(_parameters.gyro_bias2[0]));
+	param_get(_parameter_handles.gyro_bias2[1], &(_parameters.gyro_bias2[1]));
+	param_get(_parameter_handles.gyro_bias2[2], &(_parameters.gyro_bias2[2]));
+	param_get(_parameter_handles.gyro_bias3[0], &(_parameters.gyro_bias3[0]));
+	param_get(_parameter_handles.gyro_bias3[1], &(_parameters.gyro_bias3[1]));
+	param_get(_parameter_handles.gyro_bias3[2], &(_parameters.gyro_bias3[2]));
+	param_get(_parameter_handles.gyro_scale[0], &(_parameters.gyro_scale[0]));
+	param_get(_parameter_handles.gyro_scale[1], &(_parameters.gyro_scale[1]));
+	param_get(_parameter_handles.gyro_scale[2], &(_parameters.gyro_scale[2]));
 
-	/* mag offsets */
-	param_get(_parameter_handles.mag_bias[0], &(_parameters.mag_bias[0]));
-	param_get(_parameter_handles.mag_bias[1], &(_parameters.mag_bias[1]));
-	param_get(_parameter_handles.mag_bias[2], &(_parameters.mag_bias[2]));
-	param_get(_parameter_handles.mag_bias1[0], &(_parameters.mag_bias1[0]));
-	param_get(_parameter_handles.mag_bias1[1], &(_parameters.mag_bias1[1]));
-	param_get(_parameter_handles.mag_bias1[2], &(_parameters.mag_bias1[2]));
-	param_get(_parameter_handles.mag_bias2[0], &(_parameters.mag_bias2[0]));
-	param_get(_parameter_handles.mag_bias2[1], &(_parameters.mag_bias2[1]));
-	param_get(_parameter_handles.mag_bias2[2], &(_parameters.mag_bias2[2]));
-	param_get(_parameter_handles.mag_bias3[0], &(_parameters.mag_bias3[0]));
-	param_get(_parameter_handles.mag_bias3[1], &(_parameters.mag_bias3[1]));
-	param_get(_parameter_handles.mag_bias3[2], &(_parameters.mag_bias3[2]));
-	param_get(_parameter_handles.mag_align_xy, &(_parameters.mag_align_xy));
-	param_get(_parameter_handles.mag_align_xz, &(_parameters.mag_align_xz));
-	param_get(_parameter_handles.mag_align_yx, &(_parameters.mag_align_yx));
-	param_get(_parameter_handles.mag_align_yz, &(_parameters.mag_align_yz));
-	param_get(_parameter_handles.mag_align_zx, &(_parameters.mag_align_zx));
-	param_get(_parameter_handles.mag_align_zy, &(_parameters.mag_align_zy));
-	param_get(_parameter_handles.mag_scale[0], &(_parameters.mag_scale[0]));
-	param_get(_parameter_handles.mag_scale[1], &(_parameters.mag_scale[1]));
-	param_get(_parameter_handles.mag_scale[2], &(_parameters.mag_scale[2]));
-	param_get(_parameter_handles.mag_scale1[0], &(_parameters.mag_scale1[0]));
-	param_get(_parameter_handles.mag_scale1[1], &(_parameters.mag_scale1[1]));
-	param_get(_parameter_handles.mag_scale1[2], &(_parameters.mag_scale1[2]));
-	param_get(_parameter_handles.mag_scale2[0], &(_parameters.mag_scale2[0]));
-	param_get(_parameter_handles.mag_scale2[1], &(_parameters.mag_scale2[1]));
-	param_get(_parameter_handles.mag_scale2[2], &(_parameters.mag_scale2[2]));
-	param_get(_parameter_handles.mag_scale3[0], &(_parameters.mag_scale3[0]));
-	param_get(_parameter_handles.mag_scale3[1], &(_parameters.mag_scale3[1]));
-	param_get(_parameter_handles.mag_scale3[2], &(_parameters.mag_scale3[2]));
-	param_get(_parameter_handles.mag_inclination, &(_parameters.mag_inclination));
 
-	/* Airspeed offset */
-	param_get(_parameter_handles.diff_pres_offset_pa, &(_parameters.diff_pres_offset_pa));
-
-	/* scaling of ADC ticks to battery voltage */
-	if (param_get(_parameter_handles.battery_voltage_scaling, &(_parameters.battery_voltage_scaling)) != OK) {
-		warnx("Failed updating voltage scaling param");
-	}
+	param_get(_parameter_handles.gyo_poll_rate, &(_parameters.gyo_poll_rate));
+	param_get(_parameter_handles.gyo_sample_rate, &(_parameters.gyo_sample_rate));
+	param_get(_parameter_handles.acc_poll_rate, &(_parameters.acc_poll_rate));
+	param_get(_parameter_handles.acc_sample_rate, &(_parameters.acc_sample_rate));
 
 	return OK;
 }
 
 void
-Quat_Sensors::accel_init()
+Quat_Sensors::accel_init(uint16_t sampleRate, uint16_t pollRate)
 {
 	int	fd;
 
@@ -925,11 +921,13 @@ Quat_Sensors::accel_init()
 		errx(1, "FATAL: no accelerometer found");
 
 	} else {
-		/* set the accel internal sampling rate up to at leat 500Hz */
-		ioctl(fd, ACCELIOCSSAMPLERATE, 200);
+		/* set the accel internal sampling rate up to 200Hz */
+		ioctl(fd, ACCELIOCSSAMPLERATE, sampleRate);
+		warn("set acc sample rate %d", sampleRate);
 
-		/* set the driver to poll at 500Hz */
-		ioctl(fd, SENSORIOCSPOLLRATE, 200);
+		/* set the driver to poll at 200Hz */
+		ioctl(fd, SENSORIOCSPOLLRATE, pollRate);
+		warn("set acc poll rate %d", pollRate);
 
 		warnx("using system accel");
 		close(fd);
@@ -937,7 +935,7 @@ Quat_Sensors::accel_init()
 }
 
 void
-Quat_Sensors::gyro_init()
+Quat_Sensors::gyro_init(uint16_t sampleRate, uint16_t pollRate)
 {
 	int	fd;
 
@@ -949,10 +947,10 @@ Quat_Sensors::gyro_init()
 
 	} else {
 		/* set the gyro internal sampling rate up to at leat 500Hz */
-		ioctl(fd, GYROIOCSSAMPLERATE, 200);
+		ioctl(fd, GYROIOCSSAMPLERATE, sampleRate);
 
-		/* set the driver to poll at 500Hz */
-		ioctl(fd, SENSORIOCSPOLLRATE, 200);
+		/* set the driver to poll at 200Hz */
+		ioctl(fd, SENSORIOCSPOLLRATE, pollRate);
 
 		warnx("using system gyro");
 		close(fd);
@@ -971,11 +969,22 @@ Quat_Sensors::mag_init()
 		errx(1, "FATAL: no magnetometer found");
 	}
 
-	/* set the mag internal poll rate to at least 150Hz */
-	ioctl(fd, MAGIOCSSAMPLERATE, 150);
+	/* try different mag sampling rates */
 
-	/* set the driver to poll at 150Hz */
-	ioctl(fd, SENSORIOCSPOLLRATE, 150);
+
+	ret = ioctl(fd, MAGIOCSSAMPLERATE, 150);
+	if (ret == OK) {
+		/* set the pollrate accordingly */
+		ioctl(fd, SENSORIOCSPOLLRATE, 150);
+	} else {
+		ret = ioctl(fd, MAGIOCSSAMPLERATE, 100);
+		/* if the slower sampling rate still fails, something is wrong */
+		if (ret == OK) {
+			/* set the driver to poll also at the slower rate */
+			ioctl(fd, SENSORIOCSPOLLRATE, 100);
+		} else {
+			errx(1, "FATAL: mag sampling rate could not be set");
+		}
 
 	close(fd);
 }
@@ -1181,21 +1190,21 @@ Quat_Sensors::baro_poll(struct sensor_combined_s &raw)
 }
 
 void
-Quat_Sensors::vehicle_status_poll()
+Quat_Sensors::vehicle_control_mode_poll()
 {
-	struct vehicle_status_s vstatus;
-	bool vstatus_updated;
+	struct vehicle_control_mode_s vcontrol_mode;
+	bool vcontrol_mode_updated;
 
-	/* Check HIL state if vehicle status has changed */
-	orb_check(_vstatus_sub, &vstatus_updated);
+	/* Check HIL state if vehicle control mode has changed */
+	orb_check(_vcontrol_mode_sub, &vcontrol_mode_updated);
 
-	if (vstatus_updated) {
+	if (vcontrol_mode_updated) {
 
-		orb_copy(ORB_ID(vehicle_status), _vstatus_sub, &vstatus);
+		orb_copy(ORB_ID(vehicle_control_mode), _vcontrol_mode_sub, &vcontrol_mode);
 
 		/* switching from non-HIL to HIL mode */
 		//printf("[sensors] Vehicle mode: %i \t AND: %i, HIL: %i\n", vstatus.mode, vstatus.mode & VEHICLE_MODE_FLAG_HIL_ENABLED, hil_enabled);
-		if (vstatus.flag_hil_enabled && !_hil_enabled) {
+		if (vcontrol_mode.flag_system_hil_enabled && !_hil_enabled) {
 			_hil_enabled = true;
 			_publishing = false;
 
@@ -1334,10 +1343,11 @@ Quat_Sensors::ppm_poll()
 		manual_control.yaw = NAN;
 		manual_control.throttle = NAN;
 
-		manual_control.manual_mode_switch = NAN;
-		manual_control.manual_sas_switch = NAN;
-		manual_control.return_to_launch_switch = NAN;
-		manual_control.auto_offboard_input_switch = NAN;
+		manual_control.mode_switch = NAN;
+		manual_control.return_switch = NAN;
+		manual_control.assisted_switch = NAN;
+		manual_control.mission_switch = NAN;
+//		manual_control.auto_offboard_input_switch = NAN;
 
 		manual_control.flaps = NAN;
 		manual_control.aux1 = NAN;
@@ -1437,11 +1447,17 @@ Quat_Sensors::ppm_poll()
 			manual_control.yaw *= _parameters.rc_scale_yaw;
 		}
 
-		/* override switch input */
-		manual_control.manual_override_switch = limit_minus_one_to_one(_rc.chan[_rc.function[OVERRIDE]].scaled);
-
 		/* mode switch input */
-		manual_control.auto_mode_switch = limit_minus_one_to_one(_rc.chan[_rc.function[AUTO_MODE]].scaled);
+		manual_control.mode_switch = limit_minus_one_to_one(_rc.chan[_rc.function[MODE]].scaled);
+
+		/* land switch input */
+		manual_control.return_switch = limit_minus_one_to_one(_rc.chan[_rc.function[RETURN]].scaled);
+
+		/* assisted switch input */
+		manual_control.assisted_switch = limit_minus_one_to_one(_rc.chan[_rc.function[ASSISTED]].scaled);
+
+		/* mission switch input */
+		manual_control.mission_switch = limit_minus_one_to_one(_rc.chan[_rc.function[MISSION]].scaled);
 
 		/* flaps */
 		if (_rc.function[FLAPS] >= 0) {
@@ -1453,21 +1469,17 @@ Quat_Sensors::ppm_poll()
 			}
 		}
 
-		if (_rc.function[MANUAL_MODE] >= 0) {
-			manual_control.manual_mode_switch = limit_minus_one_to_one(_rc.chan[_rc.function[MANUAL_MODE]].scaled);
+		if (_rc.function[MODE] >= 0) {
+			manual_control.mode_switch = limit_minus_one_to_one(_rc.chan[_rc.function[MODE]].scaled);
 		}
 
-		if (_rc.function[SAS_MODE] >= 0) {
-			manual_control.manual_sas_switch = limit_minus_one_to_one(_rc.chan[_rc.function[SAS_MODE]].scaled);
+		if (_rc.function[MISSION] >= 0) {
+			manual_control.mission_switch = limit_minus_one_to_one(_rc.chan[_rc.function[MISSION]].scaled);
 		}
 
-		if (_rc.function[RTL] >= 0) {
-			manual_control.return_to_launch_switch = limit_minus_one_to_one(_rc.chan[_rc.function[RTL]].scaled);
-		}
-
-		if (_rc.function[OFFBOARD_MODE] >= 0) {
-			manual_control.auto_offboard_input_switch = limit_minus_one_to_one(_rc.chan[_rc.function[OFFBOARD_MODE]].scaled);
-		}
+//		if (_rc.function[OFFBOARD_MODE] >= 0) {
+//			manual_control.auto_offboard_input_switch = limit_minus_one_to_one(_rc.chan[_rc.function[OFFBOARD_MODE]].scaled);
+//		}
 
 		/* aux functions, only assign if valid mapping is present */
 		if (_rc.function[AUX_1] >= 0) {
@@ -1489,7 +1501,6 @@ Quat_Sensors::ppm_poll()
 		if (_rc.function[AUX_5] >= 0) {
 			manual_control.aux5 = limit_minus_one_to_one(_rc.chan[_rc.function[AUX_5]].scaled);
 		}
-
 		/* check if ready for publishing */
 		if (_rc_pub > 0) {
 			orb_publish(ORB_ID(rc_channels), _rc_pub, &_rc);
@@ -1525,10 +1536,13 @@ Quat_Sensors::task_main()
 	printf("[quat_sensors] Initializing..\n");
 	fflush(stdout);
 
+	_params_sub = orb_subscribe(ORB_ID(parameter_update));
+	parameter_update_poll(true /* forced */);
+
 	/* start individual sensors */
-	accel_init();
+	accel_init((uint16_t)_parameters.acc_sample_rate, (uint16_t)_parameters.acc_poll_rate);
 	printf("[quat_sensors] Init gyro...\n");
-	gyro_init();
+	gyro_init((uint16_t)_parameters.gyo_sample_rate, (uint16_t)_parameters.gyo_poll_rate);
 	printf("[quat_sensors] Init mag...\n");
 	mag_init();
 	printf("[quat_sensors] Init baro...\n");
@@ -1545,11 +1559,13 @@ Quat_Sensors::task_main()
 	_rc_sub = orb_subscribe(ORB_ID(input_rc));
 	_baro_sub = orb_subscribe(ORB_ID(sensor_baro));
 	_vstatus_sub = orb_subscribe(ORB_ID(vehicle_status));
-	_params_sub = orb_subscribe(ORB_ID(parameter_update));
 	_manual_control_sub = orb_subscribe(ORB_ID(manual_control_setpoint));
 
 	/* rate limit vehicle status updates to 5Hz */
-	orb_set_interval(_vstatus_sub, 200);
+	orb_set_interval(_vcontrol_mode_sub, 200);
+
+	/* rate limit gyro to 250 Hz (the gyro signal is lowpassed accordingly earlier) */
+	orb_set_interval(_gyro_sub, 4);
 
 	/*
 	 * do advertisements
@@ -1571,7 +1587,6 @@ Quat_Sensors::task_main()
 	mag_poll(raw);
 	baro_poll(raw);
 
-	parameter_update_poll(true /* forced */);
 
 	/* calibrate sensors */
 	gyro_calibrate();
@@ -1605,7 +1620,7 @@ Quat_Sensors::task_main()
 		perf_begin(_loop_perf);
 
 		/* check vehicle status for changes to publication state */
-		vehicle_status_poll();
+		vehicle_control_mode_poll();
 
 		/* check parameters for updates */
 		parameter_update_poll();

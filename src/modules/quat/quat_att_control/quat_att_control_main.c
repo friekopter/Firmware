@@ -56,6 +56,7 @@
 #include <sys/prctl.h>
 #include <uORB/uORB.h>
 #include <drivers/drv_gyro.h>
+#include <uORB/topics/vehicle_control_mode.h>
 #include <uORB/topics/vehicle_status.h>
 #include <uORB/topics/vehicle_attitude.h>
 #include <uORB/topics/vehicle_attitude_setpoint.h>
@@ -72,7 +73,7 @@
 #include "quat_att_control.h"
 #include "quat_att_control_params.h"
 
-__EXPORT int quat_att_control_main(int argc, char *argv[]);
+__EXPORT int quat_att_control_thread_main(int argc, char *argv[]);
 
 static bool debug = false;
 static bool thread_should_exit;
@@ -81,9 +82,8 @@ static bool motor_test_mode = false;
 
 static orb_advert_t actuator_pub;
 
-static struct vehicle_status_s state;
 
-static int
+int
 quat_att_control_thread_main(int argc, char *argv[])
 {
 	// print text
@@ -92,7 +92,8 @@ quat_att_control_thread_main(int argc, char *argv[])
 
 	int printcounter = 0;
 	/* declare and safely initialize all structs */
-	memset(&state, 0, sizeof(state));
+	struct vehicle_control_mode_s control_mode;
+	memset(&control_mode, 0, sizeof(control_mode));
 	struct vehicle_attitude_s att;
 	memset(&att, 0, sizeof(att));
 	struct vehicle_attitude_setpoint_s att_sp;
@@ -105,6 +106,8 @@ quat_att_control_thread_main(int argc, char *argv[])
 	memset(&offboard_sp, 0, sizeof(offboard_sp));
 	struct vehicle_rates_setpoint_s rates_sp;
 	memset(&rates_sp, 0, sizeof(rates_sp));
+	struct vehicle_status_s status;
+	memset(&status, 0, sizeof(status));
 
 	struct actuator_controls_s actuators;
 
@@ -120,36 +123,12 @@ quat_att_control_thread_main(int argc, char *argv[])
 	 */
 	int att_setpoint_sub = orb_subscribe(ORB_ID(vehicle_attitude_setpoint));
 	int setpoint_sub = orb_subscribe(ORB_ID(offboard_control_setpoint));
-	int state_sub = orb_subscribe(ORB_ID(vehicle_status));
 	int manual_sub = orb_subscribe(ORB_ID(manual_control_setpoint));
 	int sensor_sub = orb_subscribe(ORB_ID(sensor_combined));
 	int params_sub = orb_subscribe(ORB_ID(parameter_update));
-/*
-	// Track parameter changes
-	struct attitude_control_quat_params speed_params;
-	struct attitude_control_quat_params distance_params;
-	struct attitude_control_quat_params altSpeed_params;
-	struct attitude_control_quat_params altDistance_params;
-	struct attitude_pid_quat_param_handles speed_param_handles;
-	struct attitude_pid_quat_param_handles distance_param_handles;
-	struct attitude_pid_quat_param_handles altSpeed_param_handles;
-	struct attitude_pid_quat_param_handles altDistance_param_handles;
-	// initialize parameter handles
-	int param_init_result = parameters_init(&speed_param_handles,
-											&distance_param_handles,
-											&altSpeed_param_handles,
-											&altDistance_param_handles);
-	if (param_init_result){
-		printf("[attitude control quat] WARNING: Parameter initialization error?\n");
-	}
-	int param_update_result = parameters_update(&speed_param_handles, &speed_params,
-												&distance_param_handles, &distance_params,
-												&altSpeed_param_handles, &altSpeed_params,
-												&altDistance_param_handles, &altDistance_params);
-	if (param_update_result){
-		printf("[attitude control quat] WARNING: Parameter update error?\n");
-	}
-*/
+	int control_mode_sub = orb_subscribe(ORB_ID(vehicle_control_mode));
+	int status_sub = orb_subscribe(ORB_ID(vehicle_status));
+
 	// Track parameter changes
 	struct attitude_pid_quat_params tilt_rate_params;
 	struct attitude_pid_quat_params tilt_angle_params;
@@ -216,9 +195,14 @@ quat_att_control_thread_main(int argc, char *argv[])
 
 		/* get a local copy of system state */
 		bool updated;
-		orb_check(state_sub, &updated);
+		orb_check(control_mode_sub, &updated);
 		if (updated) {
-			orb_copy(ORB_ID(vehicle_status), state_sub, &state);
+			orb_copy(ORB_ID(vehicle_control_mode), control_mode_sub, &control_mode);
+		}
+		/* get a local copy of status */
+		orb_check(status_sub, &updated);
+		if (updated) {
+			orb_copy(ORB_ID(vehicle_status), status_sub, &status);
 		}
 		/* check if params have changed */
 		orb_check(params_sub, &updated);
@@ -258,16 +242,18 @@ quat_att_control_thread_main(int argc, char *argv[])
 		att.yawspeed = raw.gyro_rad_s[2];
 
 		/** STEP 1: Define which input is the dominating control input */
-		if (!state.flag_system_armed) {
+		if (status.condition_landed) {
 		    //navSetHoldHeading(att.yaw);
 		    // Reset all PIDs
 		    control_quadrotor_attitude_reset();
 		    //Set yaw setpoint to current yaw
 		    control_quadrotor_set_yaw(att.yaw);
 		}
-		else if (state.flag_control_manual_enabled) {
+		else if (control_mode.flag_control_manual_enabled &&
+				!control_mode.flag_control_velocity_enabled) {
 			/* manual inputs, from RC control or joystick */
-			// Always control attitude no rates
+			if (control_mode.flag_control_attitude_enabled) {
+				// Always control attitude no rates
 				att_sp.roll_body = manual.roll * control.controlRollF;
 				att_sp.pitch_body = manual.pitch * control.controlPitchF;
 				att_sp.yaw_body = 0;
@@ -284,36 +270,26 @@ quat_att_control_thread_main(int argc, char *argv[])
 				att_sp.thrust = manual.throttle * control.controlThrottleF;
 				att_sp.timestamp = hrt_absolute_time();
 
-			/* STEP 2: publish the result to the vehicle actuators */
-			orb_publish(ORB_ID(vehicle_attitude_setpoint), att_sp_pub, &att_sp);
+				/* STEP 2: publish the result to the vehicle actuators */
+				orb_publish(ORB_ID(vehicle_attitude_setpoint), att_sp_pub, &att_sp);
 
-			if (motor_test_mode) {
-				att_sp.roll_body = 0.0f;
-				att_sp.pitch_body = 0.0f;
-				att_sp.yaw_body = 0.0f;
-				att_sp.thrust = 0.1f;
-				att_sp.timestamp = hrt_absolute_time();
+				if (motor_test_mode) {
+					att_sp.roll_body = 0.0f;
+					att_sp.pitch_body = 0.0f;
+					att_sp.yaw_body = 0.0f;
+					att_sp.thrust = 0.1f;
+					att_sp.timestamp = hrt_absolute_time();
+				}
+			} else {
+				/* manual rate inputs (ACRO), from RC control or joystick */
+				if (control_mode.flag_control_rates_enabled) {
+					rates_sp.roll = manual.roll;
+					rates_sp.pitch = manual.pitch;
+					rates_sp.yaw = manual.yaw;
+					rates_sp.thrust = manual.throttle;
+					rates_sp.timestamp = hrt_absolute_time();
+				}
 			}
-		}
-		else if (state.state_machine == SYSTEM_STATE_STABILIZED) {
-			if (manual.yaw < -control.controlDeadBand || manual.yaw > control.controlDeadBand)
-			{
-				rates_sp.yaw = manual.yaw * control.controlYawF;
-			}
-			else
-			{
-				rates_sp.yaw = 0.0f;
-			}
-			att_sp.yaw_body = control_quadrotor_get_yaw();
-		}
-		else {
-			// switch to yaw absolute control for the automatic control
-			//rates_sp.yaw = 0.0f;
-			//float yaw = compassDifferenceRad(controlData.yawSetpoint,att_sp.yaw_body);
-			//yaw = constrainFloat(yaw, -p[CTRL_NAV_YAW_RT]/400.0f, +p[CTRL_NAV_YAW_RT]/400.0f);
-			// Smoothly adjust controlData.yawSetpoint to the hold heading value
-			//yaw = compassNormalizeRad(controlData.yawSetpoint + yaw);
-			//control_quadrotor_set_yaw(yaw);
 		}
 
 		/** STEP 3: Identify the controller setup to run and set up the inputs correctly */
@@ -325,7 +301,10 @@ quat_att_control_thread_main(int argc, char *argv[])
 				&control,
 				&actuators);
 
-		if (state.flag_control_manual_enabled) {
+		if (control_mode.flag_control_manual_enabled &&
+			!control_mode.flag_control_velocity_enabled) {
+			// only in this case we define the setpoints and are entitled to
+			// publish its values
 			orb_publish(ORB_ID(vehicle_attitude_setpoint), att_sp_pub, &att_sp);
 			orb_publish(ORB_ID(vehicle_rates_setpoint), rates_sp_pub, &rates_sp);
 		}
@@ -346,7 +325,7 @@ quat_att_control_thread_main(int argc, char *argv[])
 			printf("attitude_sp: %8.4f\t%8.4f\t%8.4f\t%8.4f\n", (double)att_sp.roll_body, (double)att_sp.pitch_body, (double)att_sp.yaw_body, (double)att_sp.thrust);
 			printf("attitude   : %8.4f\t%8.4f\t%8.4f\n",        (double)att.roll, (double)att.pitch, (double)att.yaw);
 			printf("actuators  : %8.4f\t%8.4f\t%8.4f\t%8.4f\n", (double)actuators.control[0], (double)actuators.control[1], (double)actuators.control[2], (double)actuators.control[3]);
-			printf("state: %i\n", state.flag_control_manual_enabled);
+			printf("state: %i\n", control_mode.flag_control_manual_enabled);
 		}
 		printcounter++;
 
@@ -365,7 +344,8 @@ quat_att_control_thread_main(int argc, char *argv[])
 
 
 	close(att_sub);
-	close(state_sub);
+	close(status_sub);
+	close(control_mode_sub);
 	close(manual_sub);
 	close(actuator_pub);
 	close(att_sp_pub);
@@ -376,6 +356,11 @@ quat_att_control_thread_main(int argc, char *argv[])
 	fflush(stdout);
 	exit(0);
 }
+
+/**
+* Print the correct usage.
+*/
+static void usage(const char *reason);
 
 static void
 usage(const char *reason)

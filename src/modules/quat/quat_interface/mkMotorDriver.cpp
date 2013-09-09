@@ -6,7 +6,10 @@
  */
 
 #include "mkMotorDriver.h"
+#include <nuttx/config.h>
+#include <board_config.h>
 #include <drivers/device/i2c.h>
+#include <arch/board/board.h>
 
 /* oddly, ERROR is not defined for c++ */
 #ifdef ERROR

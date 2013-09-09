@@ -351,7 +351,7 @@ int attitude_estimator_quat_thread_main(int argc, char *argv[])
 				}
 
 				uint64_t timing_start = hrt_absolute_time();
-				bool isFlying = (state.state_machine > SYSTEM_STATE_GROUND_READY); // TODO: provide that parameter, or move to sensors
+				bool isFlying = (!state.condition_landed);
 				quatUpdate(update_vect, dt, isFlying, z_k, &quat_params, &att );
 				uint64_t timing_diff = hrt_absolute_time() - timing_start;
 

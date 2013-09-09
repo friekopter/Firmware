@@ -285,7 +285,7 @@ int flow_position_estimator_thread_main(int argc, char *argv[])
 					orb_copy(ORB_ID(vehicle_attitude_setpoint), vehicle_attitude_setpoint_sub, &att_sp);
 					orb_copy(ORB_ID(actuator_armed), armed_sub, &armed);
 					orb_copy(ORB_ID(vehicle_control_mode), control_mode_sub, &control_mode);
-					if(vstatus.flag_control_manual_enabled) {
+					if(control_mode.flag_control_manual_enabled) {
 						local_pos.x = 0.0f;
 						local_pos.y = 0.0f;
 						local_pos.z = 0.0f;
@@ -490,7 +490,6 @@ int flow_position_estimator_thread_main(int argc, char *argv[])
 	close(vehicle_attitude_setpoint_sub);
 	close(vehicle_attitude_sub);
 	close(armed_sub);
-	close(vehicle_status_sub);
 	close(control_mode_sub);
 	close(parameter_update_sub);
 	close(optical_flow_sub);

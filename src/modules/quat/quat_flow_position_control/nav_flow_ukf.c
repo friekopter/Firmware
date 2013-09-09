@@ -1,11 +1,10 @@
-
-
 #include "nav_flow_ukf.h"
 #include <systemlib/conversions.h>
 #include <quat/utils/quat_constants.h>
 #include "nav_flow.h"
 #include <float.h>
 #include <math.h>
+#include <geo/geo.h>
 #include <quat/utils/aq_math.h>
 #include <quat/utils/util.h>
 #include <quat/utils/compass_utils.h>
@@ -22,8 +21,8 @@ void navFlowUkfMagUpdate(float *u, float *x, float *noise, float *y);
 void navFlowUkfPresUpdate(float *u, float *x, float *noise, float *y);
 void navFlowUkfFlowUpdate(float *u, float *x, float *noise, float *y);
 
-bool isFlying(const struct vehicle_status_s *current_status){
-	return (current_status->state_machine > SYSTEM_STATE_GROUND_READY);
+bool navFlowIsFlying(const struct vehicle_status_s *current_status){
+	return (!current_status->condition_landed);
 }
 
 void navFlowUkfTimeUpdate(float *in, float *noise, float *out, float *u, float dt) {
@@ -149,7 +148,7 @@ void navFlowUkfZeroRate(float rate, int axis) {
 }
 
 void navFlowDoPresUpdate(float pres,
-					 const struct vehicle_status_s *current_status,
+					 const struct vehicle_control_mode_s *control_mode,
 					 const struct quat_position_control_UKF_params* params) {
     float noise[2];        // measurement variance
     float y[2];            // measurment(s)
@@ -164,7 +163,7 @@ void navFlowDoPresUpdate(float pres,
 }
 
 void navFlowDoAccUpdate(float accX, float accY, float accZ,
-		 const struct vehicle_status_s *current_status,
+		 const struct vehicle_control_mode_s *control_mode,
 		 const struct quat_position_control_UKF_params* params) {
     float noise[3];        // measurement variance
     float y[3];            // measurement(s)
@@ -183,7 +182,7 @@ void navFlowDoAccUpdate(float accX, float accY, float accZ,
 
     noise[0] = params->ukf_acc_n + fabsf(CONSTANTS_ONE_G - norm) * params->ukf_dist_n;
     //printf("Noise:%8.4f\n",noise[0]);
-    if (!isFlying(current_status)) {
+    if (!control_mode->flag_armed) {
     	noise[0] *= 0.001f;
     }
 
@@ -194,7 +193,7 @@ void navFlowDoAccUpdate(float accX, float accY, float accZ,
 }
 
 void navFlowDoMagUpdate(float magX, float magY, float magZ,
-		 const struct vehicle_status_s *current_status,
+		 const struct vehicle_control_mode_s *control_mode,
 		 const struct quat_position_control_UKF_params* params) {
     float noise[3];        // measurement variance
     float y[3];            // measurement(s)
@@ -202,7 +201,7 @@ void navFlowDoMagUpdate(float magX, float magY, float magZ,
 
     noise[0] = params->ukf_mag_n;
 
-    if (!isFlying(current_status))
+    if (!control_mode->flag_armed)
 	noise[0] = 0.001f;
 
     noise[1] = noise[0];
@@ -221,7 +220,7 @@ void navFlowDoMagUpdate(float magX, float magY, float magZ,
 void navFlowUkfFlowVelUpate(
 		const struct filtered_bottom_flow_s* measured_flow,
 		float dt,
-		const struct vehicle_status_s *current_status,
+		const struct vehicle_control_mode_s *control_mode,
 		const struct quat_position_control_UKF_params* params) {
 	// Don't do anything for invalid dt
 	if(dt < FLT_MIN) return;

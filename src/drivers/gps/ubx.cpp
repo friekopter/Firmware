@@ -61,6 +61,13 @@
 #define UBX_PACKET_TIMEOUT		2		// ms, if now data during this delay assume that full update received
 #define UBX_WAIT_BEFORE_READ	20		// ms, wait before reading to save read() calls
 
+// Declarations for the ubx timepulse
+static int hrt_tp_isr(int irq, void *context);
+static int32_t ubxMicrosPerSecond = 1000000;
+static uint64_t lastTimepulse = 0;
+static uint32_t lastReceivedTPtowMS = 0;
+static uint32_t currentTPtowMS = 0;
+
 UBX::UBX(const int &fd, struct vehicle_gps_position_s *gps_position) :
 	_fd(fd),
 	_gps_position(gps_position),
@@ -135,8 +142,6 @@ UBX::configure(unsigned &baudrate)
 			set_baudrate(_fd, UBX_CFG_PRT_PAYLOAD_BAUDRATE);
 			baudrate = UBX_CFG_PRT_PAYLOAD_BAUDRATE;
 		}
-
-		/* no ack is ecpected here, keep going configuring */
 
 		/* at this point we have correct baudrate on both ends */
 		break;
@@ -332,11 +337,6 @@ UBX::parse_char(uint8_t b)
 			decode_init();
 			/* don't return error, it can be just false sync1 */
 		}
-
-				case UBX_CLASS_TIM:
-					_decode_state = UBX_DECODE_GOT_CLASS;
-					_message_class = NAV;
-					break;
 
 		break;
 
@@ -546,7 +546,6 @@ UBX::handle_message()
 					_gps_position->c_variance_rad = (float)packet->cAcc * M_DEG_TO_RAD_F * 1e-5f;
 					_gps_position->vel_ned_valid = true;
 					_gps_position->timestamp_velocity = hrt_absolute_time();
-//			printf("GOT NAV_VELNED MESSAGE\n");
 
 					_rate_count_vel++;
 
