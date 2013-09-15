@@ -73,7 +73,7 @@
 #include "quat_att_control.h"
 #include "quat_att_control_params.h"
 
-__EXPORT int quat_att_control_thread_main(int argc, char *argv[]);
+__EXPORT int quat_att_control_main(int argc, char *argv[]);
 
 static bool debug = false;
 static bool thread_should_exit;
@@ -82,6 +82,8 @@ static bool motor_test_mode = false;
 
 static orb_advert_t actuator_pub;
 
+int
+quat_att_control_thread_main(int argc, char *argv[]);
 
 int
 quat_att_control_thread_main(int argc, char *argv[])
@@ -242,15 +244,15 @@ quat_att_control_thread_main(int argc, char *argv[])
 		att.yawspeed = raw.gyro_rad_s[2];
 
 		/** STEP 1: Define which input is the dominating control input */
-		if (status.condition_landed) {
+		if (!control_mode.flag_armed) {
 		    //navSetHoldHeading(att.yaw);
 		    // Reset all PIDs
 		    control_quadrotor_attitude_reset();
 		    //Set yaw setpoint to current yaw
 		    control_quadrotor_set_yaw(att.yaw);
 		}
-		else if (control_mode.flag_control_manual_enabled &&
-				!control_mode.flag_control_velocity_enabled) {
+		else if ( control_mode.flag_control_manual_enabled &&
+				 !control_mode.flag_control_velocity_enabled) {
 			/* manual inputs, from RC control or joystick */
 			if (control_mode.flag_control_attitude_enabled) {
 				// Always control attitude no rates
@@ -267,11 +269,17 @@ quat_att_control_thread_main(int argc, char *argv[])
 					rates_sp.yaw = 0.0f;
 				}
 				att_sp.yaw_body = control_quadrotor_get_yaw();
-				att_sp.thrust = manual.throttle * control.controlThrottleF;
 				att_sp.timestamp = hrt_absolute_time();
-
-				/* STEP 2: publish the result to the vehicle actuators */
-				orb_publish(ORB_ID(vehicle_attitude_setpoint), att_sp_pub, &att_sp);
+				if ( !control_mode.flag_control_altitude_enabled ) {
+					// enable manual altitude control
+					att_sp.thrust = manual.throttle * control.controlThrottleF;
+					// only here publish the setpoints, otherwise we expect
+					// them to have another source
+					orb_publish(ORB_ID(vehicle_attitude_setpoint), att_sp_pub, &att_sp);
+				}
+				else {
+					// altitude is controlled by software (hopefully!)
+				}
 
 				if (motor_test_mode) {
 					att_sp.roll_body = 0.0f;
@@ -286,10 +294,27 @@ quat_att_control_thread_main(int argc, char *argv[])
 					rates_sp.roll = manual.roll;
 					rates_sp.pitch = manual.pitch;
 					rates_sp.yaw = manual.yaw;
-					rates_sp.thrust = manual.throttle;
 					rates_sp.timestamp = hrt_absolute_time();
 				}
 			}
+		}
+		else if ( control_mode.flag_control_manual_enabled &&
+				 !control_mode.flag_control_velocity_enabled &&
+				  control_mode.flag_control_altitude_enabled) {
+			att_sp.roll_body = manual.roll * control.controlRollF;
+			att_sp.pitch_body = manual.pitch * control.controlPitchF;
+			att_sp.yaw_body = 0;
+			/* set yaw rate */
+			if (manual.yaw < -control.controlDeadBand || manual.yaw > control.controlDeadBand)
+			{
+				rates_sp.yaw = manual.yaw * control.controlYawF;
+			}
+			else
+			{
+				rates_sp.yaw = 0.0f;
+			}
+			att_sp.yaw_body = control_quadrotor_get_yaw();
+			att_sp.timestamp = hrt_absolute_time();
 		}
 
 		/** STEP 3: Identify the controller setup to run and set up the inputs correctly */
@@ -403,7 +428,7 @@ int quat_att_control_main(int argc, char *argv[])
 	if (!strcmp(argv[1+optioncount], "start") || !strcmp(argv[1], "debug")) {
 
 		thread_should_exit = false;
-		mc_task = task_spawn("quat_att_control",
+		mc_task = task_spawn_cmd("quat_att_control",
 				     SCHED_DEFAULT,
 				     SCHED_PRIORITY_MAX - 15,
 				     6000,

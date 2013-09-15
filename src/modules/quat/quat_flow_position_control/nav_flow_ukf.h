@@ -9,7 +9,8 @@
 #include <uORB/topics/vehicle_status.h>
 #include <uORB/topics/sensor_combined.h>
 #include <uORB/topics/vehicle_gps_position.h>
-#include <uORB/topics/filtered_bottom_flow.h>
+#include <uORB/topics/vehicle_local_position.h>
+
 
 #define SIM_S                   14		// states
 #define SIM_M                   3		// max measurements
@@ -63,8 +64,13 @@ extern void navFlowDoAccUpdate(float accX, float accY, float accZ,
 extern void navFlowDoMagUpdate(float magX, float magY, float magZ,
 		 const struct vehicle_control_mode_s *control_mode,
 		 const struct quat_position_control_UKF_params* params);
+extern void navFlowUkfSonarVelUpate(
+		const struct vehicle_local_position_s* local_position,
+		float dt,
+		const struct vehicle_control_mode_s *control_mode,
+		const struct quat_position_control_UKF_params* params);
 extern void navFlowUkfFlowVelUpate(
-		const struct filtered_bottom_flow_s* measured_flow,
+		const struct vehicle_local_position_s* local_position,
 		float dt,
 		const struct vehicle_control_mode_s *control_mode,
 		const struct quat_position_control_UKF_params* params);

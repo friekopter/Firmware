@@ -33,7 +33,7 @@
 #include <uORB/topics/sensor_combined.h>
 #include <uORB/topics/rc_channels.h>
 #include <uORB/topics/manual_control_setpoint.h>
-#include <uORB/topics/vehicle_status.h>
+#include <uORB/topics/vehicle_control_mode.h>
 #include <uORB/topics/parameter_update.h>
 #include <uORB/topics/battery_status.h>
 #include <uORB/topics/differential_pressure.h>
@@ -100,14 +100,12 @@ public:
 private:
 	static const unsigned _rc_max_chan_count = RC_CHANNELS_MAX;	/**< maximum number of r/c channels we handle */
 
-#if CONFIG_HRT_PPM
 	hrt_abstime	_ppm_last_valid;		/**< last time we got a valid ppm signal */
 
 	/**
 	 * Gather and publish PPM input data.
 	 */
 	void		ppm_poll();
-#endif
 
 	/* XXX should not be here - should be own driver */
 	int 		_fd_adc;			/**< ADC driver handle */
@@ -124,7 +122,7 @@ private:
 	int		_mag_sub;			/**< raw mag data subscription */
 	int 		_rc_sub;			/**< raw rc channels data subscription */
 	int		_baro_sub;			/**< raw baro data subscription */
-	int		_vstatus_sub;			/**< vehicle status subscription */
+	int		_vcontrol_mode_sub;			/**< vehicle control mode subscription */
 	int 		_params_sub;			/**< notification of parameter updates */
 	int 		_manual_control_sub;			/**< notification of manual control updates */
 
@@ -206,8 +204,10 @@ private:
 		int32_t gyo_poll_rate;
 		int32_t acc_sample_rate;
 		int32_t acc_poll_rate;
+		int32_t gyo_dlpf_freq;
 
 		int diff_pres_offset_pa;
+		float diff_pres_analog_enabled;
 
 		int rc_type;
 
@@ -216,13 +216,10 @@ private:
 		int rc_map_yaw;
 		int rc_map_throttle;
 
-		int rc_map_manual_override_sw;
-		int rc_map_auto_mode_sw;
-
-		int rc_map_manual_mode_sw;
-		int rc_map_sas_mode_sw;
-		int rc_map_rtl_sw;
-		int rc_map_offboard_ctrl_mode_sw;
+		int rc_map_mode_sw;
+		int rc_map_return_sw;
+		int rc_map_assisted_sw;
+		int rc_map_mission_sw;
 
 		int rc_map_flaps;
 
@@ -298,21 +295,20 @@ private:
 		param_t gyo_poll_rate;
 		param_t acc_sample_rate;
 		param_t acc_poll_rate;
+		param_t gyo_dlpf_freq;
 
 		param_t diff_pres_offset_pa;
+		param_t diff_pres_analog_enabled;
 
 		param_t rc_map_roll;
 		param_t rc_map_pitch;
 		param_t rc_map_yaw;
 		param_t rc_map_throttle;
 
-		param_t rc_map_manual_override_sw;
-		param_t rc_map_auto_mode_sw;
-
-		param_t rc_map_manual_mode_sw;
-		param_t rc_map_sas_mode_sw;
-		param_t rc_map_rtl_sw;
-		param_t rc_map_offboard_ctrl_mode_sw;
+		param_t rc_map_mode_sw;
+		param_t rc_map_return_sw;
+		param_t rc_map_assisted_sw;
+		param_t rc_map_mission_sw;
 
 		param_t rc_map_flaps;
 
@@ -344,7 +340,7 @@ private:
 	/**
 	 * Do gyro-related initialisation.
 	 */
-	void		gyro_init(uint16_t sampleRate, uint16_t pollRate);
+	void		gyro_init(uint16_t sampleRate, uint16_t pollRate, uint16_t dlpfCutoff);
 
 	/**
 	 * Do mag-related initialisation.
@@ -471,7 +467,7 @@ Quat_Sensors::Quat_Sensors() :
 	_mag_sub(-1),
 	_rc_sub(-1),
 	_baro_sub(-1),
-	_vstatus_sub(-1),
+	_vcontrol_mode_sub(-1),
 	_params_sub(-1),
 	_manual_control_sub(-1),
 
@@ -525,16 +521,14 @@ Quat_Sensors::Quat_Sensors() :
 	_parameter_handles.rc_map_throttle = param_find("RC_MAP_THROTTLE");
 
 	/* mandatory mode switches, mapped to channel 5 and 6 per default */
-	_parameter_handles.rc_map_manual_override_sw = param_find("RC_MAP_OVER_SW");
-	_parameter_handles.rc_map_auto_mode_sw = param_find("RC_MAP_MODE_SW");
+	_parameter_handles.rc_map_mode_sw = param_find("RC_MAP_MODE_SW");
+	_parameter_handles.rc_map_return_sw = param_find("RC_MAP_RETURN_SW");
 
 	_parameter_handles.rc_map_flaps = param_find("RC_MAP_FLAPS");
 
 	/* optional mode switches, not mapped per default */
-	_parameter_handles.rc_map_manual_mode_sw = param_find("RC_MAP_MAN_SW");
-	_parameter_handles.rc_map_sas_mode_sw = param_find("RC_MAP_SAS_SW");
-	_parameter_handles.rc_map_rtl_sw = param_find("RC_MAP_RTL_SW");
-	_parameter_handles.rc_map_offboard_ctrl_mode_sw = param_find("RC_MAP_OFFB_SW");
+	_parameter_handles.rc_map_assisted_sw = param_find("RC_MAP_ASSIST_SW");
+	_parameter_handles.rc_map_mission_sw = param_find("RC_MAP_MISSIO_SW");
 
 	_parameter_handles.rc_map_aux1 = param_find("RC_MAP_AUX1");
 	_parameter_handles.rc_map_aux2 = param_find("RC_MAP_AUX2");
@@ -639,6 +633,7 @@ Quat_Sensors::Quat_Sensors() :
 	_parameter_handles.gyo_sample_rate = param_find("IMU_GYO_RA_SAMP");
 	_parameter_handles.acc_poll_rate = param_find("IMU_ACC_RA_POLL");
 	_parameter_handles.acc_sample_rate = param_find("IMU_ACC_RA_SAMP");
+	_parameter_handles.gyo_dlpf_freq = param_find("IMU_GYO_DLPF");
 
 	/* Differential pressure offset */
 	_parameter_handles.diff_pres_offset_pa = param_find("SENS_DPRES_OFF");
@@ -678,6 +673,8 @@ int
 Quat_Sensors::parameters_update()
 {
 	bool rc_valid = true;
+    float tmpScaleFactor = 0.0f;
+    float tmpRevFactor = 0.0f;
 
 	/* rc values */
 	for (unsigned int i = 0; i < RC_CHANNELS_MAX; i++) {
@@ -782,31 +779,6 @@ Quat_Sensors::parameters_update()
 	_rc.function[AUX_4] = _parameters.rc_map_aux4 - 1;
 	_rc.function[AUX_5] = _parameters.rc_map_aux5 - 1;
 
-	/* gyro offsets */
-	param_get(_parameter_handles.gyro_offset[0], &(_parameters.gyro_offset[0]));
-	param_get(_parameter_handles.gyro_offset[1], &(_parameters.gyro_offset[1]));
-	param_get(_parameter_handles.gyro_offset[2], &(_parameters.gyro_offset[2]));
-	param_get(_parameter_handles.gyro_scale[0], &(_parameters.gyro_scale[0]));
-	param_get(_parameter_handles.gyro_scale[1], &(_parameters.gyro_scale[1]));
-	param_get(_parameter_handles.gyro_scale[2], &(_parameters.gyro_scale[2]));
-
-	/* accel offsets */
-	param_get(_parameter_handles.accel_offset[0], &(_parameters.accel_offset[0]));
-	param_get(_parameter_handles.accel_offset[1], &(_parameters.accel_offset[1]));
-	param_get(_parameter_handles.accel_offset[2], &(_parameters.accel_offset[2]));
-	param_get(_parameter_handles.accel_scale[0], &(_parameters.accel_scale[0]));
-	param_get(_parameter_handles.accel_scale[1], &(_parameters.accel_scale[1]));
-	param_get(_parameter_handles.accel_scale[2], &(_parameters.accel_scale[2]));
-
-	/* mag offsets */
-	param_get(_parameter_handles.mag_offset[0], &(_parameters.mag_offset[0]));
-	param_get(_parameter_handles.mag_offset[1], &(_parameters.mag_offset[1]));
-	param_get(_parameter_handles.mag_offset[2], &(_parameters.mag_offset[2]));
-	/* mag scaling */
-	param_get(_parameter_handles.mag_scale[0], &(_parameters.mag_scale[0]));
-	param_get(_parameter_handles.mag_scale[1], &(_parameters.mag_scale[1]));
-	param_get(_parameter_handles.mag_scale[2], &(_parameters.mag_scale[2]));
-
 	/* Airspeed offset */
 	param_get(_parameter_handles.diff_pres_offset_pa, &(_parameters.diff_pres_offset_pa));
 	param_get(_parameter_handles.diff_pres_analog_enabled, &(_parameters.diff_pres_analog_enabled));
@@ -900,11 +872,11 @@ Quat_Sensors::parameters_update()
 	param_get(_parameter_handles.gyro_scale[1], &(_parameters.gyro_scale[1]));
 	param_get(_parameter_handles.gyro_scale[2], &(_parameters.gyro_scale[2]));
 
-
 	param_get(_parameter_handles.gyo_poll_rate, &(_parameters.gyo_poll_rate));
 	param_get(_parameter_handles.gyo_sample_rate, &(_parameters.gyo_sample_rate));
 	param_get(_parameter_handles.acc_poll_rate, &(_parameters.acc_poll_rate));
 	param_get(_parameter_handles.acc_sample_rate, &(_parameters.acc_sample_rate));
+	param_get(_parameter_handles.gyo_dlpf_freq, &(_parameters.gyo_dlpf_freq));
 
 	return OK;
 }
@@ -923,11 +895,11 @@ Quat_Sensors::accel_init(uint16_t sampleRate, uint16_t pollRate)
 	} else {
 		/* set the accel internal sampling rate up to 200Hz */
 		ioctl(fd, ACCELIOCSSAMPLERATE, sampleRate);
-		warn("set acc sample rate %d", sampleRate);
+		//warn("set acc sample rate %lu", sampleRate);
 
 		/* set the driver to poll at 200Hz */
 		ioctl(fd, SENSORIOCSPOLLRATE, pollRate);
-		warn("set acc poll rate %d", pollRate);
+		//warn("set acc poll rate %lu", pollRate);
 
 		warnx("using system accel");
 		close(fd);
@@ -935,7 +907,7 @@ Quat_Sensors::accel_init(uint16_t sampleRate, uint16_t pollRate)
 }
 
 void
-Quat_Sensors::gyro_init(uint16_t sampleRate, uint16_t pollRate)
+Quat_Sensors::gyro_init(uint16_t sampleRate, uint16_t pollRate, uint16_t dlpfCutoff)
 {
 	int	fd;
 
@@ -952,6 +924,9 @@ Quat_Sensors::gyro_init(uint16_t sampleRate, uint16_t pollRate)
 		/* set the driver to poll at 200Hz */
 		ioctl(fd, SENSORIOCSPOLLRATE, pollRate);
 
+		/* set the cutoff lowpass filter frequency */
+		ioctl(fd, SENSORIOCSDLPF, dlpfCutoff);
+
 		warnx("using system gyro");
 		close(fd);
 	}
@@ -961,6 +936,7 @@ void
 Quat_Sensors::mag_init()
 {
 	int	fd;
+	int	ret;
 
 	fd = open(MAG_DEVICE_PATH, 0);
 
@@ -985,6 +961,7 @@ Quat_Sensors::mag_init()
 		} else {
 			errx(1, "FATAL: mag sampling rate could not be set");
 		}
+	}
 
 	close(fd);
 }
@@ -1321,16 +1298,18 @@ Quat_Sensors::adc_poll(struct sensor_combined_s &raw)
 	}
 }
 
-#if CONFIG_HRT_PPM
 void
 Quat_Sensors::ppm_poll()
 {
 
 	/* read low-level values from FMU or IO RC inputs (PPM, Spektrum, S.Bus) */
-	bool rc_updated;
-	orb_check(_rc_sub, &rc_updated);
+	struct pollfd fds[1];
+	fds[0].fd = _rc_sub;
+	fds[0].events = POLLIN;
+	/* check non-blocking for new data */
+	int poll_ret = poll(fds, 1, 0);
 
-	if (rc_updated) {
+	if (poll_ret > 0) {
 		struct rc_input_values	rc_input;
 
 		orb_copy(ORB_ID(input_rc), _rc_sub, &rc_input);
@@ -1501,6 +1480,7 @@ Quat_Sensors::ppm_poll()
 		if (_rc.function[AUX_5] >= 0) {
 			manual_control.aux5 = limit_minus_one_to_one(_rc.chan[_rc.function[AUX_5]].scaled);
 		}
+
 		/* check if ready for publishing */
 		if (_rc_pub > 0) {
 			orb_publish(ORB_ID(rc_channels), _rc_pub, &_rc);
@@ -1518,9 +1498,7 @@ Quat_Sensors::ppm_poll()
 			_manual_control_pub = orb_advertise(ORB_ID(manual_control_setpoint), &manual_control);
 		}
 	}
-
 }
-#endif
 
 void
 Quat_Sensors::task_main_trampoline(int argc, char *argv[])
@@ -1542,7 +1520,7 @@ Quat_Sensors::task_main()
 	/* start individual sensors */
 	accel_init((uint16_t)_parameters.acc_sample_rate, (uint16_t)_parameters.acc_poll_rate);
 	printf("[quat_sensors] Init gyro...\n");
-	gyro_init((uint16_t)_parameters.gyo_sample_rate, (uint16_t)_parameters.gyo_poll_rate);
+	gyro_init((uint16_t)_parameters.gyo_sample_rate, (uint16_t)_parameters.gyo_poll_rate, (uint16_t)_parameters.gyo_dlpf_freq);
 	printf("[quat_sensors] Init mag...\n");
 	mag_init();
 	printf("[quat_sensors] Init baro...\n");
@@ -1558,7 +1536,7 @@ Quat_Sensors::task_main()
 	_mag_sub = orb_subscribe(ORB_ID(sensor_mag));
 	_rc_sub = orb_subscribe(ORB_ID(input_rc));
 	_baro_sub = orb_subscribe(ORB_ID(sensor_baro));
-	_vstatus_sub = orb_subscribe(ORB_ID(vehicle_status));
+	_vcontrol_mode_sub = orb_subscribe(ORB_ID(vehicle_control_mode));
 	_manual_control_sub = orb_subscribe(ORB_ID(manual_control_setpoint));
 
 	/* rate limit vehicle status updates to 5Hz */
@@ -1641,10 +1619,8 @@ Quat_Sensors::task_main()
 		if (_publishing)
 			orb_publish(ORB_ID(sensor_combined), _sensor_pub, &raw);
 
-#ifdef CONFIG_HRT_PPM
 		/* Look for new r/c input data */
 		ppm_poll();
-#endif
 		perf_end(_loop_perf);
 	}
 
@@ -1660,7 +1636,7 @@ Quat_Sensors::start()
 	ASSERT(_quat_sensors_task == -1);
 
 	/* start the task */
-	_quat_sensors_task = task_spawn("quat_sensors_task",
+	_quat_sensors_task = task_spawn_cmd("quat_sensors_task",
 				   SCHED_DEFAULT,
 				   SCHED_PRIORITY_MAX - 5,
 				   2048,

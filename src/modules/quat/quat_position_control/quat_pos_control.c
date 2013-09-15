@@ -146,7 +146,7 @@ int quat_pos_control_main(int argc, char *argv[])
 		}
 
 		thread_should_exit = false;
-		deamon_task = task_spawn("quat pos control",
+		deamon_task = task_spawn_cmd("quat pos control",
 					 SCHED_DEFAULT,
 					 SCHED_PRIORITY_MAX - 60,
 					 4096,
@@ -588,7 +588,7 @@ quat_pos_control_thread_main(int argc, char *argv[])
 				perf_end(quat_pos_gps_perf);
 			}
 			// observe that the rates are exactly 0 if not flying or moving
-			bool mightByFlying = state.flag_system_armed;
+			bool mightByFlying = !state.condition_landed;
 			if (fds[2].revents & POLLIN)
 			{
 				orb_copy(ORB_ID(filtered_bottom_flow), flow_sub, &flow_data);
@@ -643,7 +643,7 @@ quat_pos_control_thread_main(int argc, char *argv[])
 				global_position.vy = UKF_VELE * navUkfData.yawCos + UKF_VELN * navUkfData.yawSin;
 				global_position.vz = UKF_VELD;
 				global_position.timestamp = hrt_absolute_time();
-				global_position.hdg = navUkfData.yaw;
+				global_position.yaw = navUkfData.yaw;
 				orb_publish(ORB_ID(vehicle_global_position), global_position_pub, &global_position);
 			}
 			perf_end(quat_pos_loop_perf);

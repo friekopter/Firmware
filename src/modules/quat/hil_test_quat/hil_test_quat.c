@@ -773,7 +773,7 @@ int hil_test_thread_main(int argc, char *argv[])
 	/* advertise to ORB */
 	stat_pub = orb_advertise(ORB_ID(vehicle_status), &quad_status);
 	/* publish current state machine */
-	state_machine_publish(stat_pub, &quad_status, mavlink_fd);
+	//state_machine_publish(stat_pub, &quad_status, mavlink_fd);
 
 	thread_running = true;
 
@@ -864,7 +864,7 @@ int hil_test_quat_main(int argc, char *argv[])
 		}
 
 		thread_should_exit = false;
-		mavlink_task = task_spawn("hil_test_quat",
+		mavlink_task = task_spawn_cmd("hil_test_quat",
 					  SCHED_DEFAULT,
 					  SCHED_PRIORITY_DEFAULT,
 					  6000,

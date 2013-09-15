@@ -21,7 +21,7 @@
 
 //#include <CoOS.h>
 #include <uORB/topics/vehicle_gps_position.h>
-#include <uORB/topics/vehicle_status.h>
+#include <uORB/topics/vehicle_control_mode.h>
 #include <uORB/topics/manual_control_setpoint.h>
 #include <uORB/topics/filtered_bottom_flow.h>
 #include "quat_pos_control_params.h"
@@ -117,7 +117,7 @@ extern void navSetHomeCurrent(	const struct vehicle_gps_position_s* gps_position
 								const struct quat_position_control_NAV_params* params);
 extern void navLoadLeg(unsigned char leg);
 extern void navNavigate(const struct vehicle_gps_position_s* gps_position,
-		const struct vehicle_status_s *current_status,
+		const struct vehicle_control_mode_s *control_mode,
 		const struct quat_position_control_NAV_params* params,
 		const struct manual_control_setpoint_s* manual_control,
 		const struct filtered_bottom_flow_s* flow_data,

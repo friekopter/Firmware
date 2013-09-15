@@ -25,11 +25,11 @@ MODULES		+= drivers/bma180
 MODULES		+= drivers/mpu6000
 MODULES		+= drivers/hmc5883
 MODULES		+= drivers/ms5611
-MODULES		+= drivers/mb12xx
+#MODULES		+= drivers/mb12xx
 MODULES		+= drivers/gps
 MODULES		+= drivers/hil
-MODULES		+= drivers/hott/hott_telemetry
-MODULES		+= drivers/hott/hott_sensors
+#MODULES		+= drivers/hott/hott_telemetry
+#MODULES		+= drivers/hott/hott_sensors
 MODULES		+= drivers/blinkm
 MODULES		+= drivers/rgbled
 MODULES		+= drivers/mkblctrl
@@ -132,7 +132,7 @@ MODULES		+= lib/geo
 
 # Tutorial code from
 # https://pixhawk.ethz.ch/px4/dev/example_fixedwing_control
-MODULES			+= examples/fixedwing_control
+#MODULES			+= examples/fixedwing_control
 
 # Quat Apps
 MODULES			+= modules/quat/attitude_estimator_quat
@@ -143,7 +143,7 @@ MODULES			+= modules/quat/quat_log
 MODULES			+= modules/quat/quat_position_control
 MODULES			+= modules/quat/quat_flow_position_control
 MODULES			+= modules/quat/quat_sensors
-MODULES			+= modules/quat/quat_flow_receiver
+#MODULES			+= modules/quat/quat_flow_receiver
 MODULES			+= modules/quat/utils
 
 

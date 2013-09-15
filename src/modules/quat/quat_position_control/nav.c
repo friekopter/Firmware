@@ -156,7 +156,7 @@ void navLoadLeg(uint8_t leg) {
 
 void navNavigate(
 		const struct vehicle_gps_position_s* gps_position,
-		const struct vehicle_status_s *current_status,
+		const struct vehicle_control_mode_s *control_mode,
 		const struct quat_position_control_NAV_params* params,
 		const struct manual_control_setpoint_s* manual_control,
 		const struct filtered_bottom_flow_s* flow_data,
@@ -180,6 +180,21 @@ void navNavigate(
 	// Cannot Navigate
     	navData.navCapable = 0;
     }
+
+	// allow alt hold
+	if (control_mode->flag_control_altitude_enabled &&
+			navData.mode < NAV_STATUS_ALTHOLD) {
+		// record this altitude as the hold altitude
+		navSetHoldAlt(UKF_ALTITUDE, 0);
+
+		// set integral to current RC throttle setting
+		pidZeroIntegral(navData.altSpeedPID, -UKF_VELD, manual_control->throttle);
+		pidZeroIntegral(navData.altPosPID, UKF_ALTITUDE, 0.0f);
+
+		navData.mode = NAV_STATUS_ALTHOLD;
+		navData.holdSpeedAlt = -UKF_VELD;
+		printf("[quat_pos_control]: Altitude hold activated\n");
+	}
 /*
     // Can we navigate && do we want to be in mission mode?
     if (navData.navCapable && RADIO_FLAPS > 250) {
@@ -190,21 +205,8 @@ void navNavigate(
     	}
     }else */
     // do we want to be in position hold mode?
-    if (current_status->state_machine == SYSTEM_STATE_STABILIZED) {
-		// always allow alt hold
-		if (navData.mode < NAV_STATUS_ALTHOLD) {
-			// record this altitude as the hold altitude
-			navSetHoldAlt(UKF_ALTITUDE, 0);
-
-			// set integral to current RC throttle setting
-			pidZeroIntegral(navData.altSpeedPID, -UKF_VELD, manual_control->throttle);
-			pidZeroIntegral(navData.altPosPID, UKF_ALTITUDE, 0.0f);
-
-			navData.mode = NAV_STATUS_ALTHOLD;
-			navData.holdSpeedAlt = -UKF_VELD;
-			printf("[quat_pos_control]: Altitude hold activated\n");
-		}
-
+    if (control_mode->flag_control_position_enabled &&
+    		control_mode->flag_control_velocity_enabled) {
 		// are we not in position hold mode now?
 		if (navData.navCapable &&
 			navData.mode != NAV_STATUS_POSHOLD &&

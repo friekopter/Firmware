@@ -63,6 +63,21 @@ struct filtered_bottom_flow_s
 	float vx; 				/**< Flow bodyframe x speed, m/s							   */
 	float vy;				/**< Flow bodyframe y Speed, m/s 				   */
 	float ground_distance;  /**< Ground distance in m */
+
+	bool ned_xy_valid;			/**< true if x and y are valid */
+	bool ned_z_valid;			/**< true if z is valid */
+	bool ned_v_xy_valid;		/**< true if vy and vy are valid */
+	bool ned_v_z_valid;			/**< true if vz is valid */
+	/* Position in local NED frame */
+	float ned_x;				/**< X position in meters in NED earth-fixed frame */
+	float ned_y;				/**< X position in meters in NED earth-fixed frame */
+	float ned_z;				/**< Z position in meters in NED earth-fixed frame (negative altitude) */
+	/* Velocity in NED frame */
+	float ned_vx; 				/**< Ground X Speed (Latitude), m/s in NED */
+	float ned_vy;				/**< Ground Y Speed (Longitude), m/s in NED */
+	float ned_vz;				/**< Ground Z Speed (Altitude), m/s	in NED */
+	/* Heading */
+	float yaw;
 };
 
 /**

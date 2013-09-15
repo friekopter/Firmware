@@ -84,4 +84,9 @@
  */
 #define SENSORIOCRESET		_SENSORIOC(4)
 
+/**
+ * Set the DLP Filter cutoff frequency
+ */
+#define SENSORIOCSDLPF		_SENSORIOC(5)
+
 #endif /* _DRV_SENSOR_H */

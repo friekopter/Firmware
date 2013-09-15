@@ -453,7 +453,7 @@ int quat_flow_receiver_main(int argc, char *argv[])
 		}
 
 		thread_should_exit = false;
-		mavlink_task = task_spawn("quat_flow_receiver",
+		mavlink_task = task_spawn_cmd("quat_flow_receiver",
 					  SCHED_DEFAULT,
 					  SCHED_PRIORITY_DEFAULT,
 					  6000,

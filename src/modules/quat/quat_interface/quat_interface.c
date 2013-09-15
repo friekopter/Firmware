@@ -201,7 +201,7 @@ int quat_interface_main(int argc, char *argv[])
 		}
 
 		thread_should_exit = false;
-		quat_interface_task = task_spawn("quat_interface",
+		quat_interface_task = task_spawn_cmd("quat_interface",
 						    SCHED_DEFAULT,
 						    SCHED_PRIORITY_MAX - 15,
 						    2048,

@@ -3,7 +3,7 @@
 #
 
 MODULE_COMMAND		 = quat_flow_pos_control
-MODULE_PRIORITY	 = SCHED_PRIORITY_MAX-25
+MODULE_PRIORITY	     = SCHED_PRIORITY_MAX-25
 MODULE_STACKSIZE	 = 2048
 
 SRCS				= nav_flow_ukf.c \
@@ -12,4 +12,3 @@ SRCS				= nav_flow_ukf.c \
 
 INCLUDE_DIRS	 += ../utils
 INCLUDE_DIRS	 += ../quat_position_control
-INCLUDE_DIRS     += $(MAVLINK_SRC)/include/mavlink

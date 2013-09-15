@@ -166,7 +166,7 @@ int quat_log_main(int argc, char *argv[])
 		}
 
 		thread_should_exit = false;
-		deamon_task = task_spawn("quat_log",
+		deamon_task = task_spawn_cmd("quat_log",
 					 SCHED_DEFAULT,
 					 SCHED_PRIORITY_DEFAULT - 30,
 					 4096,

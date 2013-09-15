@@ -13,7 +13,6 @@
 #include <nuttx/clock.h>
 #include <nuttx/i2c.h>
 
-#include <drivers/device/i2c.h>
 
 #include <systemlib/visibility.h>
 #include <arch/board/board.h>

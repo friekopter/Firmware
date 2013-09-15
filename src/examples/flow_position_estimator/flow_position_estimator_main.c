@@ -163,6 +163,8 @@ int flow_position_estimator_thread_main(int argc, char *argv[])
 	static uint32_t counter = 0;
 	static uint64_t time_last_flow = 0; // in ms
 	static float dt = 0.0f; // seconds
+	static float sonar_last_measurement = 0.0f;
+	static float sonar_speed = 0.0f;
 	static float sonar_last = 0.0f;
 	static bool sonar_valid = false;
 	static float sonar_lp = 0.0f;
@@ -285,10 +287,11 @@ int flow_position_estimator_thread_main(int argc, char *argv[])
 					orb_copy(ORB_ID(vehicle_attitude_setpoint), vehicle_attitude_setpoint_sub, &att_sp);
 					orb_copy(ORB_ID(actuator_armed), armed_sub, &armed);
 					orb_copy(ORB_ID(vehicle_control_mode), control_mode_sub, &control_mode);
-					if(control_mode.flag_control_manual_enabled) {
+					if(!control_mode.flag_control_velocity_enabled) {
 						local_pos.x = 0.0f;
 						local_pos.y = 0.0f;
-						local_pos.z = 0.0f;
+						local_pos.vx = 0.0f;
+						local_pos.vy = 0.0f;
 						filtered_flow.sumx = 0.0f;
 						filtered_flow.sumy = 0.0f;
 					}
@@ -303,13 +306,21 @@ int flow_position_estimator_thread_main(int argc, char *argv[])
 
 					if (!vehicle_liftoff)
 					{
-						if (armed.armed && att_sp.thrust > params.minimum_liftoff_thrust && sonar_new > 0.3f && sonar_new < 1.0f)
+						if (armed.armed &&
+							att_sp.thrust > params.minimum_liftoff_thrust &&
+							sonar_new > 0.3f && sonar_new < 1.0f) {
 							vehicle_liftoff = true;
+							local_pos.landed = false;
+						}
 					}
 					else
 					{
-						if (!armed.armed || (att_sp.thrust < params.minimum_liftoff_thrust && sonar_new <= 0.3f))
+						if (!armed.armed ||
+								(att_sp.thrust < params.minimum_liftoff_thrust &&
+										sonar_new <= 0.3f)) {
 							vehicle_liftoff = false;
+							local_pos.landed = true;
+						}
 					}
 
 					/* calc dt between flow timestamps */
@@ -364,6 +375,8 @@ int flow_position_estimator_thread_main(int argc, char *argv[])
 						local_pos.y = local_pos.y + global_speed[1] * dt;
 						local_pos.vx = global_speed[0];
 						local_pos.vy = global_speed[1];
+						local_pos.xy_valid = true;
+						local_pos.v_xy_valid = true;
 					}
 					else
 					{
@@ -372,6 +385,8 @@ int flow_position_estimator_thread_main(int argc, char *argv[])
 						filtered_flow.vy = 0;
 						local_pos.vx = 0;
 						local_pos.vy = 0;
+						local_pos.xy_valid = false;
+						local_pos.v_xy_valid = false;
 					}
 
 					/* filtering ground distance */
@@ -409,11 +424,38 @@ int flow_position_estimator_thread_main(int argc, char *argv[])
 							local_pos.z = -sonar_new;
 							filtered_flow.ground_distance = -sonar_new;
 						}
+						// Velocity
+						// Only calculate if last measurement was valid
+						if(local_pos.z_valid && (dt > FLT_MIN)) {
+							float distance = local_pos.z - sonar_last_measurement;
+							sonar_speed = distance/dt;
+							// smooth
+							local_pos.vz += (sonar_speed - local_pos.vz) * 0.1f;
+							local_pos.v_z_valid = true;
+						} else {
+							local_pos.vz = 0.0f;
+							local_pos.v_z_valid = false;
+						}
+						sonar_last_measurement = local_pos.z;
+						local_pos.z_valid = true;
+					}
+					else
+					{
+						local_pos.vz = 0.0f;
+						local_pos.v_z_valid = false;
+						local_pos.z_valid = false;
 					}
 
 					quality = (quality + ((float)flow.quality)*0.1f)/1.1f;
+					if(quality < (float)params.minimum_quality){
+						//invalidate position for bad quality
+						local_pos.xy_valid = false;
+						local_pos.v_xy_valid = false;
+					}
 
-					if(!flow_valid && quality >= (float)params.minimum_quality) {
+					// publish subsystem info for flow
+					if(!flow_valid &&
+						quality >= (float)params.minimum_quality) {
 						flow_valid  = true;
 						flow_control_info.enabled = true;
 						orb_publish(ORB_ID(subsystem_info), flow_subsystem_info_pub, &flow_control_info);
@@ -423,19 +465,17 @@ int flow_position_estimator_thread_main(int argc, char *argv[])
 						orb_publish(ORB_ID(subsystem_info), flow_subsystem_info_pub, &flow_control_info);
 					}
 
-					if( vehicle_liftoff &&
-						quality >= (float)params.minimum_quality ) {
-						filtered_flow.timestamp = hrt_absolute_time();
-						local_pos.timestamp = hrt_absolute_time();
+					/* always publish local position */
+					local_pos.timestamp = hrt_absolute_time();
+					if(isfinite(local_pos.x) && isfinite(local_pos.y) && isfinite(local_pos.z)
+							&& isfinite(local_pos.vx) && isfinite(local_pos.vy))
+					{
+						orb_publish(ORB_ID(vehicle_local_position), local_pos_pub, &local_pos);
+					}
 
-						/* publish local position */
-						if(isfinite(local_pos.x) && isfinite(local_pos.y) && isfinite(local_pos.z)
-								&& isfinite(local_pos.vx) && isfinite(local_pos.vy))
-						{
-							orb_publish(ORB_ID(vehicle_local_position), local_pos_pub, &local_pos);
-						}
-
+					if( local_pos.xy_valid ) {
 						/* publish filtered flow */
+						filtered_flow.timestamp = hrt_absolute_time();
 						if(isfinite(filtered_flow.sumx) && isfinite(filtered_flow.sumy) && isfinite(filtered_flow.vx) && isfinite(filtered_flow.vy))
 						{
 							orb_publish(ORB_ID(filtered_bottom_flow), filtered_flow_pub, &filtered_flow);
@@ -445,7 +485,6 @@ int flow_position_estimator_thread_main(int argc, char *argv[])
 					/* measure in what intervals the position estimator runs */
 					perf_count(mc_interval_perf);
 					perf_end(mc_loop_perf);
-
 				}
 			}
 

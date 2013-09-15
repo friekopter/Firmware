@@ -863,6 +863,10 @@ MPU6000::ioctl(struct file *filp, int cmd, unsigned long arg)
 	case SENSORIOCGQUEUEDEPTH:
 		return _accel_reports->size();
 
+	case SENSORIOCSDLPF:
+		_set_dlpf_filter(arg);
+		return OK;
+
 	case ACCELIOCGSAMPLERATE:
 		return _sample_rate;
 

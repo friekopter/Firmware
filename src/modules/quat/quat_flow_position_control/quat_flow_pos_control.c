@@ -30,7 +30,7 @@
 #include <uORB/topics/vehicle_local_position_setpoint.h>
 #include <uORB/topics/parameter_update.h>
 #include <uORB/topics/filtered_bottom_flow.h>
-#include <v1.0/mavlink_types.h>
+#include <uORB/topics/debug_key_value.h>
 #include <systemlib/systemlib.h>
 #include <systemlib/perf_counter.h>
 #include <quat/quat_position_control/quat_pos_control_params.h>
@@ -48,7 +48,8 @@ static struct vehicle_attitude_s att __attribute__((section(".ccm")));
 static struct manual_control_setpoint_s manual;
 static struct vehicle_control_mode_s control_mode;
 static struct sensor_combined_s raw;
-static struct filtered_bottom_flow_s flow_data;
+static struct vehicle_local_position_s local_position_data;
+
 
 static bool thread_should_exit = false;		/**< Deamon exit flag */
 static bool thread_running = false;		/**< Deamon status flag */
@@ -144,7 +145,7 @@ int quat_flow_pos_control_main(int argc, char *argv[])
 		}
 
 		thread_should_exit = false;
-		deamon_task = task_spawn("quat flow pos control",
+		deamon_task = task_spawn_cmd("quat flow pos control",
 					 SCHED_DEFAULT,
 					 SCHED_PRIORITY_MAX - 60,
 					 4096,
@@ -194,6 +195,10 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 	orb_advert_t pub_att = orb_advertise(ORB_ID(vehicle_attitude), &att);
 	memset(&att, 0, sizeof(att));
 
+	//Debug only
+	orb_advert_t pub_debug = orb_advertise(ORB_ID(debug_key_value), &debug);
+	memset(&debug, 0, sizeof(debug));
+
 	// Inputs
 	// manual control
 	int manual_sub = orb_subscribe(ORB_ID(manual_control_setpoint));
@@ -219,10 +224,10 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 	orb_set_interval(sub_raw, 5);
 
 	// Flow Velocity
-	int flow_sub = orb_subscribe(ORB_ID(filtered_bottom_flow));
-	memset(&flow_data, 0, sizeof(flow_data));
+	int local_position_sub = orb_subscribe(ORB_ID(vehicle_local_position));
+	memset(&local_position_data, 0, sizeof(local_position_data));
 	/* rate-limit parameter updates to 10Hz */
-	orb_set_interval(flow_sub, 100);
+	orb_set_interval(local_position_sub, 100);
 
 	//Init parameters
 	struct quat_position_control_UKF_params ukf_params;
@@ -241,7 +246,7 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 	perf_counter_t quat_flow_ukf_finish_perf = perf_alloc(PC_ELAPSED, "quat_flow_ukf_finish_perf");
 	struct pollfd fds[5] = {
 		{ .fd = sub_raw,   .events = POLLIN },
-		{ .fd = flow_sub, .events = POLLIN },
+		{ .fd = local_position_sub, .events = POLLIN },
 		{ .fd = manual_sub,   .events = POLLIN },
 		{ .fd = sub_params, .events = POLLIN },
 		{ .fd = control_mode_sub, .events = POLLIN }
@@ -549,15 +554,8 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 			bool mightByFlying = control_mode.flag_armed;
 			if (fds[1].revents & POLLIN)
 			{
-				orb_copy(ORB_ID(filtered_bottom_flow), flow_sub, &flow_data);
-				if(!mightByFlying) {
-						memset(&flow_data,0,sizeof(flow_data));
-						navFlowUkfFlowVelUpate(&flow_data,dt,&control_mode,&ukf_params);
-				}
-				else {
-					//printf("flowx:%8.4f\tflowy:%8.4f\n",flow_data.vx, flow_data.vy);
-					navFlowUkfFlowVelUpate(&flow_data,dt,&control_mode,&ukf_params);
-				}
+				orb_copy(ORB_ID(vehicle_local_position), local_position_sub, &local_position_data);
+				navFlowUkfFlowVelUpate(&local_position_data,dt,&control_mode,&ukf_params);
 			}
 			if(dt < FLT_MIN) {
 				perf_end(quat_flow_pos_loop_perf);
@@ -577,42 +575,85 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 			}
 
 			perf_begin(quat_flow_pos_nav_perf);
-			if(mightByFlying) {
-				navFlowNavigate(&control_mode,&nav_params,&manual,&flow_data,raw.timestamp);
-			}
-
+			navFlowNavigate(&control_mode,&nav_params,&manual,&local_position_data, &att, raw.timestamp);
 			perf_end(quat_flow_pos_nav_perf);
 
 			// rotate nav's NE frame of reference to our craft's local frame of reference
 			// Tilt north means for yaw=0 nose up. If yaw=90 degrees it means left wing up that is positive roll
 			att_sp.pitch_body = navFlowData.holdTiltX * DEG_TO_RAD;
 			att_sp.roll_body  = navFlowData.holdTiltY * DEG_TO_RAD;
-			att_sp.thrust = pidUpdate(navFlowData.altSpeedPID, navFlowData.holdSpeedAlt, -UKF_FLOW_VELD);
+			// speed down is negative, if holdSpeed > -UKF_FLOW_VELD -> thrust positive
+			// pid gets a minus
+			att_sp.thrust = pidUpdate(navFlowData.altSpeedPID, -navFlowData.holdSpeedAlt, -UKF_FLOW_VELD);
+			if ( att_sp.thrust < 0.0f ) {
+				att_sp.thrust = 0.0f;
+			}
 			att_sp.yaw_body = navFlowData.holdHeading;
 			att_sp.timestamp = hrt_absolute_time();
-			if(!control_mode.flag_control_manual_enabled) {
+			if(control_mode.flag_control_velocity_enabled ||
+				control_mode.flag_control_altitude_enabled) {
 				orb_publish(ORB_ID(vehicle_attitude_setpoint), att_sp_pub, &att_sp);
 			}
 			perf_end(quat_flow_pos_loop_perf);
 			// print debug information every 1000th time
-			if(printcounter % 100) {
-				static float positionEarthFrame[3] = {0.0f,0.0f,0.0f};
-				static float positionBodyFrame[3] = {0.0f,0.0f,0.0f};
-				positionBodyFrame[0] = navFlowData.holdPositionX;
-				positionBodyFrame[1] = navFlowData.holdPositionY;
-				utilRotateVecByMatrix2(positionEarthFrame, positionBodyFrame, att.R);
-				local_position_sp.x = - positionEarthFrame[0];
-				local_position_sp.y = - positionEarthFrame[1];
+			if(!(printcounter % 100)) {
+				local_position_sp.x = navFlowData.holdPositionX;
+				local_position_sp.y = navFlowData.holdPositionY;
 				local_position_sp.z = navFlowData.holdAlt;
 				local_position_sp.yaw = navFlowData.holdHeading;
 				orb_publish(ORB_ID(vehicle_local_position_setpoint), local_pos_sp_pub, &local_position_sp);
 				//for debugging only
-				static uint8_t chan = MAVLINK_COMM_0;
 				uint32_t current = hrt_absolute_time();
-				mavlink_msg_debug_vect_send(chan, "acc bias", current, UKF_FLOW_ACC_BIAS_X, UKF_FLOW_ACC_BIAS_Y, UKF_FLOW_ACC_BIAS_Z );
-				mavlink_msg_debug_vect_send(chan, "gyo bias", current, UKF_FLOW_GYO_BIAS_X, UKF_FLOW_GYO_BIAS_Y, UKF_FLOW_GYO_BIAS_Z );
+				struct debug_key_value_s debug_message1 = {.key="veld ", .timestamp_ms =current / 1000, .value = -UKF_FLOW_VELD};
+				orb_publish(ORB_ID(debug_key_value), pub_debug, &debug_message1);
+/*
+				static int count = 0;
+				switch(count++) {
+					case 1: {
+						struct debug_key_value_s debug_message1 = {.key="accbias x", .timestamp_ms =current / 1000, .value = UKF_FLOW_ACC_BIAS_X};
+						orb_publish(ORB_ID(debug_key_value), pub_debug, &debug_message1);
+					}
+					break;
+					case 2: {
+						struct debug_key_value_s debug_message2 = {.key="accbias y", .timestamp_ms =current / 1000, .value = UKF_FLOW_ACC_BIAS_Y};
+						orb_publish(ORB_ID(debug_key_value), pub_debug, &debug_message2);
+					}
+					break;
+					case 3: {
+						struct debug_key_value_s debug_message3 = {.key="accbias z", .timestamp_ms =current / 1000, .value = UKF_FLOW_ACC_BIAS_Y};
+						orb_publish(ORB_ID(debug_key_value), pub_debug, &debug_message3);
+					}
+					break;
+					case 4: {
+						struct debug_key_value_s debug_message4 = {.key="gyobias x", .timestamp_ms =current / 1000, .value = UKF_FLOW_GYO_BIAS_X};
+						orb_publish(ORB_ID(debug_key_value), pub_debug, &debug_message4);
+					}
+					break;
+					case 5: {
+						struct debug_key_value_s debug_message5 = {.key="gyobias y", .timestamp_ms =current / 1000, .value = UKF_FLOW_GYO_BIAS_Y};
+						orb_publish(ORB_ID(debug_key_value), pub_debug, &debug_message5);
+					}
+					break;
+					case 6: {
+						struct debug_key_value_s debug_message6 = {.key="gyobias z", .timestamp_ms =current / 1000, .value = UKF_FLOW_GYO_BIAS_Y};
+						orb_publish(ORB_ID(debug_key_value), pub_debug, &debug_message6);
+					}
+					break;
+					default:
+						count = 0;
+						break;
+				}*/
 			}
-			if (debug == true && !(printcounter % 1000))
+			if (debug == true && !(printcounter % 101))
+			{
+				printf("sonar alt:%8.4f\n",local_position_data.z);
+				printf("measured alt:%8.4f\thold alt:%8.4f\ttarget hold speed:%8.4f\n",
+						-UKF_FLOW_PRES_ALT,navFlowData.holdAlt,navFlowData.targetHoldSpeedAlt);
+				printf("alt speed:%8.4f\thold speed:%8.4f\ttthrust:%8.4f\n",
+						-UKF_FLOW_VELD,navFlowData.holdSpeedAlt,att_sp.thrust);
+
+			}
+			else if (debug == true && !(printcounter % 1000))
 			{
 				float frequence = 0;
 				static uint32_t last_measure = 0;
@@ -625,14 +666,15 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 						"holdTiltX:%8.4f\tholdTiltY:%8.4f\tholdThrust:%8.4f\n"
 						"accbx:%8.4f\taccby:%8.4f\taccbz:%8.4f\n"
 						"gbybx:%8.4f\tgbyby:%8.4f\tgbybz:%8.4f\n"
-						"q1:%8.4f\tq2:%8.4f\tq3:%8.4f\tq4:%8.4f\tpresalt:%8.4f\tholdsalt:%8.4f\n",
+						"q1:%8.4f\tq2:%8.4f\tq3:%8.4f\tq4:%8.4f\t"
+						"presalt:%8.4f\tholdsalt:%8.4f\n",
 					navFlowUkfData.x[0],navFlowUkfData.x[1],navFlowUkfData.x[2],
 					navFlowData.holdSpeedX, navFlowData.holdSpeedY, navFlowData.holdSpeedAlt, navFlowData.targetHoldSpeedAlt,
 					navFlowData.holdTiltX, navFlowData.holdTiltY, att_sp.thrust,
 					navFlowUkfData.x[3],navFlowUkfData.x[4],navFlowUkfData.x[5],
 					navFlowUkfData.x[6],navFlowUkfData.x[7],navFlowUkfData.x[8],
-					navFlowUkfData.x[9],navFlowUkfData.x[10],navFlowUkfData.x[11],
-					navFlowUkfData.x[12],navFlowUkfData.x[13],navFlowData.holdAlt);
+					navFlowUkfData.x[9],navFlowUkfData.x[10],navFlowUkfData.x[11],navFlowUkfData.x[12],
+					navFlowUkfData.x[13],navFlowData.holdAlt);
 				printf("roll:    %8.4f\tpitch:   %8.4f\tyaw:   %8.4f\n", (double)att.roll, (double)att.pitch, (double)att.yaw);
 				printf("sp_roll: %8.4f\tsp_pitch:%8.4f\tsp_yaw:%8.4f\tthrust:%8.4f\n",
 										att_sp.roll_body, att_sp.pitch_body, att_sp.yaw_body, att_sp.thrust);

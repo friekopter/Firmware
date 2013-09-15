@@ -20,6 +20,7 @@ void navFlowUkfAccUpdate(float *u, float *x, float *noise, float *y);
 void navFlowUkfMagUpdate(float *u, float *x, float *noise, float *y);
 void navFlowUkfPresUpdate(float *u, float *x, float *noise, float *y);
 void navFlowUkfFlowUpdate(float *u, float *x, float *noise, float *y);
+void navFlowUkfSonarUpdate(float *u, float *x, float *noise, float *y);
 
 bool navFlowIsFlying(const struct vehicle_status_s *current_status){
 	return (!current_status->condition_landed);
@@ -85,14 +86,18 @@ void navFlowUkfMagUpdate(float *u, float *x, float *noise, float *y) {
     y[2] += noise[2];
 }
 
+void navFlowUkfSonarUpdate(float *u, float *x, float *noise, float *y) {
+    y[0] = x[3] + noise[0]; // return velocity
+}
+
 void navFlowUkfPresUpdate(float *u, float *x, float *noise, float *y) {
     y[0] = x[13] + noise[0]; // return altitude
 }
 
-
 void navFlowUkfFlowUpdate(float *u, float *x, float *noise, float *y) {
     y[0] = x[0] + noise[0]; // return velocity
     y[1] = x[1] + noise[1];
+    y[2] = x[2] + noise[2];
 }
 
 void navFlowUkfFinish(void) {
@@ -150,14 +155,12 @@ void navFlowUkfZeroRate(float rate, int axis) {
 void navFlowDoPresUpdate(float pres,
 					 const struct vehicle_control_mode_s *control_mode,
 					 const struct quat_position_control_UKF_params* params) {
-    float noise[2];        // measurement variance
-    float y[2];            // measurment(s)
+    float noise[1];        // measurement variance
+    float y[1];            // measurment(s)
 
-    noise[0] = params->ukf_alt_n;
     noise[0] = params->ukf_alt_n;
 
     y[0] = utilPresToAlt(pres);
-    y[1] = y[0];
 
    	srcdkfMeasurementUpdate(navFlowUkfData.kf, 0, y, 1, 1, noise, navFlowUkfPresUpdate);
 }
@@ -216,26 +219,59 @@ void navFlowDoMagUpdate(float magX, float magY, float magZ,
     srcdkfMeasurementUpdate(navFlowUkfData.kf, 0, y, 3, 3, noise, navFlowUkfMagUpdate);
 }
 
-
-void navFlowUkfFlowVelUpate(
-		const struct filtered_bottom_flow_s* measured_flow,
+void navFlowUkfSonarVelUpate(
+		const struct vehicle_local_position_s* local_position,
 		float dt,
 		const struct vehicle_control_mode_s *control_mode,
 		const struct quat_position_control_UKF_params* params) {
 	// Don't do anything for invalid dt
 	if(dt < FLT_MIN) return;
-    float y[2];
-    float noise[2];
+    float y[1];
+    float noise[1];
 
-	// rotate to earth frame
-    y[0] = measured_flow->vx;
-    y[1] = measured_flow->vy;
-
+	// velocity in earth frame
+    y[0] = local_position->vz;
 
 	noise[0] = params->ukf_flow_vel_n;
-	noise[1] = noise[0];
 
-	srcdkfMeasurementUpdate(navFlowUkfData.kf, 0, y, 2, 2, noise, navFlowUkfFlowUpdate);
+	srcdkfMeasurementUpdate(navFlowUkfData.kf, 0, y, 1, 1, noise, navFlowUkfSonarUpdate);
+}
+
+void navFlowUkfFlowVelUpate(
+		const struct vehicle_local_position_s* local_position,
+		float dt,
+		const struct vehicle_control_mode_s *control_mode,
+		const struct quat_position_control_UKF_params* params) {
+	// Don't do anything for invalid dt
+	if(dt < FLT_MIN) return;
+    float y[3];
+    float noise[3];
+	noise[0] = params->ukf_flow_vel_n;
+	noise[1] = noise[0];
+	noise[2] = noise[0];
+    if(local_position->v_xy_valid) {
+    	// velocity in earth frame
+        y[0] = local_position->vx;
+        y[1] = local_position->vy;
+    } else {
+    	y[0] = 0.0f;
+    	y[1] = 0.0f;
+    	noise[0] = 100.0f;
+    	noise[1] = 100.0f;
+    }
+    if(local_position->v_z_valid) {
+    	y[2] = local_position->vz;
+    } else {
+    	y[2] = 0.0f;
+    	noise[2] = 100.0f;
+    }
+    if (local_position->landed) {
+    	y[0] = 0.0f;
+    	y[1] = 0.0f;
+    	y[2] = 0.0f;
+    }
+    noise[0] *= 0.0001f;
+	srcdkfMeasurementUpdate(navFlowUkfData.kf, 0, y, 3, 3, noise, navFlowUkfFlowUpdate);
 }
 
 void navFlowUkfInitState(const struct sensor_combined_s* sensors) {

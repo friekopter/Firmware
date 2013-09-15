@@ -130,7 +130,7 @@ int attitude_estimator_quat_main(int argc, char *argv[])
 		}
 
 		thread_should_exit = false;
-		attitude_estimator_quat_task = task_spawn("attitude_estimator_quat",
+		attitude_estimator_quat_task = task_spawn_cmd("attitude_estimator_quat",
 							 SCHED_DEFAULT,
 							 SCHED_PRIORITY_MAX - 5,
 							 20000,

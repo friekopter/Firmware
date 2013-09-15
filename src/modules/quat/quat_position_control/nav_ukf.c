@@ -23,10 +23,12 @@
 #include <quat/utils/aq_math.h>
 #include <float.h>
 #include <math.h>
+#include <stdbool.h>
 #include <quat/utils/aq_math.h>
 #include <quat/utils/util.h>
 #include <quat/utils/compass_utils.h>
 #include <drivers/drv_hrt.h>
+#include <geo/geo.h>
 #include <uORB/topics/filtered_bottom_flow.h>
 
 navUkfStruct_t navUkfData __attribute__((section(".ccm")));
@@ -49,7 +51,7 @@ void navUkfVelUpdate(float *u, float *x, float *noise, float *y);
 void navUkfFlowUpdate(float *u, float *x, float *noise, float *y);
 
 bool isFlying(const struct vehicle_status_s *current_status){
-	return (current_status->state_machine > SYSTEM_STATE_GROUND_READY);
+	return (!current_status->condition_landed);
 }
 
 // reset current sea level static pressure based on better GPS estimate
