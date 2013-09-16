@@ -37,6 +37,7 @@ static orb_advert_t subsystem_info_pub = -1;
 
 void navFlowSetHoldAlt(float alt, uint8_t relative);
 void navFlowSetHoldPosition(const struct vehicle_local_position_s* local_position);
+void navFlowResetHoldPosition(void);
 navFlowStruct_t navFlowData __attribute__((section(".ccm")));
 struct subsystem_info_s altitude_control_info = {
 	true,
@@ -67,6 +68,11 @@ void navFlowSetHoldPosition(const struct vehicle_local_position_s* local_positio
 	navFlowData.holdPositionY = local_position->y;
 }
 
+void navFlowResetHoldPosition(void) {
+	navFlowData.holdPositionX = 0.0f;
+	navFlowData.holdPositionY = 0.0f;
+}
+
 void navFlowSetHoldHeading(float targetHeading) {
     // signbit() returns true if negative sign
     if (signbit(targetHeading))
@@ -94,6 +100,9 @@ void navFlowNavigate(
 	bool navCapable = altCapable &&
     		control_mode->flag_control_position_enabled &&
     		control_mode->flag_control_velocity_enabled;
+	if (control_mode->auto_state == NAVIGATION_STATE_AUTO_RTL) {
+		navFlowResetHoldPosition();
+	}
    // do we want to be in position hold mode?
 	if (navCapable) {
 		// are we not in position hold mode now?
@@ -125,15 +134,15 @@ void navFlowNavigate(
 		}
 		// DVH
 		else if (navFlowData.mode != NAV_STATUS_DVH &&
-			(manual_control->pitch > CTRL_DEAD_BAND ||
-			 manual_control->pitch < -CTRL_DEAD_BAND ||
-			 manual_control->roll > CTRL_DEAD_BAND ||
-			 manual_control->roll < -CTRL_DEAD_BAND)) {
+			(fabsf(manual_control->pitch) > CTRL_DEAD_BAND ||
+			 fabsf(manual_control->roll) > CTRL_DEAD_BAND)) {
 				navFlowData.mode = NAV_STATUS_DVH;
 				navPublishSystemInfo();
 				//printf("[quat_flow_pos_control]: DVH activated\n");
 		}
-		else if (navFlowData.mode == NAV_STATUS_DVH) {
+		else if (navFlowData.mode == NAV_STATUS_DVH &&
+				fabsf(manual_control->pitch) < CTRL_DEAD_BAND &&
+				fabsf(manual_control->roll) < CTRL_DEAD_BAND) {
 			// allow speed to drop before holding position (or if RTH engaged)
 			//if (
 			//	   (UKF_VELN < +0.1f &&
