@@ -37,7 +37,7 @@ void navFlowUkfTimeUpdate(float *in, float *noise, float *out, float *u, float d
     out[5] = in[5] + noise[2] * dt;
 
     // gbias
-    out[6]  = in[6]  + noise[3] * dt;
+    out[6] = in[6] + noise[3] * dt;
     out[7] = in[7] + noise[4] * dt;
     out[8] = in[8] + noise[5] * dt;
 
