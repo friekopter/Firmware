@@ -315,9 +315,9 @@ int flow_position_estimator_thread_main(int argc, char *argv[])
 					}
 					else
 					{
-						if (!armed.armed ||
-								(att_sp.thrust < params.minimum_liftoff_thrust &&
-										sonar_new <= 0.3f)) {
+						//Thrust is not enough to signal landing
+						if (!armed.armed //|| (att_sp.thrust < params.minimum_liftoff_thrust && sonar_new <= 0.3f)
+								) {
 							vehicle_liftoff = false;
 							local_pos.landed = true;
 						}
