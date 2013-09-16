@@ -62,7 +62,7 @@
 #define BAT_VOL_LOWPASS_2 0.01f
 #define VOLTAGE_BATTERY_IGNORE_THRESHOLD_VOLTS 3.5f
 
-#define RATE_CALIB_SAMPLES	25
+#define RATE_CALIB_SAMPLES	30
 #define IMU_STATIC_STD		0.05f
 #define IMU_ROOM_TEMP		20.0f
 
@@ -1677,7 +1677,7 @@ Quat_Sensors::gyro_calibrate()
 	}
 	close(fd);
 
-	while(i <= 2 * RATE_CALIB_SAMPLES ||
+	while(i <= 3 * RATE_CALIB_SAMPLES ||
 			(stdX + stdY + stdZ) > IMU_STATIC_STD)
 	{
 		bool gyro_updated;
@@ -1708,7 +1708,7 @@ Quat_Sensors::gyro_calibrate()
    	arm_mean_f32(y,RATE_CALIB_SAMPLES,&meanRate[1]);
    	arm_mean_f32(z,RATE_CALIB_SAMPLES,&meanRate[2]);
 
-    float rateBiasX = +(meanRate[0] + _parameters.gyro_bias[0] + _parameters.gyro_bias1[0]*temp + _parameters.gyro_bias2[0]*temp2 + _parameters.gyro_bias3[0]*temp3);
+    float rateBiasX = +(+meanRate[0] + _parameters.gyro_bias[0] + _parameters.gyro_bias1[0]*temp + _parameters.gyro_bias2[0]*temp2 + _parameters.gyro_bias3[0]*temp3);
     float rateBiasY = -(-meanRate[1] + _parameters.gyro_bias[1] + _parameters.gyro_bias1[1]*temp + _parameters.gyro_bias2[1]*temp2 + _parameters.gyro_bias3[1]*temp3);
     float rateBiasZ = -(-meanRate[2] + _parameters.gyro_bias[2] + _parameters.gyro_bias1[2]*temp + _parameters.gyro_bias2[2]*temp2 + _parameters.gyro_bias3[2]*temp3);
 
