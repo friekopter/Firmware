@@ -68,6 +68,7 @@ struct filtered_bottom_flow_s
 	bool ned_z_valid;			/**< true if z is valid */
 	bool ned_v_xy_valid;		/**< true if vy and vy are valid */
 	bool ned_v_z_valid;			/**< true if vz is valid */
+	bool landed;
 	/* Position in local NED frame */
 	float ned_x;				/**< X position in meters in NED earth-fixed frame */
 	float ned_y;				/**< X position in meters in NED earth-fixed frame */

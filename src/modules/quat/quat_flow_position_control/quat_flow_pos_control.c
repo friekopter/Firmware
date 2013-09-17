@@ -27,7 +27,9 @@
 #include <uORB/topics/manual_control_setpoint.h>
 #include <uORB/topics/vehicle_attitude_setpoint.h>
 #include <uORB/topics/vehicle_global_position.h>
+#include <uORB/topics/filtered_bottom_flow.h>
 #include <uORB/topics/vehicle_local_position_setpoint.h>
+#include <uORB/topics/vehicle_local_position.h>
 #include <uORB/topics/parameter_update.h>
 #include <uORB/topics/filtered_bottom_flow.h>
 #include <uORB/topics/debug_key_value.h>
@@ -49,6 +51,7 @@ static struct manual_control_setpoint_s manual;
 static struct vehicle_control_mode_s control_mode;
 static struct sensor_combined_s raw;
 static struct vehicle_local_position_s local_position_data;
+static struct filtered_bottom_flow_s filtered_bottom_flow_data;
 
 
 static bool thread_should_exit = false;		/**< Deamon exit flag */
@@ -187,6 +190,10 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 	orb_advert_t att_sp_pub = orb_advertise(ORB_ID(vehicle_attitude_setpoint), &att_sp);
 	memset(&att_sp, 0, sizeof(att_sp));
 
+	//publish local position
+	orb_advert_t local_pos_pub = orb_advertise(ORB_ID(vehicle_local_position), &local_position_data);
+	memset(&local_position_data, 0, sizeof(local_position_data));
+
 	//publish position setpoint
 	orb_advert_t local_pos_sp_pub = orb_advertise(ORB_ID(vehicle_local_position_setpoint), &local_position_sp);
 	memset(&local_position_sp, 0, sizeof(local_position_sp));
@@ -224,10 +231,10 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 	orb_set_interval(sub_raw, 5);
 
 	// Flow Velocity
-	int local_position_sub = orb_subscribe(ORB_ID(vehicle_local_position));
-	memset(&local_position_data, 0, sizeof(local_position_data));
-	/* rate-limit parameter updates to 10Hz */
-	orb_set_interval(local_position_sub, 100);
+	int filtered_bottom_flow_sub = orb_subscribe(ORB_ID(filtered_bottom_flow));
+	memset(&filtered_bottom_flow_data, 0, sizeof(filtered_bottom_flow_data));
+	/* rate-limit flow updates to 10Hz */
+	//orb_set_interval(filtered_bottom_flow_sub, 100);
 
 	//Init parameters
 	struct quat_position_control_UKF_params ukf_params;
@@ -246,7 +253,7 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 	perf_counter_t quat_flow_ukf_finish_perf = perf_alloc(PC_ELAPSED, "quat_flow_ukf_finish_perf");
 	struct pollfd fds[5] = {
 		{ .fd = sub_raw,   .events = POLLIN },
-		{ .fd = local_position_sub, .events = POLLIN },
+		{ .fd = filtered_bottom_flow_sub, .events = POLLIN },
 		{ .fd = manual_sub,   .events = POLLIN },
 		{ .fd = sub_params, .events = POLLIN },
 		{ .fd = control_mode_sub, .events = POLLIN }
@@ -415,6 +422,9 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 	navFlowInit(&nav_params,raw.baro_alt_meter,navFlowUkfData.yaw);
 	printf("[quat flow pos control] Starting loop\n");
 
+	///////////////////////////////////////////
+	// Start main loop
+	///////////////////////////////////////////
 	while (!thread_should_exit) {
 
 		int ret = poll(fds, 2, 1000);
@@ -554,8 +564,8 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 			bool mightByFlying = control_mode.flag_armed;
 			if (fds[1].revents & POLLIN)
 			{
-				orb_copy(ORB_ID(vehicle_local_position), local_position_sub, &local_position_data);
-				navFlowUkfFlowVelUpate(&local_position_data,dt,&control_mode,&ukf_params);
+				orb_copy(ORB_ID(filtered_bottom_flow), filtered_bottom_flow_sub, &filtered_bottom_flow_data);
+				navFlowUkfFlowVelUpate(&filtered_bottom_flow_data,dt,&control_mode,&ukf_params);
 			}
 			if(dt < FLT_MIN) {
 				perf_end(quat_flow_pos_loop_perf);
@@ -575,7 +585,7 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 			}
 
 			perf_begin(quat_flow_pos_nav_perf);
-			navFlowNavigate(&control_mode,&nav_params,&manual,&local_position_data, &att, raw.timestamp);
+			navFlowNavigate(&control_mode,&nav_params,&manual,&filtered_bottom_flow_data, &att, raw.timestamp);
 			perf_end(quat_flow_pos_nav_perf);
 
 			// rotate nav's NE frame of reference to our craft's local frame of reference
@@ -595,55 +605,28 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 				orb_publish(ORB_ID(vehicle_attitude_setpoint), att_sp_pub, &att_sp);
 			}
 			perf_end(quat_flow_pos_loop_perf);
-			// print debug information every 1000th time
-			if(!(printcounter % 100)) {
+			if(!(printcounter % 10)) {
 				local_position_sp.x = navFlowData.holdPositionX;
 				local_position_sp.y = navFlowData.holdPositionY;
 				local_position_sp.z = navFlowData.holdAlt;
 				local_position_sp.yaw = navFlowData.holdHeading;
 				orb_publish(ORB_ID(vehicle_local_position_setpoint), local_pos_sp_pub, &local_position_sp);
-				//for debugging only
-				uint32_t current = hrt_absolute_time();
-				struct debug_key_value_s debug_message1 = {.key="veld ", .timestamp_ms =current / 1000, .value = -UKF_FLOW_VELD};
-				orb_publish(ORB_ID(debug_key_value), pub_debug, &debug_message1);
-/*
-				static int count = 0;
-				switch(count++) {
-					case 1: {
-						struct debug_key_value_s debug_message1 = {.key="accbias x", .timestamp_ms =current / 1000, .value = UKF_FLOW_ACC_BIAS_X};
-						orb_publish(ORB_ID(debug_key_value), pub_debug, &debug_message1);
-					}
-					break;
-					case 2: {
-						struct debug_key_value_s debug_message2 = {.key="accbias y", .timestamp_ms =current / 1000, .value = UKF_FLOW_ACC_BIAS_Y};
-						orb_publish(ORB_ID(debug_key_value), pub_debug, &debug_message2);
-					}
-					break;
-					case 3: {
-						struct debug_key_value_s debug_message3 = {.key="accbias z", .timestamp_ms =current / 1000, .value = UKF_FLOW_ACC_BIAS_Y};
-						orb_publish(ORB_ID(debug_key_value), pub_debug, &debug_message3);
-					}
-					break;
-					case 4: {
-						struct debug_key_value_s debug_message4 = {.key="gyobias x", .timestamp_ms =current / 1000, .value = UKF_FLOW_GYO_BIAS_X};
-						orb_publish(ORB_ID(debug_key_value), pub_debug, &debug_message4);
-					}
-					break;
-					case 5: {
-						struct debug_key_value_s debug_message5 = {.key="gyobias y", .timestamp_ms =current / 1000, .value = UKF_FLOW_GYO_BIAS_Y};
-						orb_publish(ORB_ID(debug_key_value), pub_debug, &debug_message5);
-					}
-					break;
-					case 6: {
-						struct debug_key_value_s debug_message6 = {.key="gyobias z", .timestamp_ms =current / 1000, .value = UKF_FLOW_GYO_BIAS_Y};
-						orb_publish(ORB_ID(debug_key_value), pub_debug, &debug_message6);
-					}
-					break;
-					default:
-						count = 0;
-						break;
-				}*/
+			} else if(!(printcounter % 11)) {
+				local_position_data.x = filtered_bottom_flow_data.ned_x;
+				local_position_data.y = filtered_bottom_flow_data.ned_y;
+				local_position_data.xy_valid = filtered_bottom_flow_data.ned_xy_valid;
+				local_position_data.z = UKF_FLOW_PRES_ALT;
+				local_position_data.z_valid = true;
+				local_position_data.vx = UKF_FLOW_VELX;
+				local_position_data.vy = UKF_FLOW_VELY;
+				local_position_data.v_xy_valid = true;
+				local_position_data.vz = UKF_FLOW_VELD;
+				local_position_data.v_z_valid = true;
+				local_position_data.timestamp = raw.timestamp;
+				local_position_data.yaw = att.yaw;
+				orb_publish(ORB_ID(vehicle_local_position), local_pos_pub, &local_position_data);
 			}
+			// print debug information every 1000th time
 			if (debug == true && !(printcounter % 101))
 			{
 				printf("sonar alt:%8.4f\n",local_position_data.z);

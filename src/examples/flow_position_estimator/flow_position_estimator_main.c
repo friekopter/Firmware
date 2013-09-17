@@ -200,25 +200,27 @@ int flow_position_estimator_thread_main(int argc, char *argv[])
 	/* subscribe to optical flow*/
 	int optical_flow_sub = orb_subscribe(ORB_ID(optical_flow));
 
-	/* init local position and filtered flow struct */
-	struct vehicle_local_position_s local_pos = {
-			.x = 0.0f,
-			.y = 0.0f,
-			.z = 0.0f,
-			.vx = 0.0f,
-			.vy = 0.0f,
-			.vz = 0.0f
-	};
 	struct filtered_bottom_flow_s filtered_flow = {
 			.sumx = 0.0f,
 			.sumy = 0.0f,
 			.vx = 0.0f,
 			.vy = 0.0f,
-			.ground_distance = 0.0f
+			.ground_distance = 0.0f,
+			.ned_xy_valid = false,
+			.ned_z_valid = false,
+			.ned_v_xy_valid = false,
+			.ned_v_z_valid = false,
+			.landed = false,
+			.ned_x = 0.0f,
+			.ned_y = 0.0f,
+			.ned_z = 0.0f,
+			.ned_vx = 0.0f,
+			.ned_vy = 0.0f,
+			.ned_vz = 0.0f,
+			.yaw = 0.0f
 	};
 
 	/* advert pub messages */
-	orb_advert_t local_pos_pub = orb_advertise(ORB_ID(vehicle_local_position), &local_pos);
 	orb_advert_t filtered_flow_pub = orb_advertise(ORB_ID(filtered_bottom_flow), &filtered_flow);
 
 	/* vehicle flying status parameters */
@@ -288,10 +290,10 @@ int flow_position_estimator_thread_main(int argc, char *argv[])
 					orb_copy(ORB_ID(actuator_armed), armed_sub, &armed);
 					orb_copy(ORB_ID(vehicle_control_mode), control_mode_sub, &control_mode);
 					if(!control_mode.flag_control_velocity_enabled) {
-						local_pos.x = 0.0f;
-						local_pos.y = 0.0f;
-						local_pos.vx = 0.0f;
-						local_pos.vy = 0.0f;
+						filtered_flow.ned_x = 0.0f;
+						filtered_flow.ned_y = 0.0f;
+						filtered_flow.ned_vx = 0.0f;
+						filtered_flow.ned_vy = 0.0f;
 						filtered_flow.sumx = 0.0f;
 						filtered_flow.sumy = 0.0f;
 					}
@@ -310,7 +312,7 @@ int flow_position_estimator_thread_main(int argc, char *argv[])
 							att_sp.thrust > params.minimum_liftoff_thrust &&
 							sonar_new > 0.3f && sonar_new < 1.0f) {
 							vehicle_liftoff = true;
-							local_pos.landed = false;
+							filtered_flow.landed = false;
 						}
 					}
 					else
@@ -319,7 +321,7 @@ int flow_position_estimator_thread_main(int argc, char *argv[])
 						if (!armed.armed //|| (att_sp.thrust < params.minimum_liftoff_thrust && sonar_new <= 0.3f)
 								) {
 							vehicle_liftoff = false;
-							local_pos.landed = true;
+							filtered_flow.landed = true;
 						}
 					}
 
@@ -371,22 +373,22 @@ int flow_position_estimator_thread_main(int argc, char *argv[])
 							global_speed[i] = sum;
 						}
 
-						local_pos.x = local_pos.x + global_speed[0] * dt;
-						local_pos.y = local_pos.y + global_speed[1] * dt;
-						local_pos.vx = global_speed[0];
-						local_pos.vy = global_speed[1];
-						local_pos.xy_valid = true;
-						local_pos.v_xy_valid = true;
+						filtered_flow.ned_x = filtered_flow.ned_x + global_speed[0] * dt;
+						filtered_flow.ned_y = filtered_flow.ned_y + global_speed[1] * dt;
+						filtered_flow.ned_vx = global_speed[0];
+						filtered_flow.ned_vy = global_speed[1];
+						filtered_flow.ned_xy_valid = true;
+						filtered_flow.ned_v_xy_valid = true;
 					}
 					else
 					{
 						/* set speed to zero and let position as it is */
 						filtered_flow.vx = 0;
 						filtered_flow.vy = 0;
-						local_pos.vx = 0;
-						local_pos.vy = 0;
-						local_pos.xy_valid = false;
-						local_pos.v_xy_valid = false;
+						filtered_flow.ned_vx = 0;
+						filtered_flow.ned_vy = 0;
+						filtered_flow.ned_xy_valid = false;
+						filtered_flow.ned_v_xy_valid = false;
 					}
 
 					/* filtering ground distance */
@@ -394,7 +396,7 @@ int flow_position_estimator_thread_main(int argc, char *argv[])
 					{
 						/* not possible to fly */
 						sonar_valid = false;
-						local_pos.z = 0.0f;
+						filtered_flow.ned_z = 0.0f;
 					}
 					else
 					{
@@ -416,41 +418,41 @@ int flow_position_estimator_thread_main(int argc, char *argv[])
 						/* if over 1/2m spike follow lowpass */
 						if (height_diff < -params.sonar_lower_lp_threshold || height_diff > params.sonar_upper_lp_threshold)
 						{
-							local_pos.z = -sonar_lp;
+							filtered_flow.ned_z = -sonar_lp;
 							filtered_flow.ground_distance = -sonar_lp;
 						}
 						else
 						{
-							local_pos.z = -sonar_new;
+							filtered_flow.ned_z = -sonar_new;
 							filtered_flow.ground_distance = -sonar_new;
 						}
 						// Velocity
 						// Only calculate if last measurement was valid
-						if(local_pos.z_valid && (dt > FLT_MIN)) {
-							float distance = local_pos.z - sonar_last_measurement;
+						if(filtered_flow.ned_z_valid && (dt > FLT_MIN)) {
+							float distance = filtered_flow.ned_z - sonar_last_measurement;
 							sonar_speed = distance/dt;
 							// smooth
-							local_pos.vz += (sonar_speed - local_pos.vz) * 0.1f;
-							local_pos.v_z_valid = true;
+							filtered_flow.ned_vz += (sonar_speed - filtered_flow.ned_vz) * 1.0f;
+							filtered_flow.ned_v_z_valid = true;
 						} else {
-							local_pos.vz = 0.0f;
-							local_pos.v_z_valid = false;
+							filtered_flow.ned_vz = 0.0f;
+							filtered_flow.ned_v_z_valid = false;
 						}
-						sonar_last_measurement = local_pos.z;
-						local_pos.z_valid = true;
+						sonar_last_measurement = filtered_flow.ned_z;
+						filtered_flow.ned_z_valid = true;
 					}
 					else
 					{
-						local_pos.vz = 0.0f;
-						local_pos.v_z_valid = false;
-						local_pos.z_valid = false;
+						filtered_flow.ned_vz = 0.0f;
+						filtered_flow.ned_v_z_valid = false;
+						filtered_flow.ned_z_valid = false;
 					}
 
 					quality = (quality + ((float)flow.quality)*0.1f)/1.1f;
 					if(quality < (float)params.minimum_quality){
 						//invalidate position for bad quality
-						local_pos.xy_valid = false;
-						local_pos.v_xy_valid = false;
+						filtered_flow.ned_xy_valid = false;
+						filtered_flow.ned_v_xy_valid = false;
 					}
 
 					// publish subsystem info for flow
@@ -466,20 +468,11 @@ int flow_position_estimator_thread_main(int argc, char *argv[])
 					}
 
 					/* always publish local position */
-					local_pos.timestamp = hrt_absolute_time();
-					if(isfinite(local_pos.x) && isfinite(local_pos.y) && isfinite(local_pos.z)
-							&& isfinite(local_pos.vx) && isfinite(local_pos.vy))
+					filtered_flow.timestamp = hrt_absolute_time();
+					if(isfinite(filtered_flow.ned_x) && isfinite(filtered_flow.ned_y) && isfinite(filtered_flow.ned_z)
+							&& isfinite(filtered_flow.ned_vx) && isfinite(filtered_flow.ned_vy))
 					{
-						orb_publish(ORB_ID(vehicle_local_position), local_pos_pub, &local_pos);
-					}
-
-					if( local_pos.xy_valid ) {
-						/* publish filtered flow */
-						filtered_flow.timestamp = hrt_absolute_time();
-						if(isfinite(filtered_flow.sumx) && isfinite(filtered_flow.sumy) && isfinite(filtered_flow.vx) && isfinite(filtered_flow.vy))
-						{
-							orb_publish(ORB_ID(filtered_bottom_flow), filtered_flow_pub, &filtered_flow);
-						}
+						orb_publish(ORB_ID(filtered_bottom_flow), filtered_flow_pub, &filtered_flow);
 					}
 
 					/* measure in what intervals the position estimator runs */

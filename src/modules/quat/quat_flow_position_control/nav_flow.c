@@ -36,7 +36,7 @@
 static orb_advert_t subsystem_info_pub = -1;
 
 void navFlowSetHoldAlt(float alt, uint8_t relative);
-void navFlowSetHoldPosition(const struct vehicle_local_position_s* local_position);
+void navFlowSetHoldPosition(const struct filtered_bottom_flow_s* local_position);
 void navFlowResetHoldPosition(void);
 navFlowStruct_t navFlowData __attribute__((section(".ccm")));
 struct subsystem_info_s altitude_control_info = {
@@ -63,9 +63,9 @@ void navFlowSetHoldAlt(float alt, uint8_t relative) {
 	navFlowData.holdAlt = alt;
 }
 
-void navFlowSetHoldPosition(const struct vehicle_local_position_s* local_position) {
-	navFlowData.holdPositionX = local_position->x;
-	navFlowData.holdPositionY = local_position->y;
+void navFlowSetHoldPosition(const struct filtered_bottom_flow_s* local_position) {
+	navFlowData.holdPositionX = local_position->ned_x;
+	navFlowData.holdPositionY = local_position->ned_y;
 }
 
 void navFlowResetHoldPosition(void) {
@@ -87,7 +87,7 @@ void navFlowNavigate(
 		const struct vehicle_control_mode_s *control_mode,
 		const struct quat_position_control_NAV_params* params,
 		const struct manual_control_setpoint_s* manual_control,
-		const struct vehicle_local_position_s* local_position,
+		const struct filtered_bottom_flow_s* bottom_flow,
 		struct vehicle_attitude_s* att,
 		uint64_t imu_timestamp
 		) {
@@ -109,7 +109,7 @@ void navFlowNavigate(
 		if (navFlowData.mode != NAV_STATUS_POSHOLD &&
 			navFlowData.mode != NAV_STATUS_DVH) {
 
-			navFlowSetHoldPosition(local_position);
+			navFlowSetHoldPosition(bottom_flow);
 
 			// only zero bias if coming from lower mode
 			if (navFlowData.mode < NAV_STATUS_POSHOLD) {
@@ -155,7 +155,7 @@ void navFlowNavigate(
 				navPublishSystemInfo();
 				navFlowData.holdSpeedX = 0.0f;
 				navFlowData.holdSpeedY = 0.0f;
-				navFlowSetHoldPosition(local_position);
+				navFlowSetHoldPosition(bottom_flow);
 				printf("[quat_flow_pos_control]: Position hold activated from DVH\n");
 			//}
 		}
@@ -206,12 +206,12 @@ void navFlowNavigate(
 
 		navFlowData.holdSpeedX = x;
 		navFlowData.holdSpeedY = y;
-		navFlowSetHoldPosition(local_position);
+		navFlowSetHoldPosition(bottom_flow);
     }
     else {
 		// distance => velocity
-    	navFlowData.holdSpeedX = pidUpdate(navFlowData.distanceXPID, navFlowData.holdPositionX, local_position->x);
-    	navFlowData.holdSpeedY = pidUpdate(navFlowData.distanceYPID, navFlowData.holdPositionY, local_position->y);
+    	navFlowData.holdSpeedX = pidUpdate(navFlowData.distanceXPID, navFlowData.holdPositionX, bottom_flow->ned_x);
+    	navFlowData.holdSpeedY = pidUpdate(navFlowData.distanceYPID, navFlowData.holdPositionY, bottom_flow->ned_y);
     }
 
     if (fabs(navFlowData.holdSpeedX) > FLT_MIN || fabs(navFlowData.holdSpeedY) > FLT_MIN) {
