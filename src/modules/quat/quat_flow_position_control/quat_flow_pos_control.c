@@ -203,8 +203,8 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 	memset(&att, 0, sizeof(att));
 
 	//Debug only
-	orb_advert_t pub_debug = orb_advertise(ORB_ID(debug_key_value), &debug);
-	memset(&debug, 0, sizeof(debug));
+	//orb_advert_t pub_debug = orb_advertise(ORB_ID(debug_key_value), &debug_data);
+	//memset(&debug_data, 0, sizeof(debug_data));
 
 	// Inputs
 	// manual control
@@ -572,7 +572,7 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 				continue;
 			}
 			if (!(loopcounter % 100) && !mightByFlying ) {
-			    static uint32_t axis = 0;
+			    static int axis = 0;
 			    float stdX, stdY, stdZ;
 
 			    arm_std_f32(runData.accHist[0], RUN_SENSOR_HIST, &stdX);
@@ -580,7 +580,8 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 			    arm_std_f32(runData.accHist[2], RUN_SENSOR_HIST, &stdZ);
 
 			    if ((stdX + stdY + stdZ) < (IMU_STATIC_STD*2)) {
-			    	navFlowUkfZeroRate(raw.gyro_rad_s[2], (axis++) % 3);
+			    	int current_axis = (axis++) % 3;
+			    	navFlowUkfZeroRate(raw.gyro_rad_s[current_axis], current_axis);
 			    }
 			}
 
@@ -605,6 +606,10 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 				orb_publish(ORB_ID(vehicle_attitude_setpoint), att_sp_pub, &att_sp);
 			}
 			perf_end(quat_flow_pos_loop_perf);
+
+			//struct debug_key_value_s debug_message = {.key="alspeed", .timestamp_ms =filtered_bottom_flow_data.timestamp / 1000, .value = filtered_bottom_flow_data.ned_vz};
+			//orb_publish(ORB_ID(debug_key_value), pub_debug, &debug_message);
+
 			if(!(printcounter % 10)) {
 				local_position_sp.x = navFlowData.holdPositionX;
 				local_position_sp.y = navFlowData.holdPositionY;
@@ -625,6 +630,7 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 				local_position_data.timestamp = raw.timestamp;
 				local_position_data.yaw = att.yaw;
 				orb_publish(ORB_ID(vehicle_local_position), local_pos_pub, &local_position_data);
+
 			}
 			// print debug information every 1000th time
 			if (debug == true && !(printcounter % 101))

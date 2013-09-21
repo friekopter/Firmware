@@ -34,6 +34,7 @@
     	ukf_dist_n,
     	ukf_mag_n,
     	ukf_flow_vel_n,
+    	ukf_flow_vel_alt_n,
     	ukf_pos_delay,
     	ukf_vel_delay;
     };
@@ -51,7 +52,6 @@
         	nav_dist_pm,
         	nav_dist_im,
         	nav_dist_om,
-#include <systemlib/visibility.h>
         	nav_alt_speed_p,
         	nav_alt_speed_i,
         	nav_alt_speed_pm,
@@ -76,7 +76,6 @@
 		ukf_acc_bias_v,
 		ukf_gyo_bias_v,
 		ukf_rate_v,
-#include <systemlib/visibility.h>
     	ukf_pres_alt_v,
 		ukf_pos_v,
 		ukf_vel_v,
@@ -95,6 +94,7 @@
 		ukf_dist_n,
 		ukf_mag_n,
     	ukf_flow_vel_n,
+    	ukf_flow_vel_alt_n,
 		ukf_pos_delay,
 		ukf_vel_delay;
     };

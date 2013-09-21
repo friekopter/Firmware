@@ -26,6 +26,7 @@
     PARAM_DEFINE_FLOAT(Q_U_GPS_VEL_M_N, +1.2336e-02f);
     PARAM_DEFINE_FLOAT(Q_U_GPS_VEL_N, +4.6256e-02f);
     PARAM_DEFINE_FLOAT(Q_U_FLOW_VEL_N, +1e-03f);
+    PARAM_DEFINE_FLOAT(Q_U_FLOW_VELA_N, +1e-03f);
     PARAM_DEFINE_FLOAT(Q_U_GYO_BIAS_Q, +4.6872e-02f);
     PARAM_DEFINE_FLOAT(Q_U_GYO_BIAS_V, +8.2738e-07f);
     PARAM_DEFINE_FLOAT(Q_U_MAG_N, +3.8226e-01f);
@@ -119,6 +120,7 @@ int parameters_init(struct quat_position_control_NAV_param_handles *nav,
 	ukf->ukf_gyo_bias_v = param_find("Q_U_GYO_BIAS_V");
 	ukf->ukf_mag_n = param_find("Q_U_MAG_N");
 	ukf->ukf_flow_vel_n = param_find("Q_U_FLOW_VEL_N");
+	ukf->ukf_flow_vel_alt_n = param_find("Q_U_FLOW_VELA_N");
 	ukf->ukf_pos_alt_q = param_find("Q_U_POS_ALT_Q");
 	ukf->ukf_pos_delay = param_find("Q_U_POS_DELAY");
 	ukf->ukf_pos_q = param_find("Q_U_POS_Q");
@@ -178,6 +180,7 @@ int parameters_update(const struct quat_position_control_NAV_param_handles *nav_
 	param_get(ukf_handles->ukf_gyo_bias_q, &(ukf_params->ukf_gyo_bias_q));
 	param_get(ukf_handles->ukf_gyo_bias_v, &(ukf_params->ukf_gyo_bias_v));
 	param_get(ukf_handles->ukf_flow_vel_n, &(ukf_params->ukf_flow_vel_n));
+	param_get(ukf_handles->ukf_flow_vel_alt_n, &(ukf_params->ukf_flow_vel_alt_n));
 	param_get(ukf_handles->ukf_mag_n, &(ukf_params->ukf_mag_n));
 	param_get(ukf_handles->ukf_pos_alt_q, &(ukf_params->ukf_pos_alt_q));
 	param_get(ukf_handles->ukf_pos_delay, &(ukf_params->ukf_pos_delay));

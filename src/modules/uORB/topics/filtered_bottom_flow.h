@@ -63,6 +63,7 @@ struct filtered_bottom_flow_s
 	float vx; 				/**< Flow bodyframe x speed, m/s							   */
 	float vy;				/**< Flow bodyframe y Speed, m/s 				   */
 	float ground_distance;  /**< Ground distance in m */
+	uint32_t sonar_counter;	/**< Raised by one if new measurement arrived */
 
 	bool ned_xy_valid;			/**< true if x and y are valid */
 	bool ned_z_valid;			/**< true if z is valid */

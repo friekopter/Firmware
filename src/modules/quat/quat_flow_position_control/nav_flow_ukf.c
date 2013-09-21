@@ -246,9 +246,11 @@ void navFlowUkfFlowVelUpate(
 	if(dt < FLT_MIN) return;
     float y[3];
     float noise[3];
+    uint8_t dim = 3;
+    static uint64_t sonarCount = 0;
 	noise[0] = params->ukf_flow_vel_n;
 	noise[1] = noise[0];
-	noise[2] = noise[0];
+	noise[2] = params->ukf_flow_vel_alt_n;
     if(bottom_flow->ned_v_xy_valid) {
     	// velocity in earth frame
         y[0] = bottom_flow->ned_vx;
@@ -259,13 +261,26 @@ void navFlowUkfFlowVelUpate(
     	noise[0] = 100.0f;
     	noise[1] = 100.0f;
     }
+
     if(bottom_flow->ned_v_z_valid) {
-    	y[2] = bottom_flow->ned_vz;
+        if(bottom_flow->sonar_counter > sonarCount) {
+        	y[2] = bottom_flow->ned_vz;
+        	sonarCount = bottom_flow->sonar_counter;
+        }
+        else {
+        	y[2] = 0;
+        	dim = 2;
+        }
     } else {
     	y[2] = 0.0f;
     	noise[2] = 100.0f;
     }
-	srcdkfMeasurementUpdate(navFlowUkfData.kf, 0, y, 3, 3, noise, navFlowUkfFlowUpdate);
+    if(!control_mode->flag_armed) {
+    	noise[0] = 1e-5f;
+    	noise[1] = noise[0];
+    	noise[2] = noise[0];
+    }
+	srcdkfMeasurementUpdate(navFlowUkfData.kf, 0, y, dim, dim, noise, navFlowUkfFlowUpdate);
 }
 
 void navFlowUkfInitState(const struct sensor_combined_s* sensors) {

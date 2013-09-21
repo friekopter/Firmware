@@ -76,6 +76,7 @@ static bool thread_running = false;		/**< Daemon status flag */
 static int daemon_task;				/**< Handle of daemon task / thread */
 static bool flow_valid = false;
 static orb_advert_t flow_subsystem_info_pub = -1;
+static bool debug = false;
 struct subsystem_info_s flow_control_info = {
 	true,
 	false,
@@ -106,8 +107,10 @@ int flow_position_estimator_main(int argc, char *argv[])
 {
 	if (argc < 1)
 		usage("missing command");
-
-	if (!strcmp(argv[1], "start"))
+	if (!strcmp(argv[1], "debug")){
+			debug = true;
+	}
+	if (!strcmp(argv[1], "start") || !strcmp(argv[1], "debug"))
 	{
 		if (thread_running)
 		{
@@ -164,6 +167,7 @@ int flow_position_estimator_thread_main(int argc, char *argv[])
 	static uint64_t time_last_flow = 0; // in ms
 	static float dt = 0.0f; // seconds
 	static float sonar_last_measurement = 0.0f;
+	static uint64_t sonar_last_timestamp = 0;
 	static float sonar_speed = 0.0f;
 	static float sonar_last = 0.0f;
 	static bool sonar_valid = false;
@@ -206,6 +210,7 @@ int flow_position_estimator_thread_main(int argc, char *argv[])
 			.vx = 0.0f,
 			.vy = 0.0f,
 			.ground_distance = 0.0f,
+			.sonar_counter = 0,
 			.ned_xy_valid = false,
 			.ned_z_valid = false,
 			.ned_v_xy_valid = false,
@@ -428,17 +433,38 @@ int flow_position_estimator_thread_main(int argc, char *argv[])
 						}
 						// Velocity
 						// Only calculate if last measurement was valid
-						if(filtered_flow.ned_z_valid && (dt > FLT_MIN)) {
-							float distance = filtered_flow.ned_z - sonar_last_measurement;
-							sonar_speed = distance/dt;
-							// smooth
-							filtered_flow.ned_vz += (sonar_speed - filtered_flow.ned_vz) * 1.0f;
-							filtered_flow.ned_v_z_valid = true;
-						} else {
-							filtered_flow.ned_vz = 0.0f;
-							filtered_flow.ned_v_z_valid = false;
+
+						float time_since_last_sonar = ((float)(filtered_flow.timestamp - sonar_last_timestamp))/1000000.0f;
+						if(debug) printf("..m:%8.4f\tv:%8.4f\n", filtered_flow.ned_z, time_since_last_sonar);
+
+						if(time_since_last_sonar > 0.09f &&
+								(sonar_last_measurement != filtered_flow.ned_z || time_since_last_sonar > 0.11f)) {
+
+							if(filtered_flow.ned_z_valid &&
+							   time_since_last_sonar > FLT_MIN) {
+
+								float distance = filtered_flow.ned_z - sonar_last_measurement;
+								sonar_speed = distance/time_since_last_sonar;
+								// smooth
+								filtered_flow.ned_vz += (sonar_speed - filtered_flow.ned_vz) * 1.0f;
+								if(debug) printf("m:%8.4f\tl:%8.4f\td:%8.4f\tt:%8.4f\tv:%8.4f\n",
+										filtered_flow.ned_z, sonar_last_measurement, distance, time_since_last_sonar, filtered_flow.ned_vz);
+
+								filtered_flow.ned_v_z_valid = true;
+								filtered_flow.sonar_counter++;
+								sonar_last_timestamp = filtered_flow.timestamp;
+								sonar_last_measurement = filtered_flow.ned_z;
+							} else {
+								filtered_flow.ned_vz = 0.0f;
+								filtered_flow.ned_v_z_valid = false;
+								sonar_last_timestamp = filtered_flow.timestamp;
+								sonar_last_measurement = filtered_flow.ned_z;
+								if(debug) printf("v:%d\tt:%8.4f\n",filtered_flow.ned_z_valid,
+										time_since_last_sonar);
+							}
+
 						}
-						sonar_last_measurement = filtered_flow.ned_z;
+
 						filtered_flow.ned_z_valid = true;
 					}
 					else
