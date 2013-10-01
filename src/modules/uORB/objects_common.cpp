@@ -190,3 +190,6 @@ ORB_DEFINE(navigation_capabilities, struct navigation_capabilities_s);
 
 #include "topics/esc_status.h"
 ORB_DEFINE(esc_status, struct esc_status_s);
+
+#include "topics/ukf_state_vector.h"
+ORB_DEFINE(ukf_state_vector, struct ukf_state_vector_s);

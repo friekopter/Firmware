@@ -33,6 +33,7 @@
 #include <uORB/topics/parameter_update.h>
 #include <uORB/topics/filtered_bottom_flow.h>
 #include <uORB/topics/debug_key_value.h>
+#include <uORB/topics/ukf_state_vector.h>
 #include <systemlib/systemlib.h>
 #include <systemlib/perf_counter.h>
 #include <quat/quat_position_control/quat_pos_control_params.h>
@@ -52,12 +53,15 @@ static struct vehicle_control_mode_s control_mode;
 static struct sensor_combined_s raw;
 static struct vehicle_local_position_s local_position_data;
 static struct filtered_bottom_flow_s filtered_bottom_flow_data;
+static struct ukf_state_vector_s ukf_state;
 
 
 static bool thread_should_exit = false;		/**< Deamon exit flag */
 static bool thread_running = false;		/**< Deamon status flag */
 static int deamon_task;				/**< Handle of deamon task / thread */
 static bool debug = false;
+static int32_t run_sensor_hist = 0;
+
 
 __EXPORT int quat_flow_pos_control_main(int argc, char *argv[]);
 
@@ -71,6 +75,17 @@ static int quat_flow_pos_control_thread_main(int argc, char *argv[]);
  */
 static void usage(const char *reason);
 
+static void
+setRunSensorHistNumber(int32_t number)
+{
+	run_sensor_hist = number;
+	if(run_sensor_hist > RUN_SENSOR_HIST_MAX) {
+		run_sensor_hist = RUN_SENSOR_HIST_MAX;
+	}
+	if(run_sensor_hist < 1) {
+		run_sensor_hist = 1;
+	}
+}
 
 static void
 usage(const char *reason)
@@ -100,7 +115,7 @@ static void quat_flow_pos_runInit(const struct sensor_combined_s* sensors) {
 
     pres = sensors->baro_pres_mbar;
 
-    for (i = 0; i < RUN_SENSOR_HIST; i++) {
+    for (i = 0; i < RUN_SENSOR_HIST_MAX; i++) {
 	runData.accHist[0][i] = acc[0];
 	runData.accHist[1][i] = acc[1];
 	runData.accHist[2][i] = acc[2];
@@ -202,6 +217,10 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 	orb_advert_t pub_att = orb_advertise(ORB_ID(vehicle_attitude), &att);
 	memset(&att, 0, sizeof(att));
 
+	// UKF state
+	orb_advert_t pub_ukf_state = orb_advertise(ORB_ID(ukf_state_vector), &ukf_state);
+	memset(&ukf_state, 0, sizeof(ukf_state));
+
 	//Debug only
 	//orb_advert_t pub_debug = orb_advertise(ORB_ID(debug_key_value), &debug_data);
 	//memset(&debug_data, 0, sizeof(debug_data));
@@ -223,19 +242,6 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 	int sub_params = orb_subscribe(ORB_ID(parameter_update));
 	/* rate-limit parameter updates to 1Hz */
 	orb_set_interval(sub_params, 1000);
-
-	// Raw data
-	int sub_raw = orb_subscribe(ORB_ID(sensor_combined));
-	memset(&raw, 0, sizeof(raw));
-	/* rate-limit raw data updates to 150Hz(200Hz) */
-	orb_set_interval(sub_raw, 5);
-
-	// Flow Velocity
-	int filtered_bottom_flow_sub = orb_subscribe(ORB_ID(filtered_bottom_flow));
-	memset(&filtered_bottom_flow_data, 0, sizeof(filtered_bottom_flow_data));
-	/* rate-limit flow updates to 10Hz */
-	//orb_set_interval(filtered_bottom_flow_sub, 100);
-
 	//Init parameters
 	struct quat_position_control_UKF_params ukf_params;
 	struct quat_position_control_UKF_param_handles ukf_handles;
@@ -243,6 +249,19 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 	struct quat_position_control_NAV_param_handles nav_handles;
 	parameters_init(&nav_handles, &ukf_handles);
 	parameters_update(&nav_handles, &nav_params, &ukf_handles, &ukf_params);
+	setRunSensorHistNumber(ukf_params.ukf_sens_hist);
+
+	// Raw data
+	int sub_raw = orb_subscribe(ORB_ID(sensor_combined));
+	memset(&raw, 0, sizeof(raw));
+	/* rate-limit raw data updates to 150Hz(200Hz) */
+	orb_set_interval(sub_raw, (unsigned)ukf_params.ukf_raw_intv);
+
+	// Flow Velocity
+	int filtered_bottom_flow_sub = orb_subscribe(ORB_ID(filtered_bottom_flow));
+	memset(&filtered_bottom_flow_data, 0, sizeof(filtered_bottom_flow_data));
+	/* rate-limit flow updates to 10Hz */
+	//orb_set_interval(filtered_bottom_flow_sub, 100);
 
 	sleep(2);
 	/* register the perf counter */
@@ -441,7 +460,6 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 		{
 			static float dt = 0;
 			perf_begin(quat_flow_pos_loop_perf);
-			/* only update parameters if state changed */
 			bool updated = false;
 			orb_check(fds[4].fd, &updated);
 			if (updated) {
@@ -456,6 +474,8 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 				orb_copy(ORB_ID(parameter_update), sub_params, &update);
 				/* update parameters */
 				parameters_update(&nav_handles, &nav_params, &ukf_handles, &ukf_params);
+				orb_set_interval(sub_raw, (unsigned)ukf_params.ukf_raw_intv);
+				setRunSensorHistNumber(ukf_params.ukf_sens_hist);
 			}
 			orb_check(fds[2].fd, &updated);
 			if (updated)
@@ -492,7 +512,7 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 					runData.sumAcc[0] += runData.accHist[0][runData.accHistIndex];
 					runData.sumAcc[1] += runData.accHist[1][runData.accHistIndex];
 					runData.sumAcc[2] += runData.accHist[2][runData.accHistIndex];
-					runData.accHistIndex = (runData.accHistIndex + 1) % RUN_SENSOR_HIST;
+					runData.accHistIndex = (runData.accHistIndex + 1) % run_sensor_hist;
 				}
 
 				// mag
@@ -511,7 +531,7 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 					runData.sumMag[0] += runData.magHist[0][runData.magHistIndex];
 					runData.sumMag[1] += runData.magHist[1][runData.magHistIndex];
 					runData.sumMag[2] += runData.magHist[2][runData.magHistIndex];
-					runData.magHistIndex = (runData.magHistIndex + 1) % RUN_SENSOR_HIST;
+					runData.magHistIndex = (runData.magHistIndex + 1) % run_sensor_hist;
 				}
 
 				// pressure
@@ -522,25 +542,25 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 					runData.sumPres -= runData.presHist[runData.presHistIndex];
 					runData.presHist[runData.presHistIndex] = raw.baro_pres_mbar;
 					runData.sumPres += runData.presHist[runData.presHistIndex];
-					runData.presHistIndex = (runData.presHistIndex + 1) % RUN_SENSOR_HIST;
+					runData.presHistIndex = (runData.presHistIndex + 1) % run_sensor_hist;
 				}
 
 				if (!(loopcounter % 20)) {
-				   navFlowDoAccUpdate(	runData.sumAcc[0]*(1.0f / (float)RUN_SENSOR_HIST),
-						   	   	   	runData.sumAcc[1]*(1.0f / (float)RUN_SENSOR_HIST),
-						   	   	   	runData.sumAcc[2]*(1.0f / (float)RUN_SENSOR_HIST),
+				   navFlowDoAccUpdate(	runData.sumAcc[0]*(1.0f / (float)run_sensor_hist),
+						   	   	   	runData.sumAcc[1]*(1.0f / (float)run_sensor_hist),
+						   	   	   	runData.sumAcc[2]*(1.0f / (float)run_sensor_hist),
 						   	   	   	&control_mode,
 						   	   	   	&ukf_params);
 				}
 				else if (!((loopcounter+7) % 20)) {
-					navFlowDoPresUpdate(runData.sumPres*(1.0f / (float)RUN_SENSOR_HIST),
+					navFlowDoPresUpdate(runData.sumPres*(1.0f / (float)run_sensor_hist),
 				   	   	   			&control_mode,
 				   	   	   			&ukf_params);
 				}
 				else if (!((loopcounter+14) % 20)) {
-					navFlowDoMagUpdate(runData.sumMag[0]*(1.0f / (float)RUN_SENSOR_HIST),
-									  runData.sumMag[1]*(1.0f / (float)RUN_SENSOR_HIST),
-									  runData.sumMag[2]*(1.0f / (float)RUN_SENSOR_HIST),
+					navFlowDoMagUpdate(runData.sumMag[0]*(1.0f / (float)run_sensor_hist),
+									  runData.sumMag[1]*(1.0f / (float)run_sensor_hist),
+									  runData.sumMag[2]*(1.0f / (float)run_sensor_hist),
 									  &control_mode,
 									  &ukf_params);
 				}
@@ -552,9 +572,9 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 				att.roll = navFlowUkfData.roll;
 				att.pitch = navFlowUkfData.pitch;
 				att.yaw = navFlowUkfData.yaw;
-				att.rollspeed = raw.gyro_rad_s[0];
-				att.pitchspeed = raw.gyro_rad_s[1];
-				att.yawspeed = raw.gyro_rad_s[2];
+				att.rollspeed = raw.gyro_rad_s[0];// - UKF_FLOW_GYO_BIAS_X; //TODO: Remove bias here?
+				att.pitchspeed = raw.gyro_rad_s[1];// - UKF_FLOW_GYO_BIAS_Y;
+				att.yawspeed = raw.gyro_rad_s[2];// - UKF_FLOW_GYO_BIAS_Z;
 				att.q_valid = false;
 				orb_publish(ORB_ID(vehicle_attitude), pub_att, &att);
 				perf_end(quat_flow_ukf_finish_perf);
@@ -575,9 +595,9 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 			    static int axis = 0;
 			    float stdX, stdY, stdZ;
 
-			    arm_std_f32(runData.accHist[0], RUN_SENSOR_HIST, &stdX);
-			    arm_std_f32(runData.accHist[1], RUN_SENSOR_HIST, &stdY);
-			    arm_std_f32(runData.accHist[2], RUN_SENSOR_HIST, &stdZ);
+			    arm_std_f32(runData.accHist[0], run_sensor_hist, &stdX);
+			    arm_std_f32(runData.accHist[1], run_sensor_hist, &stdY);
+			    arm_std_f32(runData.accHist[2], run_sensor_hist, &stdZ);
 
 			    if ((stdX + stdY + stdZ) < (IMU_STATIC_STD*2)) {
 			    	int current_axis = (axis++) % 3;
@@ -609,14 +629,26 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 
 			//struct debug_key_value_s debug_message = {.key="alspeed", .timestamp_ms =filtered_bottom_flow_data.timestamp / 1000, .value = filtered_bottom_flow_data.ned_vz};
 			//orb_publish(ORB_ID(debug_key_value), pub_debug, &debug_message);
+			if(!((printcounter+3) % 100)) {
+				ukf_state.acc_bias_x = UKF_FLOW_ACC_BIAS_X;
+				ukf_state.acc_bias_y = UKF_FLOW_ACC_BIAS_Y;
+				ukf_state.acc_bias_z = UKF_FLOW_ACC_BIAS_Z;
+				ukf_state.gyo_bias_x = UKF_FLOW_GYO_BIAS_X;
+				ukf_state.gyo_bias_y = UKF_FLOW_GYO_BIAS_Y;
+				ukf_state.gyo_bias_z = UKF_FLOW_GYO_BIAS_Z;
+				ukf_state.vel_x = UKF_FLOW_VELX;
+				ukf_state.vel_y = UKF_FLOW_VELY;
+				ukf_state.vel_d = UKF_FLOW_VELD;
+				orb_publish(ORB_ID(ukf_state_vector), pub_ukf_state, &ukf_state);
+			}
 
-			if(!(printcounter % 10)) {
+			if(!(printcounter % 20)) {
 				local_position_sp.x = navFlowData.holdPositionX;
 				local_position_sp.y = navFlowData.holdPositionY;
 				local_position_sp.z = navFlowData.holdAlt;
 				local_position_sp.yaw = navFlowData.holdHeading;
 				orb_publish(ORB_ID(vehicle_local_position_setpoint), local_pos_sp_pub, &local_position_sp);
-			} else if(!(printcounter % 11)) {
+			} else if(!((printcounter + 10) % 20)) {
 				local_position_data.x = filtered_bottom_flow_data.ned_x;
 				local_position_data.y = filtered_bottom_flow_data.ned_y;
 				local_position_data.xy_valid = filtered_bottom_flow_data.ned_xy_valid;
@@ -650,6 +682,8 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 				frequence = 1000.0f*1000000.0f/(float)(current - last_measure);
 				last_measure = current;
 				printf("------\n");
+				navFlowLogVariance();
+				/*
 				printf("velx:%8.4f\tvely:%8.4f\tveld:%8.4f\n"
 						"holdSpeedX:%8.4f\tholdSpeedY:%8.4f\tholdSpeedAlt:%8.4f\tTargetHoldSpeedAlt:%8.4f\n"
 						"holdTiltX:%8.4f\tholdTiltY:%8.4f\tholdThrust:%8.4f\n"
@@ -677,7 +711,7 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 				printf("Pressure:%8.4f\t%8.4f\n",
 						raw.baro_pres_mbar, runData.sumPres*(1.0f / (float)RUN_SENSOR_HIST));
 				printf("Throttle:%8.4f\tcapable:%d\n",
-						manual.throttle,navFlowData.navCapable);
+						manual.throttle,navFlowData.navCapable);*/
 			}
 			printcounter++;
 		}

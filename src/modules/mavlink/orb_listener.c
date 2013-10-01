@@ -120,6 +120,7 @@ static void	l_optical_flow(const struct listener *l);
 static void	l_vehicle_rates_setpoint(const struct listener *l);
 static void	l_home(const struct listener *l);
 static void	l_airspeed(const struct listener *l);
+static void l_ukf_state(const struct listener *l);
 
 static const struct listener listeners[] = {
 	{l_sensor_combined,		&mavlink_subs.sensor_sub,	0},
@@ -146,6 +147,7 @@ static const struct listener listeners[] = {
 	{l_vehicle_rates_setpoint,	&mavlink_subs.rates_setpoint_sub,	0},
 	{l_home,			&mavlink_subs.home_sub,		0},
 	{l_airspeed,			&mavlink_subs.airspeed_sub,		0},
+	{l_ukf_state,			&mavlink_subs.ukf_state_sub,		0},
 };
 
 static const unsigned n_listeners = sizeof(listeners) / sizeof(listeners[0]);
@@ -674,6 +676,39 @@ l_airspeed(const struct listener *l)
 	mavlink_msg_vfr_hud_send(MAVLINK_COMM_0, airspeed.true_airspeed_m_s, groundspeed, heading, throttle, alt, climb);
 }
 
+void
+l_ukf_state(const struct listener *l)
+{
+	struct ukf_state_vector_s ukf_state;
+
+	orb_copy(ORB_ID(ukf_state_vector), mavlink_subs.ukf_state_sub, &ukf_state);
+
+	mavlink_msg_named_value_float_send(MAVLINK_COMM_0,
+			   last_sensor_timestamp / 1000,
+			   "acc_bias_x",
+			   ukf_state.acc_bias_x);
+	mavlink_msg_named_value_float_send(MAVLINK_COMM_0,
+			   last_sensor_timestamp / 1000,
+			   "acc_bias_y",
+			   ukf_state.acc_bias_y);
+	mavlink_msg_named_value_float_send(MAVLINK_COMM_0,
+			   last_sensor_timestamp / 1000,
+			   "acc_bias_z",
+			   ukf_state.acc_bias_z);
+	mavlink_msg_named_value_float_send(MAVLINK_COMM_0,
+			   last_sensor_timestamp / 1000,
+			   "gyo_bias_x",
+			   ukf_state.gyo_bias_x);
+	mavlink_msg_named_value_float_send(MAVLINK_COMM_0,
+			   last_sensor_timestamp / 1000,
+			   "gyo_bias_y",
+			   ukf_state.gyo_bias_y);
+	mavlink_msg_named_value_float_send(MAVLINK_COMM_0,
+			   last_sensor_timestamp / 1000,
+			   "gyo_bias_z",
+			   ukf_state.gyo_bias_z);
+}
+
 static void *
 uorb_receive_thread(void *arg)
 {
@@ -819,6 +854,10 @@ uorb_receive_start(void)
 	/* --- AIRSPEED / VFR / HUD --- */
 	mavlink_subs.airspeed_sub = orb_subscribe(ORB_ID(airspeed));
 	orb_set_interval(mavlink_subs.airspeed_sub, 200); 	/* 5Hz updates */
+
+	/* --- ukf state --- */
+	mavlink_subs.ukf_state_sub = orb_subscribe(ORB_ID(ukf_state_vector));
+	orb_set_interval(mavlink_subs.ukf_state_sub, 200); 	/* 5Hz updates */
 
 	/* start the listener loop */
 	pthread_attr_t uorb_attr;

@@ -51,6 +51,7 @@ typedef struct {
 extern navFlowUkfStruct_t navFlowUkfData;
 
 bool navFlowIsFlying(const struct vehicle_status_s *current_status);
+void navFlowLogVariance(void);
 extern void navFlowUkfInit(	const struct quat_position_control_UKF_params* params,
 						const struct sensor_combined_s* sensors);
 extern float navFlowUkfInertialUpdate(const struct sensor_combined_s* raw);

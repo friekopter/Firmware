@@ -403,6 +403,7 @@ void srcdkfMeasurementUpdate(srcdkf_t *f, float32_t *u, float32_t *ym, int M, in
 	arm_mat_trans_f32(&f->SxT, &f->Sx);
 }
 
+/*
 void paramsrcdkfSetVariance(srcdkf_t *f, float32_t *v, float32_t *n) {
 	float32_t *rDiag = f->rDiag.pData;
 	int i;
@@ -480,3 +481,4 @@ void paramsrcdkfUpdate(srcdkf_t *f, float32_t *u, float32_t *d) {
 		}
 	}
 }
+*/

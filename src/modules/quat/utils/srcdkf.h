@@ -74,7 +74,7 @@ typedef struct {
 	arm_matrix_instance_f32 Q, R, AQ;	// scratch
 
 	SRCDKFTimeUpdate_t *timeUpdate;
-	SRCDKFMeasurementUpdate_t *map;	// only used for param est
+	//SRCDKFMeasurementUpdate_t *map;	// only used for param est
 } srcdkf_t;
 __BEGIN_DECLS
 
@@ -86,10 +86,10 @@ __EXPORT void srcdkfTimeUpdate(srcdkf_t *f, float32_t *u, float32_t dt);
 __EXPORT void srcdkfMeasurementUpdate(srcdkf_t *f, float32_t *u, float32_t *y, int M, int N, float32_t *noise, SRCDKFMeasurementUpdate_t *measurementUpdate);
 __EXPORT void srcdkfFree(srcdkf_t *f);
 __EXPORT srcdkf_t *paramsrcdkfInit(int w, int d, int n, SRCDKFMeasurementUpdate_t *map);
-__EXPORT void paramsrcdkfUpdate(srcdkf_t *f, float32_t *u, float32_t *d);
-__EXPORT void paramsrcdkfSetVariance(srcdkf_t *f, float32_t *v, float32_t *n);
-__EXPORT void paramsrcdkfGetVariance(srcdkf_t *f, float32_t *v, float32_t *n);
-__EXPORT void paramsrcdkfSetRM(srcdkf_t *f, float32_t rm);
+//__EXPORT void paramsrcdkfUpdate(srcdkf_t *f, float32_t *u, float32_t *d);
+//__EXPORT void paramsrcdkfSetVariance(srcdkf_t *f, float32_t *v, float32_t *n);
+//__EXPORT void paramsrcdkfGetVariance(srcdkf_t *f, float32_t *v, float32_t *n);
+//__EXPORT void paramsrcdkfSetRM(srcdkf_t *f, float32_t rm);
 
 __END_DECLS
 

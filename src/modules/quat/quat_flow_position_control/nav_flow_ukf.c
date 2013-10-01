@@ -22,10 +22,6 @@ void navFlowUkfPresUpdate(float *u, float *x, float *noise, float *y);
 void navFlowUkfFlowUpdate(float *u, float *x, float *noise, float *y);
 void navFlowUkfSonarUpdate(float *u, float *x, float *noise, float *y);
 
-bool navFlowIsFlying(const struct vehicle_status_s *current_status){
-	return (!current_status->condition_landed);
-}
-
 void navFlowUkfTimeUpdate(float *in, float *noise, float *out, float *u, float dt) {
     float tmp[3], acc[3];
     float rate[3];
@@ -42,7 +38,7 @@ void navFlowUkfTimeUpdate(float *in, float *noise, float *out, float *u, float d
     out[8] = in[8] + noise[5] * dt;
 
     // rate = rate + bias + noise
-    rate[0] = (u[3] + out[6]  + noise[6]) * dt;
+    rate[0] = (u[3] + out[6] + noise[6]) * dt;
     rate[1] = (u[4] + out[7] + noise[7]) * dt;
     rate[2] = (u[5] + out[8] + noise[8]) * dt;
 
@@ -87,7 +83,7 @@ void navFlowUkfMagUpdate(float *u, float *x, float *noise, float *y) {
 }
 
 void navFlowUkfSonarUpdate(float *u, float *x, float *noise, float *y) {
-    y[0] = x[3] + noise[0]; // return velocity
+    y[0] = x[2] + noise[0]; // return velocity
 }
 
 void navFlowUkfPresUpdate(float *u, float *x, float *noise, float *y) {
@@ -309,6 +305,24 @@ void navFlowUkfInitState(const struct sensor_combined_s* sensors) {
     UKF_FLOW_PRES_ALT = 0.0f;
 }
 
+void navFlowLogVariance(void) {
+	float Q[SIM_S];
+	float32_t *Sx = navFlowUkfData.kf->Sx.pData;
+	for (int i = 0; i < SIM_S; i++) {
+		Q[i] = Sx[i*SIM_S + i]*Sx[i*SIM_S + i];
+	}
+	printf("Q:1:%15.1f\t2:%15.1f\t3:%15.1f\t4:%15.1f\t5:%15.1f\t6:%15.1f\t7:%15.1f\t8:%15.1f\t9:%15.1f\t10:%15.1f\t11:%15.1f\t12:%15.1f\t13:%15.1f\t14:%15.1f\n",
+			Q[0],Q[1],Q[2],Q[3],Q[4],Q[5],Q[6],Q[7],Q[8],Q[9],Q[10],Q[11],Q[12],Q[13]);
+
+	float V[SIM_V];
+	float32_t *Sv = navFlowUkfData.kf->Sv.pData;
+	for (int i = 0; i < SIM_V; i++) {
+		V[i] = Sv[i*SIM_V + i]*Sv[i*SIM_V + i];
+	}
+	printf("V:1:%15.1f\t2:%15.1f\t3:%15.1f\t4:%15.1f\t5:%15.1f\t6:%15.1f\t7:%15.1f\t8:%15.1f\t9:%15.1f\t10:%15.1f\t11:%15.1f\t12:%15.1f\t15:%15.1f\n",
+			V[0],V[1],V[2],V[3],V[4],V[5],V[6],V[7],V[8],V[9],V[10],V[11],V[12]);
+}
+
 void navFlowUkfInit(const struct quat_position_control_UKF_params* params,
 				const struct sensor_combined_s* sensors) {
     float Q[SIM_S];		// state variance
@@ -359,8 +373,8 @@ void navFlowUkfInit(const struct quat_position_control_UKF_params* params,
     V[4] = params->ukf_gyo_bias_v;
     V[5] = params->ukf_gyo_bias_v;
     V[6] = params->ukf_rate_v;
-    V[7] = params->ukf_gyo_bias_v;
-    V[8] = params->ukf_gyo_bias_v;
+    V[7] = params->ukf_rate_v;
+    V[8] = params->ukf_rate_v;
     V[9] = params->ukf_pres_alt_v;
     V[10] = params->ukf_vel_v;
     V[11] = params->ukf_vel_v;

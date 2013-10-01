@@ -134,18 +134,6 @@ MODULES		+= lib/geo
 # https://pixhawk.ethz.ch/px4/dev/example_fixedwing_control
 #MODULES			+= examples/fixedwing_control
 
-# Quat Apps
-MODULES			+= modules/quat/attitude_estimator_quat
-MODULES			+= modules/quat/hil_test_quat
-MODULES			+= modules/quat/quat_att_control
-MODULES			+= modules/quat/quat_interface
-MODULES			+= modules/quat/quat_log
-MODULES			+= modules/quat/quat_position_control
-MODULES			+= modules/quat/quat_flow_position_control
-MODULES			+= modules/quat/quat_sensors
-#MODULES			+= modules/quat/quat_flow_receiver
-MODULES			+= modules/quat/utils
-
 
 #
 # Transitional support - add commands from the NuttX export archive.

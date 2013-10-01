@@ -64,6 +64,7 @@
 #include <uORB/topics/manual_control_setpoint.h>
 #include <uORB/topics/telemetry_status.h>
 #include <uORB/topics/debug_key_value.h>
+#include <uORB/topics/ukf_state_vector.h>
 #include <uORB/topics/airspeed.h>
 #include <drivers/drv_rc_input.h>
 
@@ -91,6 +92,7 @@ struct mavlink_subscriptions {
 	int rates_setpoint_sub;
 	int home_sub;
 	int airspeed_sub;
+	int ukf_state_sub;
 };
 
 extern struct mavlink_subscriptions mavlink_subs;
