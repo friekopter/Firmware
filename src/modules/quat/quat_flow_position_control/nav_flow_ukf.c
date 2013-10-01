@@ -366,6 +366,7 @@ void navFlowUkfInit(const struct quat_position_control_UKF_params* params,
     Q[13] = params->ukf_pres_alt_q;
 
     // Process noise
+    // This reflects the noise variables used in navFlowUkfTimeUpdate
     V[0] = params->ukf_acc_bias_v;
     V[1] = params->ukf_acc_bias_v;
     V[2] = params->ukf_acc_bias_v;
