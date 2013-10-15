@@ -161,7 +161,7 @@ void navFlowDoPresUpdate(float pres,
    	srcdkfMeasurementUpdate(navFlowUkfData.kf, 0, y, 1, 1, noise, navFlowUkfPresUpdate);
 }
 
-void navFlowDoAccUpdate(float accX, float accY, float accZ,
+float navFlowDoAccUpdate(float accX, float accY, float accZ,
 		 const struct vehicle_control_mode_s *control_mode,
 		 const struct quat_position_control_UKF_params* params) {
     float noise[3];        // measurement variance
@@ -189,6 +189,7 @@ void navFlowDoAccUpdate(float accX, float accY, float accZ,
     noise[2] = noise[0];
 
     srcdkfMeasurementUpdate(navFlowUkfData.kf, 0, y, 3, 3, noise, navFlowUkfAccUpdate);
+    return noise[0];
 }
 
 void navFlowDoMagUpdate(float magX, float magY, float magZ,

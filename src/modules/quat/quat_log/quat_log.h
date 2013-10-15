@@ -10,6 +10,7 @@
 
 #include <uORB/topics/sensor_combined.h>
 #include <uORB/topics/battery_status.h>
+#include <uORB/topics/ukf_state_vector.h>
 #include <drivers/drv_baro.h>
 #include <drivers/drv_gyro.h>
 #include <drivers/drv_mag.h>
@@ -157,7 +158,8 @@ extern void logInit(struct gyro_report* gyro_report,
 		struct battery_status_s* battery_status,
 		struct accel_report* accel_report,
 		struct baro_report* barometer,
-		struct sensor_combined_s* raw);
+		struct sensor_combined_s* raw,
+		struct ukf_state_vector_s* ukfState);
 extern void logDo(void);
 extern void logDoHeader(void);
 size_t logWrite(FILE* loggingFile);

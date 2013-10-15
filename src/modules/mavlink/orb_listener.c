@@ -707,6 +707,10 @@ l_ukf_state(const struct listener *l)
 			   last_sensor_timestamp / 1000,
 			   "gyo_bias_z",
 			   ukf_state.gyo_bias_z);
+	mavlink_msg_named_value_float_send(MAVLINK_COMM_0,
+			   last_sensor_timestamp / 1000,
+			   "acc_noise",
+			   ukf_state.acc_noise);
 }
 
 static void *

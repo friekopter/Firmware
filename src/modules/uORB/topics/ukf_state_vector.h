@@ -16,18 +16,21 @@ struct ukf_state_vector_s {
 	float vel_x;
 	float vel_y;
 	float vel_d;
+	float pos_x;
+	float pos_y;
+	float pos_d;
 	float acc_bias_x;
 	float acc_bias_y;
 	float acc_bias_z;
 	float gyo_bias_x;
 	float gyo_bias_y;
 	float gyo_bias_z;
-	float pos_x;
-	float pos_y;
-	float pos_d;
+	float q1;
+	float q2;
+	float q3;
+	float q4;
 	float pres_alt;
-
-
+	float acc_noise;
 };
 
 /* register this as object request broker structure */

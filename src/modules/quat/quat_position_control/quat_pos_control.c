@@ -30,7 +30,7 @@
 #include <uORB/topics/filtered_bottom_flow.h>
 #include <systemlib/systemlib.h>
 #include <systemlib/perf_counter.h>
-#include "quat_pos_control_params.h"
+#include <quat/utils/quat_pos_control_params.h>
 #include "nav.h"
 #include "nav_ukf.h"
 #include <quat/utils/quat_constants.h>

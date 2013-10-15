@@ -8,7 +8,6 @@ MODULE_STACKSIZE	 = 2048
 
 SRCS				= nav_ukf.c \
 						nav.c \
-						quat_pos_control_params.c \
 						quat_pos_control.c 
 
 INCLUDE_DIRS	 += ../utils

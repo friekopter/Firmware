@@ -31,12 +31,12 @@ void srcdkfSetVariance(srcdkf_t *f, float32_t *q, float32_t *v, float32_t *n, in
 	float32_t *Sn = f->Sn.pData;
 	int i;
 
-	// state variance
+	// state variance, changing values
 	if (q)
 		for (i = 0; i < f->S; i++)
 			Sx[i*f->S + i] = aq_sqrtf(fabsf(q[i]));
 
-	// process noise
+	// process noise, fixed values
 	if (v)
 		for (i = 0; i < f->V; i++)
 			Sv[i*f->V + i] = aq_sqrtf(fabsf(v[i]));

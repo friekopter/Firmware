@@ -16,7 +16,7 @@
 #include <uORB/topics/parameter_update.h>
 #include <uORB/topics/battery_status.h>
 #include <uORB/topics/differential_pressure.h>
-
+#include <quat/quat_flow_position_control/nav_flow_ukf.h>
 #include <quat/utils/util.h>
 
 logStruct_t logData __attribute__((section(".ccm")));
@@ -31,7 +31,8 @@ void logSetup(struct gyro_report* gyro_report,
 		struct battery_status_s* battery_status,
 		struct accel_report* accel_report,
 		struct baro_report* barometer,
-		struct sensor_combined_s* raw);
+		struct sensor_combined_s* raw,
+		struct ukf_state_vector_s* ukfState);
 static float dummyFloat = 0.0f;
 static double dummyDouble = 0.0f;
 static uint32_t dummyUint32 = 0;
@@ -97,10 +98,10 @@ logFields_t logFields[] = {
 	    {LOG_UKF_POSE, LOG_TYPE_FLOAT},
 	    {LOG_UKF_POSD, LOG_TYPE_FLOAT},
 	    {LOG_UKF_PRES_ALT, LOG_TYPE_FLOAT},
-	    {LOG_UKF_ALT, LOG_TYPE_FLOAT},/*
+	    {LOG_UKF_ALT, LOG_TYPE_FLOAT},
 	    {LOG_UKF_VELN, LOG_TYPE_FLOAT},
 	    {LOG_UKF_VELE, LOG_TYPE_FLOAT},
-	    {LOG_UKF_VELD, LOG_TYPE_FLOAT},
+	    {LOG_UKF_VELD, LOG_TYPE_FLOAT},/*
 	    {LOG_MOT_MOTOR0, LOG_TYPE_S16},
 	    {LOG_MOT_MOTOR1, LOG_TYPE_S16},
 	    {LOG_MOT_MOTOR2, LOG_TYPE_S16},
@@ -254,7 +255,8 @@ void logSetup(struct gyro_report* gyro_report,
 		struct battery_status_s* battery_status,
 		struct accel_report* accel_report,
 		struct baro_report* barometer,
-		struct sensor_combined_s* raw) {
+		struct sensor_combined_s* raw,
+		struct ukf_state_vector_s* ukfState) {
     int i;
 
     logData.numFields = sizeof(logFields) / sizeof(logFields_t);
@@ -408,25 +410,25 @@ void logSetup(struct gyro_report* gyro_report,
 		logData.fp[i].fieldPointer = (void *)&dummyint8_Value1;//(void *)&adcData.magSign;
 		break;
 	    case LOG_UKF_Q1:
-		logData.fp[i].fieldPointer = (void *)&dummyFloat;//(void *)&UKF_Q1;
+		logData.fp[i].fieldPointer = (void *)&ukfState->q1;
 		break;
 	    case LOG_UKF_Q2:
-		logData.fp[i].fieldPointer = (void *)&dummyFloat;//(void *)&UKF_Q2;
+		logData.fp[i].fieldPointer = (void *)&ukfState->q2;//(void *)&UKF_Q2;
 		break;
 	    case LOG_UKF_Q3:
-		logData.fp[i].fieldPointer = (void *)&dummyFloat;//(void *)&UKF_Q3;
+		logData.fp[i].fieldPointer = (void *)&ukfState->q3;//(void *)&UKF_Q3;
 		break;
 	    case LOG_UKF_Q4:
-		logData.fp[i].fieldPointer = (void *)&dummyFloat;//(void *)&UKF_Q4;
+		logData.fp[i].fieldPointer = (void *)&ukfState->q4;//(void *)&UKF_Q4;
 		break;
 	    case LOG_UKF_POSN:
-		logData.fp[i].fieldPointer = (void *)&dummyFloat;//(void *)&UKF_POSN;
+		logData.fp[i].fieldPointer = (void *)&ukfState->pos_x;//(void *)&UKF_POSN;
 		break;
 	    case LOG_UKF_POSE:
-		logData.fp[i].fieldPointer = (void *)&dummyFloat;//(void *)&UKF_POSE;
+		logData.fp[i].fieldPointer = (void *)&ukfState->pos_y;//(void *)&UKF_POSE;
 		break;
 	    case LOG_UKF_POSD:
-		logData.fp[i].fieldPointer = (void *)&dummyFloat;//(void *)&UKF_POSD;
+		logData.fp[i].fieldPointer = (void *)&ukfState->pos_d;//(void *)&UKF_POSD;
 		break;
 	    case LOG_UKF_PRES_ALT:
 		logData.fp[i].fieldPointer = (void *)&raw->baro_pres_mbar;//(void *)&UKF_PRES_ALT;
@@ -435,13 +437,13 @@ void logSetup(struct gyro_report* gyro_report,
 		logData.fp[i].fieldPointer = (void *)&raw->baro_alt_meter;//(void *)&UKF_ALTITUDE;
 		break;
 	    case LOG_UKF_VELN:
-		logData.fp[i].fieldPointer = (void *)&dummyFloat;//(void *)&UKF_VELN;
+		logData.fp[i].fieldPointer = (void *)&ukfState->vel_x;//(void *)&UKF_VELN;
 		break;
 	    case LOG_UKF_VELE:
-		logData.fp[i].fieldPointer = (void *)&dummyFloat;//(void *)&UKF_VELE;
+		logData.fp[i].fieldPointer = (void *)&ukfState->vel_y;//(void *)&UKF_VELE;
 		break;
 	    case LOG_UKF_VELD:
-		logData.fp[i].fieldPointer = (void *)&dummyFloat;//(void *)&UKF_VELD;
+		logData.fp[i].fieldPointer = (void *)&ukfState->vel_d;//(void *)&UKF_VELD;
 		break;
 	    case LOG_MOT_MOTOR0:
 		logData.fp[i].fieldPointer = (void *)&dummyint16;//(void *)&motorsData.value[0];
@@ -591,10 +593,11 @@ void logInit(struct gyro_report* gyro_report,
 		struct battery_status_s* battery_status,
 		struct accel_report* accel_report,
 		struct baro_report* barometer,
-		struct sensor_combined_s* raw) {
+		struct sensor_combined_s* raw,
+		struct ukf_state_vector_s* ukfState) {
     memset((void *)&logData, 0, sizeof(logData));
 
-    logSetup(gyro_report,mag_report,battery_status,accel_report,barometer,raw);
+    logSetup(gyro_report,mag_report,battery_status,accel_report,barometer,raw, ukfState);
 
     logDoHeader();
 }

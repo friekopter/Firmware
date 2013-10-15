@@ -67,7 +67,7 @@
     };
 
     struct quat_position_control_UKF_param_handles {
-    	float ukf_vel_q,
+    	param_t ukf_vel_q,
 		ukf_vel_alt_q,
 		ukf_pos_q,
 		ukf_pos_alt_q,
@@ -104,7 +104,7 @@
     };
 
     struct quat_position_control_NAV_param_handles {
-        	float nav_max_speed,
+    	param_t nav_max_speed,
         	nav_max_decent,
         	nav_speed_p,
         	nav_speed_i,

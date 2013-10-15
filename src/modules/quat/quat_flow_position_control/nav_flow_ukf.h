@@ -4,7 +4,7 @@
 
 #include <stdbool.h>
 #include <quat/utils/srcdkf.h>
-#include <quat/quat_position_control/quat_pos_control_params.h>
+#include <quat/utils/quat_pos_control_params.h>
 #include <uORB/topics/vehicle_control_mode.h>
 #include <uORB/topics/vehicle_status.h>
 #include <uORB/topics/sensor_combined.h>
@@ -58,7 +58,7 @@ extern float navFlowUkfInertialUpdate(const struct sensor_combined_s* raw);
 extern void navFlowDoPresUpdate(float pres,
 		 const struct vehicle_control_mode_s *control_mode,
 		 const struct quat_position_control_UKF_params* params);
-extern void navFlowDoAccUpdate(float accX, float accY, float accZ,
+extern float navFlowDoAccUpdate(float accX, float accY, float accZ,
 		 const struct vehicle_control_mode_s *control_mode,
 		 const struct quat_position_control_UKF_params* params);
 extern void navFlowDoMagUpdate(float magX, float magY, float magZ,

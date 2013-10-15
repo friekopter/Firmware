@@ -32,10 +32,13 @@
 #include <uORB/topics/optical_flow.h>
 #include <uORB/topics/battery_status.h>
 #include <uORB/topics/differential_pressure.h>
+#include <uORB/topics/parameter_update.h>
+#include <uORB/topics/ukf_state_vector.h>
 #include <systemlib/perf_counter.h>
 #include <systemlib/systemlib.h>
 
 #include "quat_log.h"
+#include "quat_log_params.h"
 
 
 static bool thread_should_exit = false;		/**< Deamon exit flag */
@@ -238,8 +241,6 @@ int create_logfolder(char *folder_path)
 
 int quat_log_thread_main(int argc, char *argv[])
 {
-	/* log every n'th value (skip three per default) */
-	unsigned intervall = 5;
     uint32_t loops = 0;
 
 	/* work around some stupidity in task_create's argv handling */
@@ -249,18 +250,6 @@ int quat_log_thread_main(int argc, char *argv[])
 
 	while ((ch = getopt(argc, argv, "r:i")) != EOF) {
 		switch (ch) {
-		case 'i':
-			{
-				/* set logging interval in ms */
-				unsigned i = strtoul(optarg, NULL, 10);
-
-				if (i <= 0 || i > 2000) {
-					errx(1, "Wrong skip value of %d, out of range (1..2000)\n", i);
-				} else {
-					intervall = i;
-				}
-			}
-			break;
 
 		case '?':
 			if (optopt == 'c') {
@@ -312,9 +301,22 @@ int quat_log_thread_main(int argc, char *argv[])
 
 	int logging_file_no = fileno(logging_file);
 
+	struct quat_log_params params;
+	struct quat_log_param_handles param_handles;
+	int params_sub = orb_subscribe(ORB_ID(parameter_update));
+	// initialize parameter handles
+	int param_init_result = quat_log_parameters_init(&param_handles);
+	if (param_init_result){
+		printf("[quat_log] WARNING: Parameter initialization error?\n");
+	}
+	int param_update_result = quat_log_parameters_update(&param_handles,&params);
+	if (param_update_result){
+		printf("[quat_log] WARNING: Parameter update error?\n");
+	}
+
 	/* --- IMPORTANT: DEFINE NUMBER OF ORB STRUCTS TO WAIT FOR HERE --- */
 	/* number of messages */
-	const ssize_t fdsc = 6;
+	const ssize_t fdsc = 7;
 	/* Sanity check variable and index */
 	ssize_t fdsc_count = 0;
 	/* file descriptors to wait for */
@@ -327,6 +329,7 @@ int quat_log_thread_main(int argc, char *argv[])
 		struct accel_report accel_report;
 		struct baro_report barometer;
 		struct sensor_combined_s raw;
+		struct ukf_state_vector_s ukf_state;
 	} buf;
 	memset(&buf, 0, sizeof(buf));
 
@@ -337,12 +340,13 @@ int quat_log_thread_main(int argc, char *argv[])
 		int accel_sub;
 		int baro_sub;
 		int raw_sub;
+		int ukf_state_sub;
 	} subs;
 
 	subs.gyro_sub = orb_subscribe(ORB_ID(sensor_gyro));
 	fds[fdsc_count].fd = subs.gyro_sub;
 	fds[fdsc_count].events = POLLIN;
-	orb_set_interval(subs.gyro_sub, intervall);
+	orb_set_interval(subs.gyro_sub, (unsigned int)params.q_log_interval);
 	fdsc_count++;
 
 	subs.mag_sub = orb_subscribe(ORB_ID(sensor_mag));
@@ -374,6 +378,12 @@ int quat_log_thread_main(int argc, char *argv[])
 	fds[fdsc_count].events = POLLIN;
 	//orb_set_interval(subs.raw_sub, intervall);
 	fdsc_count++;
+
+	subs.ukf_state_sub = orb_subscribe(ORB_ID(ukf_state_vector));
+	fds[fdsc_count].fd = subs.ukf_state_sub;
+	fds[fdsc_count].events = POLLIN;
+	//orb_set_interval(subs.raw_sub, intervall);
+	fdsc_count++;
 	/* WARNING: If you get the error message below,
 	 * then the number of registered messages (fdsc)
 	 * differs from the number of messages in the above list.
@@ -387,7 +397,7 @@ int quat_log_thread_main(int argc, char *argv[])
 	perf_counter_t quat_log_write_perf = perf_alloc(PC_ELAPSED, "quat_log_write");
 	perf_counter_t quat_log_sync_perf = perf_alloc(PC_ELAPSED, "quat_log_sync");
 
-	logInit(&buf.gyro_report, &buf.mag_report, &buf.battery_status, &buf.accel_report, &buf.barometer, &buf.raw);
+	logInit(&buf.gyro_report, &buf.mag_report, &buf.battery_status, &buf.accel_report, &buf.barometer, &buf.raw, &buf.ukf_state);
     led_init();
 
 	thread_running = true;
@@ -396,6 +406,16 @@ int quat_log_thread_main(int argc, char *argv[])
 	printf("[quat log] initialized, packet size: %d\n",logData.packetSize);
 
 	while (!thread_should_exit) {
+		bool updated;
+		orb_check(params_sub, &updated);
+		if (updated) {
+			/* read from param to clear updated flag */
+			struct parameter_update_s update;
+			orb_copy(ORB_ID(parameter_update), params_sub, &update);
+			/* update parameters */
+			quat_log_parameters_update(&param_handles,&params);
+			orb_set_interval(subs.gyro_sub, (unsigned int)params.q_log_interval);
+		}
 
 		// Only poll for gyro
 		int poll_ret = poll(fds, 1, 3000);
@@ -419,6 +439,7 @@ int quat_log_thread_main(int argc, char *argv[])
 				orb_copy(ORB_ID(sensor_accel), subs.accel_sub, &buf.accel_report);
 				orb_copy(ORB_ID(sensor_baro), subs.baro_sub, &buf.barometer);
 				orb_copy(ORB_ID(sensor_combined), subs.raw_sub, &buf.raw);
+				orb_copy(ORB_ID(ukf_state_vector), subs.ukf_state_sub, &buf.ukf_state);
 				if (!(loops % 200)) {
 				    logDoHeader();
 				}

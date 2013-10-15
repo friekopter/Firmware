@@ -26,7 +26,7 @@
 #include <uORB/topics/filtered_bottom_flow.h>
 #include <uORB/topics/vehicle_attitude.h>
 #include <uORB/topics/filtered_bottom_flow.h>
-#include <quat/quat_position_control/quat_pos_control_params.h>
+#include <quat/utils/quat_pos_control_params.h>
 #include <quat/utils/pid.h>
 
 #define NAV_MAX_FIX_AGE		((int)1e6f)				    // 1 second

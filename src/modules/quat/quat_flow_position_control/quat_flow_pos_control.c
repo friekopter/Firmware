@@ -36,7 +36,7 @@
 #include <uORB/topics/ukf_state_vector.h>
 #include <systemlib/systemlib.h>
 #include <systemlib/perf_counter.h>
-#include <quat/quat_position_control/quat_pos_control_params.h>
+#include <quat/utils/quat_pos_control_params.h>
 #include "nav_flow.h"
 #include "nav_flow_ukf.h"
 #include <quat/utils/quat_constants.h>
@@ -198,6 +198,7 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 	thread_running = true;
 	int loopcounter = 0;
 	int printcounter = 0;
+	float acc_noise = 0.0f;
 
 	// Output
 	// Calculation result is the attitude setpoint
@@ -546,7 +547,7 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 				}
 
 				if (!(loopcounter % 20)) {
-				   navFlowDoAccUpdate(	runData.sumAcc[0]*(1.0f / (float)run_sensor_hist),
+				   acc_noise = navFlowDoAccUpdate(	runData.sumAcc[0]*(1.0f / (float)run_sensor_hist),
 						   	   	   	runData.sumAcc[1]*(1.0f / (float)run_sensor_hist),
 						   	   	   	runData.sumAcc[2]*(1.0f / (float)run_sensor_hist),
 						   	   	   	&control_mode,
@@ -639,6 +640,12 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 				ukf_state.vel_x = UKF_FLOW_VELX;
 				ukf_state.vel_y = UKF_FLOW_VELY;
 				ukf_state.vel_d = UKF_FLOW_VELD;
+				ukf_state.q1 = UKF_FLOW_Q1;
+				ukf_state.q2 = UKF_FLOW_Q2;
+				ukf_state.q3 = UKF_FLOW_Q3;
+				ukf_state.q4 = UKF_FLOW_Q4;
+				ukf_state.pres_alt = UKF_FLOW_PRES_ALT;
+				ukf_state.acc_noise = acc_noise;
 				orb_publish(ORB_ID(ukf_state_vector), pub_ukf_state, &ukf_state);
 			}
 

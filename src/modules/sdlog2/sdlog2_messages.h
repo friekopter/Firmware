@@ -256,6 +256,24 @@ struct log_FWRV_s {
 	char    fw_revision[64];
 };
 
+/* --- UKV State -- */
+#define LOG_UKFS_MSG 21
+struct log_UKFS_s {
+	float vel_n;
+	float vel_e;
+	float vel_d;
+	float pos_n;
+	float pos_e;
+	float pos_d;
+	float acc_bias_x;
+	float acc_bias_y;
+	float acc_bias_z;
+	float gyo_bias_x;
+	float gyo_bias_y;
+	float gyo_bias_z;
+	float pres_alt;
+};
+
 #pragma pack(pop)
 
 
@@ -293,6 +311,7 @@ static const struct log_format_s log_formats[] = {
 	LOG_FORMAT(ESC, "HBBBHHHHHHfH", "Counter,NumESC,Conn,N,Ver,Adr,Volt,Amp,RPM,Temp,SetP,SetPRAW"),
 	LOG_FORMAT(GVSP, "fff", "VX,VY,VZ"),
 	LOG_FORMAT(FWRV,"Z",FW_VERSION_STR),
+	LOG_FORMAT(UKFS, "fffffffffffff", "vn,ve,vd,pn,pe,pd,abx,aby,abz,gbx,gby,gbz,pa"),
 };
 
 static const int log_formats_num = sizeof(log_formats) / sizeof(struct log_format_s);

@@ -82,6 +82,7 @@
 #include <uORB/topics/airspeed.h>
 #include <uORB/topics/rc_channels.h>
 #include <uORB/topics/esc_status.h>
+#include <uORB/topics/ukf_state_vector.h>
 
 #include <systemlib/systemlib.h>
 
@@ -618,6 +619,7 @@ int sdlog2_thread_main(int argc, char *argv[])
 		struct airspeed_s airspeed;
 		struct esc_status_s esc;
 		struct vehicle_global_velocity_setpoint_s global_vel_sp;
+		struct ukf_state_vector_s ukf_state;
 	} buf;
 	memset(&buf, 0, sizeof(buf));
 
@@ -642,6 +644,7 @@ int sdlog2_thread_main(int argc, char *argv[])
 		int airspeed_sub;
 		int esc_sub;
 		int global_vel_sp_sub;
+		int ukf_state_sub;
 	} subs;
 
 	/* log message buffer: header + body */
@@ -668,6 +671,7 @@ int sdlog2_thread_main(int argc, char *argv[])
 			struct log_GPSP_s log_GPSP;
 			struct log_ESC_s log_ESC;
 			struct log_GVSP_s log_GVSP;
+			struct log_UKFS_s log_UKFS;
 		} body;
 	} log_msg = {
 		LOG_PACKET_HEADER_INIT(0)
@@ -677,7 +681,7 @@ int sdlog2_thread_main(int argc, char *argv[])
 
 	/* --- IMPORTANT: DEFINE NUMBER OF ORB STRUCTS TO WAIT FOR HERE --- */
 	/* number of messages */
-	const ssize_t fdsc = 20;
+	const ssize_t fdsc = 21;
 	/* Sanity check variable and index */
 	ssize_t fdsc_count = 0;
 	/* file descriptors to wait for */
@@ -800,6 +804,12 @@ int sdlog2_thread_main(int argc, char *argv[])
 	/* --- GLOBAL VELOCITY SETPOINT --- */
 	subs.global_vel_sp_sub = orb_subscribe(ORB_ID(vehicle_global_velocity_setpoint));
 	fds[fdsc_count].fd = subs.global_vel_sp_sub;
+	fds[fdsc_count].events = POLLIN;
+	fdsc_count++;
+
+	/* --- UKF State --- */
+	subs.ukf_state_sub = orb_subscribe(ORB_ID(ukf_state_vector));
+	fds[fdsc_count].fd = subs.ukf_state_sub;
 	fds[fdsc_count].events = POLLIN;
 	fdsc_count++;
 
@@ -1162,6 +1172,24 @@ int sdlog2_thread_main(int argc, char *argv[])
 				LOGBUFFER_WRITE_AND_COUNT(GVSP);
 			}
 
+			if (fds[ifds++].revents & POLLIN) {
+				orb_copy(ORB_ID(ukf_state_vector), subs.ukf_state_sub, &buf.ukf_state);
+				log_msg.msg_type = LOG_UKFS_MSG;
+				log_msg.body.log_UKFS.vel_n = buf.ukf_state.vel_x;
+				log_msg.body.log_UKFS.vel_e = buf.ukf_state.vel_y;
+				log_msg.body.log_UKFS.vel_d = buf.ukf_state.vel_d;
+				log_msg.body.log_UKFS.pos_n = buf.ukf_state.pos_x;
+				log_msg.body.log_UKFS.pos_e = buf.ukf_state.pos_y;
+				log_msg.body.log_UKFS.pos_d = buf.ukf_state.pos_d;
+				log_msg.body.log_UKFS.acc_bias_x = buf.ukf_state.acc_bias_x;
+				log_msg.body.log_UKFS.acc_bias_y = buf.ukf_state.acc_bias_y;
+				log_msg.body.log_UKFS.acc_bias_z = buf.ukf_state.acc_bias_z;
+				log_msg.body.log_UKFS.gyo_bias_x = buf.ukf_state.gyo_bias_x;
+				log_msg.body.log_UKFS.gyo_bias_y = buf.ukf_state.gyo_bias_y;
+				log_msg.body.log_UKFS.gyo_bias_z = buf.ukf_state.gyo_bias_z;
+				log_msg.body.log_UKFS.pres_alt = buf.ukf_state.pres_alt;
+				LOGBUFFER_WRITE_AND_COUNT(UKFS);
+			}
 			/* signal the other thread new data, but not yet unlock */
 			if (logbuffer_count(&lb) > MIN_BYTES_TO_WRITE) {
 				/* only request write if several packets can be written at once */
