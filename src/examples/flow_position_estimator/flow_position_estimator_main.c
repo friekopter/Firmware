@@ -165,6 +165,8 @@ int flow_position_estimator_thread_main(int argc, char *argv[])
 	static float global_speed[3] = {0.0f, 0.0f, 0.0f};
 	static uint32_t counter = 0;
 	static uint64_t time_last_flow = 0; // in ms
+	static uint64_t time_sonar_validated = 0; // in us
+	static uint64_t time_sonar_unvalidated = 0; // in us
 	static float dt = 0.0f; // seconds
 	static float sonar_last_measurement = 0.0f;
 	static uint64_t sonar_last_timestamp = 0;
@@ -204,7 +206,7 @@ int flow_position_estimator_thread_main(int argc, char *argv[])
 	/* subscribe to optical flow*/
 	int optical_flow_sub = orb_subscribe(ORB_ID(optical_flow));
 
-	struct filtered_bottom_flow_s filtered_flow = {
+	static struct filtered_bottom_flow_s filtered_flow = {
 			.sumx = 0.0f,
 			.sumy = 0.0f,
 			.vx = 0.0f,
@@ -294,6 +296,7 @@ int flow_position_estimator_thread_main(int argc, char *argv[])
 					orb_copy(ORB_ID(vehicle_attitude_setpoint), vehicle_attitude_setpoint_sub, &att_sp);
 					orb_copy(ORB_ID(actuator_armed), armed_sub, &armed);
 					orb_copy(ORB_ID(vehicle_control_mode), control_mode_sub, &control_mode);
+
 					if(!control_mode.flag_control_velocity_enabled) {
 						filtered_flow.ned_x = 0.0f;
 						filtered_flow.ned_y = 0.0f;
@@ -402,10 +405,24 @@ int flow_position_estimator_thread_main(int argc, char *argv[])
 						/* not possible to fly */
 						sonar_valid = false;
 						filtered_flow.ned_z = 0.0f;
+						time_sonar_validated = 0;
+						time_sonar_unvalidated = 0;
 					}
-					else
-					{
-						sonar_valid = true;
+					else if(sonar_new <= 0.3f) {
+						time_sonar_validated = 0;
+						if(time_sonar_unvalidated == 0) {
+							time_sonar_unvalidated = filtered_flow.timestamp;
+						} else if (filtered_flow.timestamp - time_sonar_unvalidated > 200000) {
+							sonar_valid = false;
+						}
+					}
+					else{
+						time_sonar_unvalidated = 0;
+						if(time_sonar_validated == 0) {
+							time_sonar_validated = filtered_flow.timestamp;
+						} else if (filtered_flow.timestamp - time_sonar_validated > 2000000) {
+							sonar_valid = true;
+						}
 					}
 
 					if (sonar_valid || params.debug)
@@ -495,11 +512,14 @@ int flow_position_estimator_thread_main(int argc, char *argv[])
 
 					/* always publish local position */
 					filtered_flow.timestamp = hrt_absolute_time();
-					if(isfinite(filtered_flow.ned_x) && isfinite(filtered_flow.ned_y) && isfinite(filtered_flow.ned_z)
-							&& isfinite(filtered_flow.ned_vx) && isfinite(filtered_flow.ned_vy))
-					{
-						orb_publish(ORB_ID(filtered_bottom_flow), filtered_flow_pub, &filtered_flow);
-					}
+					filtered_flow.ned_x = !isfinite(filtered_flow.ned_x) ? 0.0f : filtered_flow.ned_x;
+					filtered_flow.ned_y = !isfinite(filtered_flow.ned_y) ? 0.0f : filtered_flow.ned_y;
+					filtered_flow.ned_z = !isfinite(filtered_flow.ned_z) ? 0.0f : filtered_flow.ned_z;
+					filtered_flow.ned_vx = !isfinite(filtered_flow.ned_vx) ? 0.0f : filtered_flow.ned_vx;
+					filtered_flow.ned_vy = !isfinite(filtered_flow.ned_vy) ? 0.0f : filtered_flow.ned_vy;
+					filtered_flow.ned_vz = !isfinite(filtered_flow.ned_vz) ? 0.0f : filtered_flow.ned_vz;
+
+					orb_publish(ORB_ID(filtered_bottom_flow), filtered_flow_pub, &filtered_flow);
 
 					/* measure in what intervals the position estimator runs */
 					perf_count(mc_interval_perf);

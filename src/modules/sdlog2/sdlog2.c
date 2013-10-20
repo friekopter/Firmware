@@ -83,6 +83,7 @@
 #include <uORB/topics/rc_channels.h>
 #include <uORB/topics/esc_status.h>
 #include <uORB/topics/ukf_state_vector.h>
+#include <uORB/topics/filtered_bottom_flow.h>
 
 #include <systemlib/systemlib.h>
 
@@ -620,6 +621,7 @@ int sdlog2_thread_main(int argc, char *argv[])
 		struct esc_status_s esc;
 		struct vehicle_global_velocity_setpoint_s global_vel_sp;
 		struct ukf_state_vector_s ukf_state;
+		struct filtered_bottom_flow_s filtered_bottom_flow_data;
 	} buf;
 	memset(&buf, 0, sizeof(buf));
 
@@ -645,6 +647,7 @@ int sdlog2_thread_main(int argc, char *argv[])
 		int esc_sub;
 		int global_vel_sp_sub;
 		int ukf_state_sub;
+		int filtered_flow_sub;
 	} subs;
 
 	/* log message buffer: header + body */
@@ -672,6 +675,7 @@ int sdlog2_thread_main(int argc, char *argv[])
 			struct log_ESC_s log_ESC;
 			struct log_GVSP_s log_GVSP;
 			struct log_UKFS_s log_UKFS;
+			struct log_FFLO_s log_FFLO;
 		} body;
 	} log_msg = {
 		LOG_PACKET_HEADER_INIT(0)
@@ -681,7 +685,7 @@ int sdlog2_thread_main(int argc, char *argv[])
 
 	/* --- IMPORTANT: DEFINE NUMBER OF ORB STRUCTS TO WAIT FOR HERE --- */
 	/* number of messages */
-	const ssize_t fdsc = 21;
+	const ssize_t fdsc = 22;
 	/* Sanity check variable and index */
 	ssize_t fdsc_count = 0;
 	/* file descriptors to wait for */
@@ -810,6 +814,12 @@ int sdlog2_thread_main(int argc, char *argv[])
 	/* --- UKF State --- */
 	subs.ukf_state_sub = orb_subscribe(ORB_ID(ukf_state_vector));
 	fds[fdsc_count].fd = subs.ukf_state_sub;
+	fds[fdsc_count].events = POLLIN;
+	fdsc_count++;
+
+	/* --- Filtered bottom flow --- */
+	subs.filtered_flow_sub = orb_subscribe(ORB_ID(filtered_bottom_flow));
+	fds[fdsc_count].fd = subs.filtered_flow_sub;
 	fds[fdsc_count].events = POLLIN;
 	fdsc_count++;
 
@@ -1190,6 +1200,25 @@ int sdlog2_thread_main(int argc, char *argv[])
 				log_msg.body.log_UKFS.pres_alt = buf.ukf_state.pres_alt;
 				LOGBUFFER_WRITE_AND_COUNT(UKFS);
 			}
+
+			if (fds[ifds++].revents & POLLIN) {
+				orb_copy(ORB_ID(filtered_bottom_flow), subs.filtered_flow_sub, &buf.filtered_bottom_flow_data);
+				log_msg.msg_type = LOG_FFLO_MSG;
+				log_msg.body.log_FFLO.sonar_counter = buf.filtered_bottom_flow_data.sonar_counter;
+				log_msg.body.log_FFLO.landed = (int8_t)(buf.filtered_bottom_flow_data.landed ? 1 : 0);
+				log_msg.body.log_FFLO.ned_xy_valid = (int8_t)(buf.filtered_bottom_flow_data.ned_xy_valid ? 1 : 0);
+				log_msg.body.log_FFLO.ned_z_valid = (int8_t)(buf.filtered_bottom_flow_data.ned_z_valid ? 1 : 0);
+				log_msg.body.log_FFLO.ned_v_xy_valid = (int8_t)(buf.filtered_bottom_flow_data.ned_v_xy_valid ? 1 : 0);
+				log_msg.body.log_FFLO.ned_v_z_valid = (int8_t)(buf.filtered_bottom_flow_data.ned_v_z_valid ? 1 : 0);
+				log_msg.body.log_FFLO.ned_x = buf.filtered_bottom_flow_data.ned_x;
+				log_msg.body.log_FFLO.ned_y = buf.filtered_bottom_flow_data.ned_y;
+				log_msg.body.log_FFLO.ned_z = buf.filtered_bottom_flow_data.ned_z;
+				log_msg.body.log_FFLO.ned_vx = buf.filtered_bottom_flow_data.ned_vx;
+				log_msg.body.log_FFLO.ned_vy = buf.filtered_bottom_flow_data.ned_vy;
+				log_msg.body.log_FFLO.ned_vz = buf.filtered_bottom_flow_data.ned_vz;
+				LOGBUFFER_WRITE_AND_COUNT(FFLO);
+			}
+
 			/* signal the other thread new data, but not yet unlock */
 			if (logbuffer_count(&lb) > MIN_BYTES_TO_WRITE) {
 				/* only request write if several packets can be written at once */
