@@ -323,6 +323,8 @@ int ardrone_interface_thread_main(int argc, char *argv[])
 	// enable UART, writes potentially an empty buffer, but multiplexing is disabled
 	ardrone_write = ardrone_open_uart(device, &uart_config_original);
 
+	usleep(5000);
+
 	// initialize multiplexing, deactivate all outputs - must happen after UART open to claim GPIOs on PX4FMU
 	gpios = ar_multiplexing_init();
 
@@ -331,6 +333,8 @@ int ardrone_interface_thread_main(int argc, char *argv[])
 		thread_running = false;
 		exit(ERROR);
 	}
+
+	usleep(5000);
 
 	// initialize motors
 	if (OK != ar_init_motors(ardrone_write, gpios)) {

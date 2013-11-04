@@ -273,7 +273,7 @@ int ar_init_motors(int ardrone_uart, int gpios)
 
 		ar_deselect_motor(gpios, i);
 		/* sleep 200 ms */
-		usleep(200000);
+		usleep(600000);
 	}
 
 	/* start the multicast part */
