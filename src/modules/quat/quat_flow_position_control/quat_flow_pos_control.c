@@ -20,6 +20,7 @@
 #include <time.h>
 #include <sys/prctl.h>
 #include <drivers/drv_hrt.h>
+#include <drivers/drv_tone_alarm.h>
 #include <uORB/uORB.h>
 #include <uORB/topics/vehicle_status.h>
 #include <uORB/topics/vehicle_control_mode.h>
@@ -40,6 +41,7 @@
 #include "nav_flow.h"
 #include "nav_flow_ukf.h"
 #include <quat/utils/quat_constants.h>
+#include <quat/utils/util.h>
 
 #include "quat_flow_pos_control.h"
 
@@ -61,6 +63,7 @@ static bool thread_running = false;		/**< Deamon status flag */
 static int deamon_task;				/**< Handle of deamon task / thread */
 static bool debug = false;
 static int32_t run_sensor_hist = 0;
+static int buzzer;
 
 
 __EXPORT int quat_flow_pos_control_main(int argc, char *argv[]);
@@ -74,6 +77,23 @@ static int quat_flow_pos_control_thread_main(int argc, char *argv[]);
  * Print the correct usage.
  */
 static void usage(const char *reason);
+
+int buzzer_init()
+{
+	buzzer = open("/dev/tone_alarm", O_WRONLY);
+
+	if (buzzer < 0) {
+		warnx("Buzzer: open fail\n");
+		return ERROR;
+	}
+
+	return OK;
+}
+
+void buzzer_deinit()
+{
+	close(buzzer);
+}
 
 static void
 setRunSensorHistNumber(int32_t number)
@@ -303,6 +323,10 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 			}
 		}
 	}
+
+	buzzer_init();
+	ioctl(buzzer, TONE_SET_ALARM, TONE_NOTIFY_NEUTRAL_TUNE);
+
 	printf("[quat flow pos control] Init position control\n");
 	quat_flow_pos_runInit(&raw);
 	printf("[quat flow pos control] Init ukf\n");
@@ -439,8 +463,15 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 		}
 	}
 	printf("[quat flow pos control] Init nav\n");
+	printf("Ground level altitude: %8.4f meters\n",raw.baro_alt_meter);
 	navFlowInit(&nav_params,raw.baro_alt_meter,navFlowUkfData.yaw);
+	navFlowUkfSetSonarOffset(0.0f,raw.baro_alt_meter,1.0f);
+	printf("Ground level offset: %8.4f meters\n",navFlowUkfData.presAltOffset);
 	printf("[quat flow pos control] Starting loop\n");
+
+	ioctl(buzzer, TONE_SET_ALARM, TONE_NOTIFY_POSITIVE_TUNE);
+	usleep(1000000);
+	buzzer_deinit();
 
 	///////////////////////////////////////////
 	// Start main loop
@@ -586,7 +617,7 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 			if (fds[1].revents & POLLIN)
 			{
 				orb_copy(ORB_ID(filtered_bottom_flow), filtered_bottom_flow_sub, &filtered_bottom_flow_data);
-				navFlowUkfFlowVelUpate(&filtered_bottom_flow_data,dt,&control_mode,&ukf_params);
+				navFlowUkfFlowVelUpate(&filtered_bottom_flow_data,raw.baro_alt_meter,dt,&control_mode,&ukf_params);
 			}
 			if(dt < FLT_MIN) {
 				perf_end(quat_flow_pos_loop_perf);

@@ -13,6 +13,7 @@
     	ukf_gyo_bias_q,
     	ukf_quat_q,
     	ukf_pres_alt_q,
+    	ukf_pres_alt_k, //Pressure alt to sonar alt offset coupling
     	ukf_acc_bias_v, // process variance variables
     	ukf_gyo_bias_v,
     	ukf_rate_v,
@@ -34,6 +35,8 @@
     	ukf_dist_n,
     	ukf_mag_n,
     	ukf_flow_vel_n,
+    	ukf_flow_vel_max_n,
+    	ukf_flow_alt_n,
     	ukf_flow_vel_alt_n,
     	ukf_pos_delay,
     	ukf_vel_delay;
@@ -71,6 +74,7 @@
 		ukf_vel_alt_q,
 		ukf_pos_q,
 		ukf_pos_alt_q,
+    	ukf_pres_alt_k,
 		ukf_acc_bias_q,
 		ukf_gyo_bias_q,
 		ukf_quat_q,
@@ -96,6 +100,8 @@
 		ukf_dist_n,
 		ukf_mag_n,
     	ukf_flow_vel_n,
+    	ukf_flow_vel_max_n,
+    	ukf_flow_alt_n,
     	ukf_flow_vel_alt_n,
 		ukf_pos_delay,
 		ukf_vel_delay,

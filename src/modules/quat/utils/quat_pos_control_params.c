@@ -15,7 +15,9 @@
     PARAM_DEFINE_FLOAT(Q_U_DIST_N, +1.8705e-02f);  	//acc deviation from one G
     PARAM_DEFINE_FLOAT(Q_U_ALT_N, +1.7077e-01f); 	//baro sensor
     PARAM_DEFINE_FLOAT(Q_U_FLOW_VEL_N, +1e-03f); 	//flow sensor
+    PARAM_DEFINE_FLOAT(Q_U_FLW_VEL_M_N, +100.0f); 	//flow sensor max noise if no valid signal available
     PARAM_DEFINE_FLOAT(Q_U_FLOW_VELA_N, +1e-03f); 	//sonar sensor
+    PARAM_DEFINE_FLOAT(Q_U_FLOW_A_N, +1e-03f); 	//sonar sensor
     PARAM_DEFINE_FLOAT(Q_U_MAG_N, +3.8226e-01f); 	//mag sensor
 
     // state variance
@@ -24,6 +26,7 @@
     PARAM_DEFINE_FLOAT(Q_U_POS_ALT_Q, +4.5576e+03f);
     PARAM_DEFINE_FLOAT(Q_U_POS_Q, +6.0490e+03f);
     PARAM_DEFINE_FLOAT(Q_U_PRES_ALT_Q, +6.5172e+01f); 	//variable 13
+    PARAM_DEFINE_FLOAT(Q_U_PRES_ALT_K, 1.0e-3f);
     PARAM_DEFINE_FLOAT(Q_U_QUAT_Q, +7.3021e-04f); 		//variables 9,10,11,12
     PARAM_DEFINE_FLOAT(Q_U_VEL_ALT_Q, +1.4149e-01f); 	//variable 2
     PARAM_DEFINE_FLOAT(Q_U_VEL_Q, +7.6020e-02f); 		//variables 0,1
@@ -132,12 +135,15 @@ int parameters_init(struct quat_position_control_NAV_param_handles *nav,
 	ukf->ukf_gyo_bias_v = param_find("Q_U_GYO_BIAS_V");
 	ukf->ukf_mag_n = param_find("Q_U_MAG_N");
 	ukf->ukf_flow_vel_n = param_find("Q_U_FLOW_VEL_N");
+	ukf->ukf_flow_vel_max_n = param_find("Q_U_FLW_VEL_M_N");
 	ukf->ukf_flow_vel_alt_n = param_find("Q_U_FLOW_VELA_N");
+	ukf->ukf_flow_alt_n = param_find("Q_U_FLOW_A_N");
 	ukf->ukf_pos_alt_q = param_find("Q_U_POS_ALT_Q");
 	ukf->ukf_pos_delay = param_find("Q_U_POS_DELAY");
 	ukf->ukf_pos_q = param_find("Q_U_POS_Q");
 	ukf->ukf_pos_v = param_find("Q_U_POS_V");
 	ukf->ukf_pres_alt_q = param_find("Q_U_PRES_ALT_Q");
+	ukf->ukf_pres_alt_k = param_find("Q_U_PRES_ALT_K");
 	ukf->ukf_pres_alt_v = param_find("Q_U_PRES_ALT_V");
     ukf->ukf_quat_q = param_find("Q_U_QUAT_Q");
     ukf->ukf_rate_v = param_find("Q_U_RATE_V");
@@ -194,6 +200,8 @@ int parameters_update(const struct quat_position_control_NAV_param_handles *nav_
 	param_get(ukf_handles->ukf_gyo_bias_q, &(ukf_params->ukf_gyo_bias_q));
 	param_get(ukf_handles->ukf_gyo_bias_v, &(ukf_params->ukf_gyo_bias_v));
 	param_get(ukf_handles->ukf_flow_vel_n, &(ukf_params->ukf_flow_vel_n));
+	param_get(ukf_handles->ukf_flow_vel_max_n, &(ukf_params->ukf_flow_vel_max_n));
+	param_get(ukf_handles->ukf_flow_alt_n, &(ukf_params->ukf_flow_alt_n));
 	param_get(ukf_handles->ukf_flow_vel_alt_n, &(ukf_params->ukf_flow_vel_alt_n));
 	param_get(ukf_handles->ukf_mag_n, &(ukf_params->ukf_mag_n));
 	param_get(ukf_handles->ukf_pos_alt_q, &(ukf_params->ukf_pos_alt_q));
@@ -201,6 +209,7 @@ int parameters_update(const struct quat_position_control_NAV_param_handles *nav_
 	param_get(ukf_handles->ukf_pos_q, &(ukf_params->ukf_pos_q));
 	param_get(ukf_handles->ukf_pos_v, &(ukf_params->ukf_pos_v));
 	param_get(ukf_handles->ukf_pres_alt_q, &(ukf_params->ukf_pres_alt_q));
+	param_get(ukf_handles->ukf_pres_alt_k, &(ukf_params->ukf_pres_alt_k));
 	param_get(ukf_handles->ukf_pres_alt_v, &(ukf_params->ukf_pres_alt_v));
 	param_get(ukf_handles->ukf_quat_q, &(ukf_params->ukf_quat_q));
 	param_get(ukf_handles->ukf_rate_v, &(ukf_params->ukf_rate_v));

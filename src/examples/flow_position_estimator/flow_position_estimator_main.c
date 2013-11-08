@@ -83,9 +83,26 @@ struct subsystem_info_s flow_control_info = {
 	true,
 	SUBSYSTEM_TYPE_OPTICALFLOW
 };
+static const float max_flow = 1.0f;	// max flow value that can be used, rad/s
+/* rotation matrix for transformation of optical flow speed vectors */
+static const int8_t rotM_flow_sensor[3][3] =   {{  0,-1, 0 },
+												{  1, 0, 0 },
+												{  0, 0, 1 }}; // 90deg rotated
 
 int flow_position_estimator_thread_main(int argc, char *argv[]);
 static void usage(const char *reason);
+uint8_t flow_calculate_flow(
+		struct flow_position_estimator_params* params,
+		struct vehicle_local_position_s* local_position_data,
+		struct optical_flow_s* flow,
+		struct filtered_bottom_flow_s* filtered_flow,
+		struct vehicle_attitude_s* att);
+void flow_calculate_altitude(bool vehicle_liftoff,
+		bool armed,
+		float sonar_new,
+		struct flow_position_estimator_params* params,
+		struct filtered_bottom_flow_s* filtered_flow,
+		struct vehicle_attitude_s* att);
 
 static void usage(const char *reason)
 {
@@ -149,31 +166,205 @@ int flow_position_estimator_main(int argc, char *argv[])
 	exit(1);
 }
 
+uint8_t flow_calculate_flow(
+		struct flow_position_estimator_params* params,
+		struct vehicle_local_position_s* local_position_data,
+		struct optical_flow_s* flow,
+		struct filtered_bottom_flow_s* filtered_flow,
+		struct vehicle_attitude_s* att)
+{
+	if( filtered_flow->ned_z_valid == 0 ||
+			flow->quality < (uint8_t)params->minimum_quality ||
+			att->R[2][2] <= 0.7f)
+	{
+		//invalidate position or bad quality
+		flow->flow_comp_x_m = 0.0f;
+		flow->flow_comp_y_m = 0.0f;
+		return 0;
+	}
+	/* distance to surface */
+	float flow_dist = -filtered_flow->ned_z / att->R[2][2];
+	/* check if flow is too large for accurate measurements */
+	/* calculate estimated velocity in body frame */
+	float body_v_est[3] = { 0.0f, 0.0f, 0.0f };
+
+	// Calculate estimated flow velocity from currently estimated velocity
+	// Transfer velocity to body frame
+	for (int i = 0; i < 3; i++) {
+		body_v_est[i] = att->R[0][i] * local_position_data->vx +
+						att->R[1][i] * local_position_data->vy +
+						att->R[2][i] * local_position_data->vz;
+	}
+
+	// Calculate a measure of flow accuracy based on the expecte flow velocity
+	float expected_x_flow = fabsf(body_v_est[1] / flow_dist - att->rollspeed);
+	float expected_y_flow = fabsf(body_v_est[0] / flow_dist + att->pitchspeed);
+	float expected_max_flow = expected_x_flow > expected_y_flow ? expected_x_flow : expected_y_flow;
+	uint8_t flow_accuracy = 0;
+
+	// Scale flow accuracy between 0 and 255
+	if (expected_max_flow < max_flow){
+		flow_accuracy = 255;
+	}
+	else if (expected_max_flow >  2 * max_flow) {
+		flow_accuracy = 0;
+	}
+	else
+	{
+		flow_accuracy = (uint8_t)(255.0f * (expected_max_flow - max_flow) / max_flow);
+	}
+
+	float flow_ang[3];
+	float speed[3];
+	flow_ang[0] = (float)flow->flow_raw_x * 1.0f;
+	flow_ang[1] = (float)flow->flow_raw_y * 1.0f;
+	flow_ang[2] = 0.0f;
+	/* convert to bodyframe velocity */
+	for(uint8_t i = 0; i < 3; i++)
+	{
+		float sum = 0.0f;
+		for(uint8_t j = 0; j < 3; j++) {
+			sum = sum + flow_ang[j] * rotM_flow_sensor[j][i];
+		}
+		speed[i] = sum;
+	}
+
+	/* flow measurements vector */
+	float flow_m[3];
+	flow_m[0] = -speed[0] * flow_dist;
+	flow_m[1] = -speed[1] * flow_dist;
+	flow_m[2] = body_v_est[2];
+	/* velocity in NED */
+	float flow_v[2] = { 0.0f, 0.0f };
+
+	/* project measurements vector to NED basis, skip Z component */
+	for (int i = 0; i < 2; i++) {
+		for (int j = 0; j < 3; j++) {
+			flow_v[i] += att->R[i][j] * flow_m[j];
+		}
+	}
+	flow->flow_comp_x_m = flow_v[0];
+	flow->flow_comp_y_m = flow_v[1];
+	return flow_accuracy;
+}
+
+void flow_calculate_altitude(bool vehicle_liftoff,
+		bool armed,
+		float sonar_new,
+		struct flow_position_estimator_params* params,
+		struct filtered_bottom_flow_s* filtered_flow,
+		struct vehicle_attitude_s* att)
+{
+	bool sonar_valid = false;
+	static uint64_t time_sonar_validated = 0; // in us
+	static uint64_t time_sonar_unvalidated = 0; // in us
+	static float sonar_last_measurement = 0.0f;
+	static uint64_t sonar_last_timestamp = 0;
+	static float sonar_last = 0.0f;
+	static float sonar_lp = 0.0f;
+	static float sonar_speed = 0.0f;
+	static int counter = 0;
+	/* filtering ground distance */
+	if (!vehicle_liftoff || !armed)
+	{
+		/* not possible to fly */
+		sonar_valid = false;
+		filtered_flow->ned_z = 0.0f;
+		time_sonar_validated = 0;
+		time_sonar_unvalidated = 0;
+	}
+	else if(sonar_new <= 0.3f) {
+		time_sonar_validated = 0;
+		if(time_sonar_unvalidated == 0) {
+			time_sonar_unvalidated = filtered_flow->timestamp;
+		} else if (filtered_flow->timestamp - time_sonar_unvalidated > 200000) {
+			sonar_valid = false;
+		}
+	}
+	else{
+		time_sonar_unvalidated = 0;
+		if(time_sonar_validated == 0) {
+			time_sonar_validated = filtered_flow->timestamp;
+		} else if (filtered_flow->timestamp - time_sonar_validated > 2000000) {
+			sonar_valid = true;
+		}
+	}
+
+	if ((!sonar_valid || att->R[2][2] <= 0.7f) &&
+			!params->debug)
+	{
+			filtered_flow->ned_vz = 0.0f;
+			filtered_flow->ned_v_z_valid = 0;
+			filtered_flow->ned_z_valid = 0;
+	}
+	else
+	{
+		/* simple lowpass sonar filtering */
+		/* if new value or with sonar update frequency */
+		if (sonar_new != sonar_last || counter++ % 10 == 0)
+		{
+			sonar_lp = 0.05f * sonar_new + 0.95f * sonar_lp;
+			sonar_last = sonar_new;
+		}
+
+		float height_diff = sonar_new - sonar_lp;
+
+		/* if over 1/2m spike follow lowpass */
+		if (height_diff < -params->sonar_lower_lp_threshold ||
+				height_diff > params->sonar_upper_lp_threshold)
+		{
+			filtered_flow->ned_z = -sonar_lp * att->R[2][2];
+			filtered_flow->ground_distance = -sonar_lp;
+		}
+		else
+		{
+			filtered_flow->ned_z = -sonar_new * att->R[2][2];
+			filtered_flow->ground_distance = -sonar_new;
+		}
+		// Velocity
+		// Only calculate if last measurement was valid
+		float time_since_last_sonar = ((float)(filtered_flow->timestamp - sonar_last_timestamp))/1000000.0f;
+		if(debug) printf("..m:%8.4f\tv:%8.4f\n", filtered_flow->ned_z, time_since_last_sonar);
+
+		if(time_since_last_sonar > 0.09f &&
+				(sonar_last_measurement != filtered_flow->ned_z || time_since_last_sonar > 0.11f)) {
+
+			if(filtered_flow->ned_z_valid > 0 &&
+			   time_since_last_sonar > FLT_MIN) {
+
+				float distance = filtered_flow->ned_z - sonar_last_measurement;
+				sonar_speed = distance/time_since_last_sonar;
+				// smooth
+				filtered_flow->ned_vz += (sonar_speed - filtered_flow->ned_vz) * 1.0f;
+				if(debug) printf("m:%8.4f\tl:%8.4f\td:%8.4f\tt:%8.4f\tv:%8.4f\n",
+						filtered_flow->ned_z, sonar_last_measurement, distance,
+						time_since_last_sonar, filtered_flow->ned_vz);
+				filtered_flow->ned_v_z_valid = 255;
+				filtered_flow->sonar_counter++;
+			} else {
+				filtered_flow->ned_vz = 0.0f;
+				filtered_flow->ned_v_z_valid = 0;
+				if(debug) printf("v:%d\tt:%8.4f\n",filtered_flow->ned_z_valid,
+						time_since_last_sonar);
+			}
+			sonar_last_timestamp = filtered_flow->timestamp;
+			sonar_last_measurement = filtered_flow->ned_z;
+		}
+		filtered_flow->ned_z_valid = 255;
+	}
+}
+
 int flow_position_estimator_thread_main(int argc, char *argv[])
 {
 	/* welcome user */
 	thread_running = true;
 	printf("[flow position estimator] starting\n");
 
-	/* rotation matrix for transformation of optical flow speed vectors */
-	static const int8_t rotM_flow_sensor[3][3] =   {{  0,-1, 0 },
-													{  1, 0, 0 },
-													{  0, 0, 1 }}; // 90deg rotated
+
 	const float time_scale = powf(10.0f,-6.0f);
-	static float speed[3] = {0.0f, 0.0f, 0.0f};
-	static float flow_speed[3] = {0.0f, 0.0f, 0.0f};
 	static float global_speed[3] = {0.0f, 0.0f, 0.0f};
-	static uint32_t counter = 0;
 	static uint64_t time_last_flow = 0; // in ms
-	static uint64_t time_sonar_validated = 0; // in us
-	static uint64_t time_sonar_unvalidated = 0; // in us
 	static float dt = 0.0f; // seconds
-	static float sonar_last_measurement = 0.0f;
-	static uint64_t sonar_last_timestamp = 0;
-	static float sonar_speed = 0.0f;
-	static float sonar_last = 0.0f;
-	static bool sonar_valid = false;
-	static float sonar_lp = 0.0f;
 	static float quality = 0;
 
 	/* subscribe to vehicle status, attitude, sensors and flow*/
@@ -187,6 +378,9 @@ int flow_position_estimator_thread_main(int argc, char *argv[])
 	memset(&att_sp, 0, sizeof(att_sp));
 	struct optical_flow_s flow;
 	memset(&flow, 0, sizeof(flow));
+	struct vehicle_local_position_s local_position_data;
+	memset(&local_position_data, 0, sizeof(local_position_data));
+
 
 	/* subscribe to parameter changes */
 	int parameter_update_sub = orb_subscribe(ORB_ID(parameter_update));
@@ -205,6 +399,9 @@ int flow_position_estimator_thread_main(int argc, char *argv[])
 
 	/* subscribe to optical flow*/
 	int optical_flow_sub = orb_subscribe(ORB_ID(optical_flow));
+
+	/* subscribe to local position*/
+	int local_position_sub = orb_subscribe(ORB_ID(vehicle_local_position));
 
 	static struct filtered_bottom_flow_s filtered_flow = {
 			.sumx = 0.0f,
@@ -296,15 +493,8 @@ int flow_position_estimator_thread_main(int argc, char *argv[])
 					orb_copy(ORB_ID(vehicle_attitude_setpoint), vehicle_attitude_setpoint_sub, &att_sp);
 					orb_copy(ORB_ID(actuator_armed), armed_sub, &armed);
 					orb_copy(ORB_ID(vehicle_control_mode), control_mode_sub, &control_mode);
+					orb_copy(ORB_ID(vehicle_local_position), local_position_sub, &local_position_data);
 
-					if(!control_mode.flag_control_velocity_enabled) {
-						filtered_flow.ned_x = 0.0f;
-						filtered_flow.ned_y = 0.0f;
-						filtered_flow.ned_vx = 0.0f;
-						filtered_flow.ned_vy = 0.0f;
-						filtered_flow.sumx = 0.0f;
-						filtered_flow.sumy = 0.0f;
-					}
 					/* vehicle state estimation */
 					float sonar_new = flow.ground_distance_m;
 
@@ -313,7 +503,6 @@ int flow_position_estimator_thread_main(int argc, char *argv[])
 					 * -> accept sonar measurements after reaching calibration distance (values between 0.3m and 1.0m for some time)
 					 * -> minimum sonar value 0.3m
 					 */
-
 					if (!vehicle_liftoff)
 					{
 						if (armed.armed &&
@@ -326,12 +515,19 @@ int flow_position_estimator_thread_main(int argc, char *argv[])
 					else
 					{
 						//Thrust is not enough to signal landing
-						if (!armed.armed //|| (att_sp.thrust < params.minimum_liftoff_thrust && sonar_new <= 0.3f)
-								) {
+						if (!armed.armed) {
 							vehicle_liftoff = false;
 							filtered_flow.landed = true;
+							filtered_flow.ned_x = 0.0f;
+							filtered_flow.ned_y = 0.0f;
 						}
 					}
+
+					//Calculate altitude
+					flow_calculate_altitude(vehicle_liftoff, armed.armed, sonar_new, &params, &filtered_flow, &att);
+
+					//Calculate flow velocity
+					uint8_t flow_accuracy = flow_calculate_flow(&params,&local_position_data,&flow,&filtered_flow,&att);
 
 					/* calc dt between flow timestamps */
 					/* ignore first flow msg */
@@ -340,53 +536,26 @@ int flow_position_estimator_thread_main(int argc, char *argv[])
 						time_last_flow = flow.timestamp;
 						continue;
 					}
-					dt = (float)(flow.timestamp - time_last_flow) * time_scale ;
+					dt = (float)(flow.timestamp - time_last_flow) * time_scale;
 					time_last_flow = flow.timestamp;
 
 					/* only make position update if vehicle is lift off or DEBUG is activated*/
 					if (vehicle_liftoff || params.debug)
 					{
-						/* copy flow */
-						flow_speed[0] = flow.flow_comp_x_m;
-						flow_speed[1] = flow.flow_comp_y_m;
-						flow_speed[2] = 0.0f;
-
-						/* convert to bodyframe velocity */
-						for(uint8_t i = 0; i < 3; i++)
-						{
-							float sum = 0.0f;
-							for(uint8_t j = 0; j < 3; j++)
-								sum = sum + flow_speed[j] * rotM_flow_sensor[j][i];
-
-							speed[i] = sum;
-						}
 
 						/* update filtered flow */
-						filtered_flow.sumx = filtered_flow.sumx + speed[0] * dt;
-						filtered_flow.sumy = filtered_flow.sumy + speed[1] * dt;
-						filtered_flow.vx = speed[0];
-						filtered_flow.vy = speed[1];
-
-						// TODO add yaw rotation correction (with distance to vehicle zero)
-
-						/* convert to globalframe velocity
-						 * -> local position is currently not used for position control
-						 */
-						for(uint8_t i = 0; i < 3; i++)
-						{
-							float sum = 0.0f;
-							for(uint8_t j = 0; j < 3; j++)
-								sum = sum + speed[j] * att.R[i][j];
-
-							global_speed[i] = sum;
+						//filtered_flow.sumx = filtered_flow.sumx + flow_speed[0] * dt;
+						//filtered_flow.sumy = filtered_flow.sumy + flow_speed[1] * dt;
+						//filtered_flow.vx = flow_speed[0];
+						//filtered_flow.vy = flow_speed[1];
+						if(flow_accuracy > 200) {
+							filtered_flow.ned_x = filtered_flow.ned_x + flow.flow_comp_x_m * dt;
+							filtered_flow.ned_y = filtered_flow.ned_y + flow.flow_comp_y_m * dt;
 						}
-
-						filtered_flow.ned_x = filtered_flow.ned_x + global_speed[0] * dt;
-						filtered_flow.ned_y = filtered_flow.ned_y + global_speed[1] * dt;
-						filtered_flow.ned_vx = global_speed[0];
-						filtered_flow.ned_vy = global_speed[1];
-						filtered_flow.ned_xy_valid = true;
-						filtered_flow.ned_v_xy_valid = true;
+						filtered_flow.ned_vx = flow.flow_comp_x_m;
+						filtered_flow.ned_vy = flow.flow_comp_y_m;
+						filtered_flow.ned_xy_valid = flow_accuracy;
+						filtered_flow.ned_v_xy_valid = flow_accuracy;
 					}
 					else
 					{
@@ -395,107 +564,8 @@ int flow_position_estimator_thread_main(int argc, char *argv[])
 						filtered_flow.vy = 0;
 						filtered_flow.ned_vx = 0;
 						filtered_flow.ned_vy = 0;
-						filtered_flow.ned_xy_valid = false;
-						filtered_flow.ned_v_xy_valid = false;
-					}
-
-					/* filtering ground distance */
-					if (!vehicle_liftoff || !armed.armed)
-					{
-						/* not possible to fly */
-						sonar_valid = false;
-						filtered_flow.ned_z = 0.0f;
-						time_sonar_validated = 0;
-						time_sonar_unvalidated = 0;
-					}
-					else if(sonar_new <= 0.3f) {
-						time_sonar_validated = 0;
-						if(time_sonar_unvalidated == 0) {
-							time_sonar_unvalidated = filtered_flow.timestamp;
-						} else if (filtered_flow.timestamp - time_sonar_unvalidated > 200000) {
-							sonar_valid = false;
-						}
-					}
-					else{
-						time_sonar_unvalidated = 0;
-						if(time_sonar_validated == 0) {
-							time_sonar_validated = filtered_flow.timestamp;
-						} else if (filtered_flow.timestamp - time_sonar_validated > 2000000) {
-							sonar_valid = true;
-						}
-					}
-
-					if (sonar_valid || params.debug)
-					{
-						/* simple lowpass sonar filtering */
-						/* if new value or with sonar update frequency */
-						if (sonar_new != sonar_last || counter % 10 == 0)
-						{
-							sonar_lp = 0.05f * sonar_new + 0.95f * sonar_lp;
-							sonar_last = sonar_new;
-						}
-
-						float height_diff = sonar_new - sonar_lp;
-
-						/* if over 1/2m spike follow lowpass */
-						if (height_diff < -params.sonar_lower_lp_threshold || height_diff > params.sonar_upper_lp_threshold)
-						{
-							filtered_flow.ned_z = -sonar_lp;
-							filtered_flow.ground_distance = -sonar_lp;
-						}
-						else
-						{
-							filtered_flow.ned_z = -sonar_new;
-							filtered_flow.ground_distance = -sonar_new;
-						}
-						// Velocity
-						// Only calculate if last measurement was valid
-
-						float time_since_last_sonar = ((float)(filtered_flow.timestamp - sonar_last_timestamp))/1000000.0f;
-						if(debug) printf("..m:%8.4f\tv:%8.4f\n", filtered_flow.ned_z, time_since_last_sonar);
-
-						if(time_since_last_sonar > 0.09f &&
-								(sonar_last_measurement != filtered_flow.ned_z || time_since_last_sonar > 0.11f)) {
-
-							if(filtered_flow.ned_z_valid &&
-							   time_since_last_sonar > FLT_MIN) {
-
-								float distance = filtered_flow.ned_z - sonar_last_measurement;
-								sonar_speed = distance/time_since_last_sonar;
-								// smooth
-								filtered_flow.ned_vz += (sonar_speed - filtered_flow.ned_vz) * 1.0f;
-								if(debug) printf("m:%8.4f\tl:%8.4f\td:%8.4f\tt:%8.4f\tv:%8.4f\n",
-										filtered_flow.ned_z, sonar_last_measurement, distance, time_since_last_sonar, filtered_flow.ned_vz);
-
-								filtered_flow.ned_v_z_valid = true;
-								filtered_flow.sonar_counter++;
-								sonar_last_timestamp = filtered_flow.timestamp;
-								sonar_last_measurement = filtered_flow.ned_z;
-							} else {
-								filtered_flow.ned_vz = 0.0f;
-								filtered_flow.ned_v_z_valid = false;
-								sonar_last_timestamp = filtered_flow.timestamp;
-								sonar_last_measurement = filtered_flow.ned_z;
-								if(debug) printf("v:%d\tt:%8.4f\n",filtered_flow.ned_z_valid,
-										time_since_last_sonar);
-							}
-
-						}
-
-						filtered_flow.ned_z_valid = true;
-					}
-					else
-					{
-						filtered_flow.ned_vz = 0.0f;
-						filtered_flow.ned_v_z_valid = false;
-						filtered_flow.ned_z_valid = false;
-					}
-
-					quality = (quality + ((float)flow.quality)*0.1f)/1.1f;
-					if(quality < (float)params.minimum_quality){
-						//invalidate position for bad quality
-						filtered_flow.ned_xy_valid = false;
-						filtered_flow.ned_v_xy_valid = false;
+						filtered_flow.ned_xy_valid = 0;
+						filtered_flow.ned_v_xy_valid = 0;
 					}
 
 					// publish subsystem info for flow
@@ -558,8 +628,6 @@ int flow_position_estimator_thread_main(int argc, char *argv[])
 				}
 			}
 		}
-
-		counter++;
 	}
 
 	printf("[flow position estimator] exiting.\n");

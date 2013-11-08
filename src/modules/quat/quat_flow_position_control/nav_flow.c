@@ -94,6 +94,7 @@ void navFlowNavigate(
     uint64_t currentTime = imu_timestamp;
     float tmp;
     float measured_altitude = -UKF_FLOW_PRES_ALT;//local_position->z;//=UKF_FLOW_PRES_ALT
+    static float throttle_middle_position = 1.0f;
 
     // 1. Calculate mode
 	bool altCapable = control_mode->flag_control_altitude_enabled;
@@ -184,8 +185,6 @@ void navFlowNavigate(
 		// switch to manual mode
 		navFlowData.mode = NAV_STATUS_MANUAL;
 		navPublishSystemInfo();
-		// keep up with changing altitude
-		navFlowSetHoldAlt(measured_altitude, 0);
     }
 
     // 2. Do navigation
@@ -238,15 +237,24 @@ void navFlowNavigate(
 
 		// Throttle controls vertical speed
 		// Throttle is 0 ... 1
-		vertStick = (manual_control->throttle * 2.0f) - 1.0f;
+		//Make sure that current throttle gets the hold position
+		// But asure that remaining throttle range is not too small
+		if(throttle_middle_position < 0.5f || throttle_middle_position > 1.5f) throttle_middle_position = 1.0f;
+		vertStick = (manual_control->throttle * 2.0f) - throttle_middle_position;
 		if (vertStick > CTRL_DEAD_BAND || vertStick < -CTRL_DEAD_BAND) {
 			// altitude velocity negative proportional to throttle stick
-			// TODO: Assume that throttle control is normalized to -1 ... 1
-			if (vertStick > 0.0f)
-			navFlowData.targetHoldSpeedAlt = -(vertStick - CTRL_DEAD_BAND) * params->nav_alt_pos_om;
-			else
-			navFlowData.targetHoldSpeedAlt = -(vertStick + CTRL_DEAD_BAND) * params->nav_max_decent;
-
+			if (vertStick > 0.0f) {
+				// positive stick
+				vertStick = vertStick / (2.0f - throttle_middle_position) / (1.0f - CTRL_DEAD_BAND);
+				if((vertStick - CTRL_DEAD_BAND) > +1.0f) 	vertStick = +1.0f;
+				navFlowData.targetHoldSpeedAlt = -(vertStick - CTRL_DEAD_BAND) * params->nav_alt_pos_om;
+			}
+			else {
+				// negative stick
+				vertStick = vertStick / (throttle_middle_position) / (1.0f - CTRL_DEAD_BAND);
+				if((vertStick + CTRL_DEAD_BAND) < -1.0f) 	vertStick = -1.0f;
+				navFlowData.targetHoldSpeedAlt = -(vertStick + CTRL_DEAD_BAND) * params->nav_max_decent;
+			}
 			// set new hold altitude to wherever we are during vertical speed overrides
 			if (navFlowData.mode != NAV_STATUS_MISSION)
 			navFlowSetHoldAlt(measured_altitude, 0);
@@ -267,6 +275,13 @@ void navFlowNavigate(
 
 		// smooth vertical velocity changes
 		navFlowData.holdSpeedAlt += (navFlowData.targetHoldSpeedAlt - navFlowData.holdSpeedAlt) * 0.01f;
+    }
+    else
+    {
+    	// In manual mode: remember last throttle position
+		// set this throttle position as middle position
+		throttle_middle_position = manual_control->throttle * 2.0f;
+
     }
     navFlowData.lastUpdate = currentTime;
 }

@@ -278,10 +278,10 @@ struct log_UKFS_s {
 struct log_FFLO_s {
 	uint32_t sonar_counter;		/**< Raised by one if new measurement arrived */
 	int8_t landed;
-	int8_t ned_xy_valid;			/**< true if x and y are valid */
-	int8_t ned_z_valid;			/**< true if z is valid */
-	int8_t ned_v_xy_valid;		/**< true if vy and vy are valid */
-	int8_t ned_v_z_valid;			/**< true if vz is valid */
+	uint8_t ned_xy_valid;			/**< true if x and y are valid */
+	uint8_t ned_z_valid;			/**< true if z is valid */
+	uint8_t ned_v_xy_valid;		/**< true if vy and vy are valid */
+	uint8_t ned_v_z_valid;			/**< true if vz is valid */
 	float ned_x;				/**< X position in meters in NED earth-fixed frame */
 	float ned_y;				/**< X position in meters in NED earth-fixed frame */
 	float ned_z;				/**< Z position in meters in NED earth-fixed frame (negative altitude) */
@@ -328,8 +328,7 @@ static const struct log_format_s log_formats[] = {
 	LOG_FORMAT(GVSP, "fff", "VX,VY,VZ"),
 	LOG_FORMAT(FWRV,"Z",FW_VERSION_STR),
 	LOG_FORMAT(UKFS, "fffffffffffff", "vn,ve,vd,pn,pe,pd,abx,aby,abz,gbx,gby,gbz,pa"),
-	//LOG_FORMAT(FFLO, "f","z"),
-	LOG_FORMAT(FFLO, "Ibbbbbffffff","sc,land,xyv,zv,vxyv,vzv,x,y,z,vx,vy,vz"),
+	LOG_FORMAT(FFLO, "IbBBBBffffff","sc,land,xyv,zv,vxyv,vzv,x,y,z,vx,vy,vz"),
 };
 
 static const int log_formats_num = sizeof(log_formats) / sizeof(struct log_format_s);

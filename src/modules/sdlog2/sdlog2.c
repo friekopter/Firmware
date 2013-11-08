@@ -1206,10 +1206,10 @@ int sdlog2_thread_main(int argc, char *argv[])
 				log_msg.msg_type = LOG_FFLO_MSG;
 				log_msg.body.log_FFLO.sonar_counter = buf.filtered_bottom_flow_data.sonar_counter;
 				log_msg.body.log_FFLO.landed = (int8_t)(buf.filtered_bottom_flow_data.landed ? 1 : 0);
-				log_msg.body.log_FFLO.ned_xy_valid = (int8_t)(buf.filtered_bottom_flow_data.ned_xy_valid ? 1 : 0);
-				log_msg.body.log_FFLO.ned_z_valid = (int8_t)(buf.filtered_bottom_flow_data.ned_z_valid ? 1 : 0);
-				log_msg.body.log_FFLO.ned_v_xy_valid = (int8_t)(buf.filtered_bottom_flow_data.ned_v_xy_valid ? 1 : 0);
-				log_msg.body.log_FFLO.ned_v_z_valid = (int8_t)(buf.filtered_bottom_flow_data.ned_v_z_valid ? 1 : 0);
+				log_msg.body.log_FFLO.ned_xy_valid = buf.filtered_bottom_flow_data.ned_xy_valid;
+				log_msg.body.log_FFLO.ned_z_valid = buf.filtered_bottom_flow_data.ned_z_valid;
+				log_msg.body.log_FFLO.ned_v_xy_valid = buf.filtered_bottom_flow_data.ned_v_xy_valid;
+				log_msg.body.log_FFLO.ned_v_z_valid = buf.filtered_bottom_flow_data.ned_v_z_valid;
 				log_msg.body.log_FFLO.ned_x = buf.filtered_bottom_flow_data.ned_x;
 				log_msg.body.log_FFLO.ned_y = buf.filtered_bottom_flow_data.ned_y;
 				log_msg.body.log_FFLO.ned_z = buf.filtered_bottom_flow_data.ned_z;

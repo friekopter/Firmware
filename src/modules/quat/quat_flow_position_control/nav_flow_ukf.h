@@ -64,18 +64,14 @@ extern float navFlowDoAccUpdate(float accX, float accY, float accZ,
 extern void navFlowDoMagUpdate(float magX, float magY, float magZ,
 		 const struct vehicle_control_mode_s *control_mode,
 		 const struct quat_position_control_UKF_params* params);
-extern void navFlowUkfSonarVelUpate(
-		const struct filtered_bottom_flow_s* bottom_flow,
-		float dt,
-		const struct vehicle_control_mode_s *control_mode,
-		const struct quat_position_control_UKF_params* params);
 extern void navFlowUkfFlowVelUpate(
 		const struct filtered_bottom_flow_s* local_position,
+		float altMeters,
 		float dt,
 		const struct vehicle_control_mode_s *control_mode,
 		const struct quat_position_control_UKF_params* params);
-extern void navFlowUKFPressureAdjust(float altitude);
 extern void navFlowUkfZeroRate(float zRate, int axis);
 extern void navFlowUkfFinish(void);
+extern void navFlowUkfSetSonarOffset(const float sonarDistanceToEarth, const float baroAltitude, const float kSonarBaro);
 
 #endif
