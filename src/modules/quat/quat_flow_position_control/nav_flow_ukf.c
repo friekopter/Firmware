@@ -237,7 +237,7 @@ void navFlowUkfFlowVelUpate(
     const float distanceToEarth = -bottom_flow->ned_z; //Positive value
     if(bottom_flow->ned_z_valid < 255) {
     	// sonar not valid
-    	navFlowUkfSetSonarOffset(0.3f,altMeters,1.0);
+    	navFlowUkfSetSonarOffset(0.3f,altMeters,1.0f);
     } else if (control_mode->flag_control_altitude_enabled) {
     	// altitude hold mode
     	navFlowUkfSetSonarOffset(distanceToEarth,altMeters,params->ukf_pres_alt_k);
