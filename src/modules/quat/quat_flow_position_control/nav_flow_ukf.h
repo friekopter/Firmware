@@ -45,7 +45,8 @@ typedef struct {
     //float yawCos, yawSin;
     float mat3x3[3*3];
     float *x;			// states
-    float presAltOffset;
+    float sonarAltOffset;
+    float pressAltOffset;
 } navFlowUkfStruct_t;
 
 extern navFlowUkfStruct_t navFlowUkfData;
@@ -66,12 +67,13 @@ extern void navFlowDoMagUpdate(float magX, float magY, float magZ,
 		 const struct quat_position_control_UKF_params* params);
 extern void navFlowUkfFlowVelUpate(
 		const struct filtered_bottom_flow_s* local_position,
-		float altMeters,
+		float baroAltitude,
 		float dt,
 		const struct vehicle_control_mode_s *control_mode,
 		const struct quat_position_control_UKF_params* params);
 extern void navFlowUkfZeroRate(float zRate, int axis);
 extern void navFlowUkfFinish(void);
 extern void navFlowUkfSetSonarOffset(const float sonarDistanceToEarth, const float baroAltitude, const float kSonarBaro);
+extern void navFlowUkfSetPressAltOffset(const float baroAltitude, const float kSonarBaro);
 
 #endif

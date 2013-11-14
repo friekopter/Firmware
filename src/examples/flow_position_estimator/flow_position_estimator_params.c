@@ -49,6 +49,8 @@ PARAM_DEFINE_FLOAT(FPE_SONAR_LP_U, 0.5f);
 PARAM_DEFINE_FLOAT(FPE_SONAR_LP_L, 0.2f);
 PARAM_DEFINE_INT32(FPE_MIN_QUA, 30);
 PARAM_DEFINE_INT32(FPE_DEBUG, 0);
+PARAM_DEFINE_FLOAT(FPE_MAX_VEL, 1.0f);
+PARAM_DEFINE_FLOAT(FPE_FLOW_K, 0.0165f);
 
 
 int parameters_init(struct flow_position_estimator_param_handles *h)
@@ -59,6 +61,8 @@ int parameters_init(struct flow_position_estimator_param_handles *h)
 	h->sonar_lower_lp_threshold	=	param_find("FPE_SONAR_LP_L");
 	h->debug					=	param_find("FPE_DEBUG");
 	h->minimum_quality 			= 	param_find("FPE_MIN_QUA");
+	h->max_velocity				= 	param_find("FPE_MAX_VEL");
+	h->flow_k					= 	param_find("FPE_FLOW_K");
 	return OK;
 }
 
@@ -69,6 +73,8 @@ int parameters_update(const struct flow_position_estimator_param_handles *h, str
 	param_get(h->sonar_lower_lp_threshold, &(p->sonar_lower_lp_threshold));
 	param_get(h->debug, &(p->debug));
 	param_get(h->minimum_quality, &(p->minimum_quality));
+	param_get(h->max_velocity, &(p->max_velocity));
+	param_get(h->flow_k, &(p->flow_k));
 
 	return OK;
 }

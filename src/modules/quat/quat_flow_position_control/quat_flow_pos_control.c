@@ -466,7 +466,7 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 	printf("Ground level altitude: %8.4f meters\n",raw.baro_alt_meter);
 	navFlowInit(&nav_params,raw.baro_alt_meter,navFlowUkfData.yaw);
 	navFlowUkfSetSonarOffset(0.0f,raw.baro_alt_meter,1.0f);
-	printf("Ground level offset: %8.4f meters\n",navFlowUkfData.presAltOffset);
+	printf("Ground level offset: %8.4f meters\n",navFlowUkfData.sonarAltOffset);
 	printf("[quat flow pos control] Starting loop\n");
 
 	ioctl(buzzer, TONE_SET_ALARM, TONE_NOTIFY_POSITIVE_TUNE);
@@ -699,6 +699,7 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 				local_position_data.v_z_valid = true;
 				local_position_data.timestamp = raw.timestamp;
 				local_position_data.yaw = att.yaw;
+				local_position_data.landed = filtered_bottom_flow_data.landed;
 				orb_publish(ORB_ID(vehicle_local_position), local_pos_pub, &local_position_data);
 
 			}

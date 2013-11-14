@@ -83,7 +83,6 @@ struct subsystem_info_s flow_control_info = {
 	true,
 	SUBSYSTEM_TYPE_OPTICALFLOW
 };
-static const float max_flow = 1.0f;	// max flow value that can be used, rad/s
 /* rotation matrix for transformation of optical flow speed vectors */
 static const int8_t rotM_flow_sensor[3][3] =   {{  0,-1, 0 },
 												{  1, 0, 0 },
@@ -173,11 +172,12 @@ uint8_t flow_calculate_flow(
 		struct filtered_bottom_flow_s* filtered_flow,
 		struct vehicle_attitude_s* att)
 {
+	const float max_flow = params->max_velocity;	// max flow value that can be used, rad/s
 	if( filtered_flow->ned_z_valid == 0 ||
 			flow->quality < (uint8_t)params->minimum_quality ||
 			att->R[2][2] <= 0.7f)
 	{
-		//invalidate position or bad quality
+		//invalid position or bad quality
 		flow->flow_comp_x_m = 0.0f;
 		flow->flow_comp_y_m = 0.0f;
 		return 0;
@@ -216,23 +216,14 @@ uint8_t flow_calculate_flow(
 
 	float flow_ang[3];
 	float speed[3];
-	flow_ang[0] = (float)flow->flow_raw_x * 1.0f;
-	flow_ang[1] = (float)flow->flow_raw_y * 1.0f;
+	flow_ang[0] = (float)flow->flow_raw_x * params->flow_k;
+	flow_ang[1] = (float)flow->flow_raw_y * params->flow_k;
 	flow_ang[2] = 0.0f;
-	/* convert to bodyframe velocity */
-	for(uint8_t i = 0; i < 3; i++)
-	{
-		float sum = 0.0f;
-		for(uint8_t j = 0; j < 3; j++) {
-			sum = sum + flow_ang[j] * rotM_flow_sensor[j][i];
-		}
-		speed[i] = sum;
-	}
 
 	/* flow measurements vector */
 	float flow_m[3];
-	flow_m[0] = -speed[0] * flow_dist;
-	flow_m[1] = -speed[1] * flow_dist;
+	flow_m[0] = -flow_ang[0] * flow_dist;
+	flow_m[1] = -flow_ang[1] * flow_dist;
 	flow_m[2] = body_v_est[2];
 	/* velocity in NED */
 	float flow_v[2] = { 0.0f, 0.0f };
@@ -362,6 +353,8 @@ int flow_position_estimator_thread_main(int argc, char *argv[])
 
 
 	const float time_scale = powf(10.0f,-6.0f);
+	static float speed[3] = {0.0f, 0.0f, 0.0f};
+	static float flow_speed[3] = {0.0f, 0.0f, 0.0f};
 	static float global_speed[3] = {0.0f, 0.0f, 0.0f};
 	static uint64_t time_last_flow = 0; // in ms
 	static float dt = 0.0f; // seconds
@@ -542,18 +535,30 @@ int flow_position_estimator_thread_main(int argc, char *argv[])
 					/* only make position update if vehicle is lift off or DEBUG is activated*/
 					if (vehicle_liftoff || params.debug)
 					{
+						/* copy flow */
+						flow_speed[0] = flow.flow_comp_x_m;
+						flow_speed[1] = flow.flow_comp_y_m;
+						flow_speed[2] = 0.0f;
 
+						/* convert to bodyframe velocity */
+						for(uint8_t i = 0; i < 3; i++) {
+							float sum = 0.0f;
+							for(uint8_t j = 0; j < 3; j++) {
+								sum = sum + flow_speed[j] * rotM_flow_sensor[j][i];
+							}
+							speed[i] = sum;
+						}
 						/* update filtered flow */
 						//filtered_flow.sumx = filtered_flow.sumx + flow_speed[0] * dt;
 						//filtered_flow.sumy = filtered_flow.sumy + flow_speed[1] * dt;
 						//filtered_flow.vx = flow_speed[0];
 						//filtered_flow.vy = flow_speed[1];
 						if(flow_accuracy > 200) {
-							filtered_flow.ned_x = filtered_flow.ned_x + flow.flow_comp_x_m * dt;
-							filtered_flow.ned_y = filtered_flow.ned_y + flow.flow_comp_y_m * dt;
+							filtered_flow.ned_x = filtered_flow.ned_x + speed[0] * dt;
+							filtered_flow.ned_y = filtered_flow.ned_y + speed[1] * dt;
 						}
-						filtered_flow.ned_vx = flow.flow_comp_x_m;
-						filtered_flow.ned_vy = flow.flow_comp_y_m;
+						filtered_flow.ned_vx = speed[0];
+						filtered_flow.ned_vy = speed[1];
 						filtered_flow.ned_xy_valid = flow_accuracy;
 						filtered_flow.ned_v_xy_valid = flow_accuracy;
 					}

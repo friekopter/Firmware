@@ -24,9 +24,15 @@ void navFlowUkfSonarUpdate(float *u, float *x, float *noise, float *y);
 
 
 void navFlowUkfSetSonarOffset(const float sonarDistanceToEarth, const float baroAltitude, const float kSonarBaro) {
-	const float offsetError = -sonarDistanceToEarth + navFlowUkfData.presAltOffset - baroAltitude;
-	//navFlowUkfData.presAltOffset = -sonarDistanceToEarth + baroAltitude
-	navFlowUkfData.presAltOffset -= (offsetError * kSonarBaro);
+	const float offsetError = -sonarDistanceToEarth + navFlowUkfData.sonarAltOffset - baroAltitude;
+	//navFlowUkfData.sonarAltOffset = -sonarDistanceToEarth + baroAltitude
+	navFlowUkfData.sonarAltOffset -= (offsetError * kSonarBaro);
+}
+
+void navFlowUkfSetPressAltOffset(const float baroAltitude, const float kSonarBaro) {
+	const float offsetError = baroAltitude + navFlowUkfData.pressAltOffset - UKF_FLOW_PRES_ALT;
+	//navFlowUkfData.sonarAltOffset = -sonarDistanceToEarth + baroAltitude
+	navFlowUkfData.pressAltOffset -= (offsetError * kSonarBaro);
 }
 
 
@@ -164,7 +170,7 @@ void navFlowDoPresUpdate(float pres,
 
     noise[0] = params->ukf_alt_n;
 
-    y[0] = utilPresToAlt(pres);
+    y[0] = utilPresToAlt(pres) + navFlowUkfData.pressAltOffset;
 
    	srcdkfMeasurementUpdate(navFlowUkfData.kf, 0, y, 1, 1, noise, navFlowUkfPresUpdate);
 }
@@ -226,7 +232,7 @@ void navFlowDoMagUpdate(float magX, float magY, float magZ,
 
 void navFlowUkfFlowVelUpate(
 		const struct filtered_bottom_flow_s* bottom_flow,
-		float altMeters,
+		float baroAltitude,
 		float dt,
 		const struct vehicle_control_mode_s *control_mode,
 		const struct quat_position_control_UKF_params* params) {
@@ -237,18 +243,20 @@ void navFlowUkfFlowVelUpate(
     const float distanceToEarth = -bottom_flow->ned_z; //Positive value
     if(bottom_flow->ned_z_valid < 255) {
     	// sonar not valid
-    	navFlowUkfSetSonarOffset(0.3f,altMeters,1.0f);
+    	navFlowUkfSetSonarOffset(0.3f,baroAltitude,1.0f);
     } else if (control_mode->flag_control_altitude_enabled) {
-    	// altitude hold mode
-    	navFlowUkfSetSonarOffset(distanceToEarth,altMeters,params->ukf_pres_alt_k);
+    	// altitude hold mode using sonar
+    	// don't change sonar offset
+    	// But change pressure offset
+    	navFlowUkfSetPressAltOffset(baroAltitude,params->ukf_pres_alt_k);
     } else {
     	//no altitude hold
-    	navFlowUkfSetSonarOffset(distanceToEarth,altMeters,params->ukf_pres_alt_k * 10.0f);
+    	navFlowUkfSetSonarOffset(distanceToEarth,baroAltitude,params->ukf_pres_alt_k);
     }
 
 	if(bottom_flow->ned_z_valid == 255) {
 		noise[0] = params->ukf_flow_alt_n;
-		y[0] = distanceToEarth + navFlowUkfData.presAltOffset;
+		y[0] = distanceToEarth + navFlowUkfData.sonarAltOffset;
 		srcdkfMeasurementUpdate(navFlowUkfData.kf, 0, y, 1, 1, noise, navFlowUkfPresUpdate);
 	}
 
@@ -360,7 +368,8 @@ void navFlowUkfInit(const struct quat_position_control_UKF_params* params,
     navFlowUkfData.kf = srcdkfInit(SIM_S, SIM_M, SIM_V, SIM_N, navFlowUkfTimeUpdate);
 
     navFlowUkfData.x = srcdkfGetState(navFlowUkfData.kf);
-    navFlowUkfData.presAltOffset = 0.0f;
+    navFlowUkfData.sonarAltOffset = 0.0f;
+    navFlowUkfData.pressAltOffset = 0.0f;
 
     // State variance
     Q[0] = params->ukf_vel_q;
