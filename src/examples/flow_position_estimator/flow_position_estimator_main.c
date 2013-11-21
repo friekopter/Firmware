@@ -320,8 +320,7 @@ void flow_calculate_altitude(bool vehicle_liftoff,
 		if(time_since_last_sonar > 0.09f &&
 				(sonar_last_measurement != filtered_flow->ned_z || time_since_last_sonar > 0.11f)) {
 
-			if(filtered_flow->ned_z_valid > 0 &&
-			   time_since_last_sonar > FLT_MIN) {
+			if(filtered_flow->ned_z_valid > 0) {
 
 				float distance = filtered_flow->ned_z - sonar_last_measurement;
 				sonar_speed = distance/time_since_last_sonar;
