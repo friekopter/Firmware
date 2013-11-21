@@ -8,6 +8,7 @@
 #include <quat/utils/aq_math.h>
 #include <quat/utils/util.h>
 #include <quat/utils/compass_utils.h>
+#include <quat/utils/srcdkf.h>
 #include <drivers/drv_hrt.h>
 #include <uORB/topics/filtered_bottom_flow.h>
 
@@ -23,15 +24,13 @@ void navFlowUkfFlowUpdate(float *u, float *x, float *noise, float *y);
 void navFlowUkfSonarUpdate(float *u, float *x, float *noise, float *y);
 
 
-void navFlowUkfSetSonarOffset(const float sonarDistanceToEarth, const float baroAltitude, const float kSonarBaro) {
-	const float offsetError = -sonarDistanceToEarth + navFlowUkfData.sonarAltOffset - baroAltitude;
-	//navFlowUkfData.sonarAltOffset = -sonarDistanceToEarth + baroAltitude
+void navFlowUkfSetSonarOffset(const float sonarDistanceToEarth, const float altitude, const float kSonarBaro) {
+	const float offsetError = -sonarDistanceToEarth + navFlowUkfData.sonarAltOffset - altitude;
 	navFlowUkfData.sonarAltOffset -= (offsetError * kSonarBaro);
 }
 
-void navFlowUkfSetPressAltOffset(const float baroAltitude, const float kSonarBaro) {
-	const float offsetError = baroAltitude + navFlowUkfData.pressAltOffset - UKF_FLOW_PRES_ALT;
-	//navFlowUkfData.sonarAltOffset = -sonarDistanceToEarth + baroAltitude
+void navFlowUkfSetPressAltOffset(const float baroAltitude, const float altitude,  const float kSonarBaro) {
+	const float offsetError = baroAltitude + navFlowUkfData.pressAltOffset - altitude;
 	navFlowUkfData.pressAltOffset -= (offsetError * kSonarBaro);
 }
 
@@ -243,15 +242,15 @@ void navFlowUkfFlowVelUpate(
     const float distanceToEarth = -bottom_flow->ned_z; //Positive value
     if(bottom_flow->ned_z_valid < 255) {
     	// sonar not valid
-    	navFlowUkfSetSonarOffset(0.3f,baroAltitude,1.0f);
+    	navFlowUkfSetSonarOffset(0.3f, UKF_FLOW_PRES_ALT, 1.0f);
     } else if (control_mode->flag_control_altitude_enabled) {
     	// altitude hold mode using sonar
     	// don't change sonar offset
     	// But change pressure offset
-    	navFlowUkfSetPressAltOffset(baroAltitude,params->ukf_pres_alt_k);
+    	navFlowUkfSetPressAltOffset(baroAltitude, UKF_FLOW_PRES_ALT, params->ukf_pres_alt_k);
     } else {
     	//no altitude hold
-    	navFlowUkfSetSonarOffset(distanceToEarth,baroAltitude,params->ukf_pres_alt_k);
+    	navFlowUkfSetSonarOffset(distanceToEarth, UKF_FLOW_PRES_ALT, params->ukf_pres_alt_k);
     }
 
 	if(bottom_flow->ned_z_valid == 255) {

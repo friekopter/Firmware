@@ -229,6 +229,7 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 	//publish local position
 	orb_advert_t local_pos_pub = orb_advertise(ORB_ID(vehicle_local_position), &local_position_data);
 	memset(&local_position_data, 0, sizeof(local_position_data));
+	local_position_data.landed = true;
 
 	//publish position setpoint
 	orb_advert_t local_pos_sp_pub = orb_advertise(ORB_ID(vehicle_local_position_setpoint), &local_position_sp);

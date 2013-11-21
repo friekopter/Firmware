@@ -299,11 +299,7 @@ quat_att_control_thread_main(int argc, char *argv[])
 			}
 		}
 		else if ( control_mode.flag_control_manual_enabled &&
-				 !control_mode.flag_control_velocity_enabled &&
-				  control_mode.flag_control_altitude_enabled) {
-			att_sp.roll_body = manual.roll * control.controlRollF;
-			att_sp.pitch_body = manual.pitch * control.controlPitchF;
-			att_sp.yaw_body = 0;
+				  control_mode.flag_control_velocity_enabled ) {
 			/* set yaw rate */
 			if (manual.yaw < -control.controlDeadBand || manual.yaw > control.controlDeadBand)
 			{

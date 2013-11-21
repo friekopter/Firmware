@@ -419,6 +419,7 @@ int flow_position_estimator_thread_main(int argc, char *argv[])
 
 	/* advert pub messages */
 	orb_advert_t filtered_flow_pub = orb_advertise(ORB_ID(filtered_bottom_flow), &filtered_flow);
+	filtered_flow.landed = true;
 
 	/* vehicle flying status parameters */
 	bool vehicle_liftoff = false;

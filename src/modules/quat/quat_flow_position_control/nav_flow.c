@@ -274,6 +274,10 @@ void navFlowNavigate(
 				(navFlowData.holdMaxVertSpeed < params->nav_max_decent) ? -navFlowData.holdMaxVertSpeed : -params->nav_max_decent, navFlowData.holdMaxVertSpeed);
 
 		// smooth vertical velocity changes
+		//float smoothfactor = 0.01f;
+//		if (bottom_flow->ned_z_valid == 255) {
+//			smoothfactor *= 10.0f;
+//		}
 		navFlowData.holdSpeedAlt += (navFlowData.targetHoldSpeedAlt - navFlowData.holdSpeedAlt) * 0.01f;
     }
     else

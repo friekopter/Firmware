@@ -73,7 +73,7 @@ extern void navFlowUkfFlowVelUpate(
 		const struct quat_position_control_UKF_params* params);
 extern void navFlowUkfZeroRate(float zRate, int axis);
 extern void navFlowUkfFinish(void);
-extern void navFlowUkfSetSonarOffset(const float sonarDistanceToEarth, const float baroAltitude, const float kSonarBaro);
-extern void navFlowUkfSetPressAltOffset(const float baroAltitude, const float kSonarBaro);
+extern void navFlowUkfSetSonarOffset(const float sonarDistanceToEarth, const float altitude,  const float kSonarBaro);
+extern void navFlowUkfSetPressAltOffset(const float baroAltitude, const float altitude,  const float kSonarBaro);
 
 #endif

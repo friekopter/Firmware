@@ -21,6 +21,7 @@
 
 #include "aq_math.h"
 #include <systemlib/visibility.h>
+#include <mathlib/CMSIS/Include/arm_math.h>
 
 #define SRCDKF_H	aq_sqrtf(3.0f)
 #define SRCDKF_RM	0.0001f		// Robbins-Monro stochastic term
