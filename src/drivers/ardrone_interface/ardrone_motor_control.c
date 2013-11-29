@@ -215,6 +215,7 @@ int ar_init_motors(int ardrone_uart, int gpios)
 
 	/* deselect all motors */
 	ar_deselect_motor(gpios, 0);
+	usleep(200);
 
 	/* initialize all motors
 	 * - select one motor at a time

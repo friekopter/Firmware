@@ -315,14 +315,15 @@ void flow_calculate_altitude(bool vehicle_liftoff,
 		// Velocity
 		// Only calculate if last measurement was valid
 		float time_since_last_sonar = ((float)(filtered_flow->timestamp - sonar_last_timestamp))/1000000.0f;
+		float ned_z_lp = -sonar_lp * att->R[2][2];
 		if(debug) printf("..m:%8.4f\tv:%8.4f\n", filtered_flow->ned_z, time_since_last_sonar);
 
 		if(time_since_last_sonar > 0.09f &&
-				(sonar_last_measurement != filtered_flow->ned_z || time_since_last_sonar > 0.11f)) {
+				(sonar_last_measurement != ned_z_lp || time_since_last_sonar > 0.11f)) {
 
 			if(filtered_flow->ned_z_valid > 0) {
 
-				float distance = filtered_flow->ned_z - sonar_last_measurement;
+				float distance = ned_z_lp - sonar_last_measurement;
 				sonar_speed = distance/time_since_last_sonar;
 				// smooth
 				filtered_flow->ned_vz += (sonar_speed - filtered_flow->ned_vz) * 1.0f;
@@ -338,7 +339,7 @@ void flow_calculate_altitude(bool vehicle_liftoff,
 						time_since_last_sonar);
 			}
 			sonar_last_timestamp = filtered_flow->timestamp;
-			sonar_last_measurement = filtered_flow->ned_z;
+			sonar_last_measurement = ned_z_lp;
 		}
 		filtered_flow->ned_z_valid = 255;
 	}

@@ -702,7 +702,6 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 				local_position_data.yaw = att.yaw;
 				local_position_data.landed = filtered_bottom_flow_data.landed;
 				orb_publish(ORB_ID(vehicle_local_position), local_pos_pub, &local_position_data);
-
 			}
 			// print debug information every 1000th time
 			if (debug == true && !(printcounter % 101))

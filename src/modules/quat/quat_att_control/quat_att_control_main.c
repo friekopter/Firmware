@@ -104,8 +104,6 @@ quat_att_control_thread_main(int argc, char *argv[])
 	memset(&manual, 0, sizeof(manual));
 	struct sensor_combined_s raw;
 	memset(&raw, 0, sizeof(raw));
-	struct offboard_control_setpoint_s offboard_sp;
-	memset(&offboard_sp, 0, sizeof(offboard_sp));
 	struct vehicle_rates_setpoint_s rates_sp;
 	memset(&rates_sp, 0, sizeof(rates_sp));
 	struct vehicle_status_s status;
@@ -124,7 +122,6 @@ quat_att_control_thread_main(int argc, char *argv[])
 	 * orb_set_interval(att_sub, 5);
 	 */
 	int att_setpoint_sub = orb_subscribe(ORB_ID(vehicle_attitude_setpoint));
-	int setpoint_sub = orb_subscribe(ORB_ID(offboard_control_setpoint));
 	int manual_sub = orb_subscribe(ORB_ID(manual_control_setpoint));
 	int sensor_sub = orb_subscribe(ORB_ID(sensor_combined));
 	int params_sub = orb_subscribe(ORB_ID(parameter_update));
@@ -231,11 +228,6 @@ quat_att_control_thread_main(int argc, char *argv[])
 		orb_copy(ORB_ID(vehicle_attitude), att_sub, &att);
 		/* get a local copy of attitude setpoint */
 		orb_copy(ORB_ID(vehicle_attitude_setpoint), att_setpoint_sub, &att_sp);
-		/* get a local copy of rates setpoint */
-		orb_check(setpoint_sub, &updated);
-		if (updated) {
-			orb_copy(ORB_ID(offboard_control_setpoint), setpoint_sub, &offboard_sp);
-		}
 		/* get a local copy of the current sensor values */
 		orb_copy(ORB_ID(sensor_combined), sensor_sub, &raw);
 
@@ -273,9 +265,6 @@ quat_att_control_thread_main(int argc, char *argv[])
 				if ( !control_mode.flag_control_altitude_enabled ) {
 					// enable manual altitude control
 					att_sp.thrust = manual.throttle * control.controlThrottleF;
-					// only here publish the setpoints, otherwise we expect
-					// them to have another source
-					orb_publish(ORB_ID(vehicle_attitude_setpoint), att_sp_pub, &att_sp);
 				}
 				else {
 					// altitude is controlled by software (hopefully!)
@@ -323,7 +312,8 @@ quat_att_control_thread_main(int argc, char *argv[])
 				&actuators);
 
 		if (control_mode.flag_control_manual_enabled &&
-			!control_mode.flag_control_velocity_enabled) {
+			!control_mode.flag_control_velocity_enabled &&
+			!control_mode.flag_control_altitude_enabled) {
 			// only in this case we define the setpoints and are entitled to
 			// publish its values
 			orb_publish(ORB_ID(vehicle_attitude_setpoint), att_sp_pub, &att_sp);
