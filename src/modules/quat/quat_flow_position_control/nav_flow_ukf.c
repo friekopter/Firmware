@@ -25,7 +25,9 @@ void navFlowUkfSonarUpdate(float *u, float *x, float *noise, float *y);
 
 
 void navFlowUkfSetSonarOffset(const float sonarDistanceToEarth, const float altitude, const float kSonarBaro) {
-	const float offsetError = -sonarDistanceToEarth + navFlowUkfData.sonarAltOffset - altitude;
+	const float offsetError = sonarDistanceToEarth + navFlowUkfData.sonarAltOffset - altitude;
+	//sonarAltOffset =  -sonarDistanceToEarth + altitude);
+	//altitude = sonarAltOffset + sonarDistanceToEarth
 	navFlowUkfData.sonarAltOffset -= (offsetError * kSonarBaro);
 }
 
@@ -250,6 +252,7 @@ void navFlowUkfFlowVelUpate(
     	navFlowUkfSetPressAltOffset(baroAltitude, UKF_FLOW_PRES_ALT, params->ukf_pres_alt_k);
     } else {
     	//no altitude hold
+    	//altitude = sonarAltOffset + bottom_flow->ned_z
     	navFlowUkfSetSonarOffset(distanceToEarth, UKF_FLOW_PRES_ALT, params->ukf_pres_alt_k);
     }
 
