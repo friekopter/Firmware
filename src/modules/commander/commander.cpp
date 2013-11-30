@@ -971,7 +971,6 @@ int commander_thread_main(int argc, char *argv[])
 			if (critical_voltage_counter > CRITICAL_VOLTAGE_BATTERY_COUNTER_LIMIT) {
 				critical_battery_voltage_actions_done = true;
 				mavlink_log_critical(mavlink_fd, "#audio: EMERGENCY: CRITICAL BATTERY");
-				printf("battery warning:%8.4f\n",battery.voltage_v);
 				status.battery_warning = VEHICLE_BATTERY_WARNING_CRITICAL;
 				battery_tune_played = false;
 
