@@ -355,7 +355,6 @@ int flow_position_estimator_thread_main(int argc, char *argv[])
 	const float time_scale = powf(10.0f,-6.0f);
 	static float speed[3] = {0.0f, 0.0f, 0.0f};
 	static float flow_speed[3] = {0.0f, 0.0f, 0.0f};
-	static float global_speed[3] = {0.0f, 0.0f, 0.0f};
 	static uint64_t time_last_flow = 0; // in ms
 	static float dt = 0.0f; // seconds
 	static float quality = 0;

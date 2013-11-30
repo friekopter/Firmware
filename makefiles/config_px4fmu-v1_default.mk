@@ -33,7 +33,7 @@ MODULES		+= drivers/hil
 MODULES		+= drivers/blinkm
 MODULES		+= drivers/rgbled
 MODULES		+= drivers/mkblctrl
-MODULES		+= drivers/md25
+MODULES		+= drivers/roboclaw
 MODULES		+= drivers/airspeed
 MODULES		+= drivers/ets_airspeed
 MODULES		+= drivers/meas_airspeed
@@ -63,6 +63,7 @@ MODULES		+= systemcmds/nshterm
 # General system control
 #
 MODULES		+= modules/commander
+MODULES		+= modules/navigator
 MODULES		+= modules/mavlink
 MODULES		+= modules/mavlink_onboard
 MODULES		+= modules/gpio_led
@@ -78,9 +79,9 @@ MODULES		+= examples/flow_position_estimator
 #
 # Vehicle Control
 #
-#MODULES		+= modules/segway # XXX needs state machine update
-#MODULES		+= modules/fw_pos_control_l1
-#MODULES		+= modules/fw_att_control
+#MODULES		+= modules/segway # XXX Needs GCC 4.7 fix
+MODULES		+= modules/fw_pos_control_l1
+MODULES		+= modules/fw_att_control
 MODULES		+= modules/multirotor_att_control
 MODULES		+= modules/multirotor_pos_control
 MODULES		+= examples/flow_position_control
@@ -111,8 +112,10 @@ MODULES		+= modules/uORB
 LIBRARIES	+= lib/mathlib/CMSIS
 MODULES		+= lib/mathlib
 MODULES		+= lib/mathlib/math/filter
-#MODULES		+= lib/ecl
+MODULES		+= lib/ecl
+MODULES		+= lib/external_lgpl
 MODULES		+= lib/geo
+MODULES		+= lib/conversion
 
 #
 # Demo apps
@@ -133,7 +136,6 @@ MODULES		+= lib/geo
 # Tutorial code from
 # https://pixhawk.ethz.ch/px4/dev/example_fixedwing_control
 #MODULES			+= examples/fixedwing_control
-
 
 #
 # Transitional support - add commands from the NuttX export archive.

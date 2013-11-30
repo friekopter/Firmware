@@ -31,12 +31,12 @@ MODULES		+= drivers/hil
 #MODULES		+= drivers/hott/hott_telemetry
 #MODULES		+= drivers/hott/hott_sensors
 MODULES		+= drivers/blinkm
-MODULES		+= drivers/rgbled
+#MODULES		+= drivers/rgbled
 MODULES		+= drivers/mkblctrl
-MODULES		+= drivers/md25
-MODULES		+= drivers/airspeed
-MODULES		+= drivers/ets_airspeed
-MODULES		+= drivers/meas_airspeed
+#MODULES		+= drivers/md25
+#MODULES		+= drivers/airspeed
+#MODULES		+= drivers/ets_airspeed
+#MODULES		+= drivers/meas_airspeed
 MODULES		+= modules/sensors
 
 #
@@ -72,7 +72,7 @@ MODULES		+= modules/gpio_led
 #
 MODULES		+= modules/attitude_estimator_ekf
 MODULES		+= modules/att_pos_estimator_ekf
-MODULES		+= modules/position_estimator_inav
+#MODULES		+= modules/position_estimator_inav
 MODULES		+= examples/flow_position_estimator
 
 #
@@ -83,8 +83,8 @@ MODULES		+= examples/flow_position_estimator
 #MODULES		+= modules/fw_att_control
 MODULES		+= modules/multirotor_att_control
 MODULES		+= modules/multirotor_pos_control
-MODULES		+= examples/flow_position_control
-MODULES		+= examples/flow_speed_control
+#MODULES		+= examples/flow_position_control
+#MODULES		+= examples/flow_speed_control
 
 #
 # Logging
@@ -113,6 +113,7 @@ MODULES		+= lib/mathlib
 MODULES		+= lib/mathlib/math/filter
 #MODULES		+= lib/ecl
 MODULES		+= lib/geo
+MODULES		+= lib/conversion
 
 #
 # Demo apps
