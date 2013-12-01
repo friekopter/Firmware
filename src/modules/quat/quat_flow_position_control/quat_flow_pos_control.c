@@ -64,6 +64,7 @@ static int deamon_task;				/**< Handle of deamon task / thread */
 static bool debug = false;
 static int32_t run_sensor_hist = 0;
 static int buzzer;
+static bool inAir = false;
 
 
 __EXPORT int quat_flow_pos_control_main(int argc, char *argv[]);
@@ -546,6 +547,20 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 					runData.sumAcc[1] += runData.accHist[1][runData.accHistIndex];
 					runData.sumAcc[2] += runData.accHist[2][runData.accHistIndex];
 					runData.accHistIndex = (runData.accHistIndex + 1) % run_sensor_hist;
+					float stdDeviationAcc = 0;
+					arm_std_f32(runData.accHist[2],run_sensor_hist,&stdDeviationAcc);
+					bool inAirVibrations = stdDeviationAcc > nav_params.nav_in_air_acc_deviation;
+					static int accDeviationCounter = 0;
+					if(inAirVibrations != inAir) {
+						accDeviationCounter++;
+					}
+					//Delay switch
+					if(accDeviationCounter > 200) {
+						inAir = inAirVibrations;
+					}
+					if(inAirVibrations == inAir) {
+						accDeviationCounter = 0;
+					}
 				}
 
 				// mag
@@ -700,7 +715,7 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 				local_position_data.v_z_valid = true;
 				local_position_data.timestamp = raw.timestamp;
 				local_position_data.yaw = att.yaw;
-				local_position_data.landed = filtered_bottom_flow_data.landed;
+				local_position_data.landed = !inAir;//filtered_bottom_flow_data.landed;
 				orb_publish(ORB_ID(vehicle_local_position), local_pos_pub, &local_position_data);
 			}
 			// print debug information every 1000th time

@@ -66,7 +66,8 @@
         	nav_alt_pos_i,
         	nav_alt_pos_pm,
         	nav_alt_pos_im,
-        	nav_alt_pos_om;
+        	nav_alt_pos_om,
+        	nav_in_air_acc_deviation;
     };
 
     struct quat_position_control_UKF_param_handles {
@@ -131,7 +132,8 @@
         	nav_alt_pos_i,
         	nav_alt_pos_pm,
         	nav_alt_pos_im,
-        	nav_alt_pos_om;
+        	nav_alt_pos_om,
+        	nav_in_air_acc_deviation;
     };
 
 __BEGIN_DECLS

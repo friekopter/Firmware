@@ -10,51 +10,51 @@
 /* Extended Kalman Filter covariances */
 
 /* controller parameters */
-	//Noise
-    PARAM_DEFINE_FLOAT(Q_U_ACC_N, +9.5468e-05f); 	//acc sensor
-    PARAM_DEFINE_FLOAT(Q_U_DIST_N, +1.8705e-02f);  	//acc deviation from one G
-    PARAM_DEFINE_FLOAT(Q_U_ALT_N, +1.7077e-01f); 	//baro sensor
-    PARAM_DEFINE_FLOAT(Q_U_FLOW_VEL_N, +1e-03f); 	//flow sensor
-    PARAM_DEFINE_FLOAT(Q_U_FLW_VEL_M_N, +100.0f); 	//flow sensor max noise if no valid signal available
-    PARAM_DEFINE_FLOAT(Q_U_FLOW_VELA_N, +1e-03f); 	//sonar sensor
-    PARAM_DEFINE_FLOAT(Q_U_FLOW_A_N, +1e-03f); 	//sonar sensor
-    PARAM_DEFINE_FLOAT(Q_U_MAG_N, +3.8226e-01f); 	//mag sensor
+//Noise
+PARAM_DEFINE_FLOAT(Q_U_ACC_N, +9.5468e-05f); 	//acc sensor
+PARAM_DEFINE_FLOAT(Q_U_DIST_N, +1.8705e-02f);  	//acc deviation from one G
+PARAM_DEFINE_FLOAT(Q_U_ALT_N, +1.7077e-01f); 	//baro sensor
+PARAM_DEFINE_FLOAT(Q_U_FLOW_VEL_N, +1e-03f); 	//flow sensor
+PARAM_DEFINE_FLOAT(Q_U_FLW_VEL_M_N, +100.0f); 	//flow sensor max noise if no valid signal available
+PARAM_DEFINE_FLOAT(Q_U_FLOW_VELA_N, +1e-03f); 	//sonar sensor
+PARAM_DEFINE_FLOAT(Q_U_FLOW_A_N, +1e-03f); 	//sonar sensor
+PARAM_DEFINE_FLOAT(Q_U_MAG_N, +3.8226e-01f); 	//mag sensor
 
-    // state variance
-    PARAM_DEFINE_FLOAT(Q_U_ACC_BIAS_Q, +9.3722e-04f); 	//variables 3,4,5
-    PARAM_DEFINE_FLOAT(Q_U_GYO_BIAS_Q, +4.6872e-02f); 	//variables 6,7,8
-    PARAM_DEFINE_FLOAT(Q_U_POS_ALT_Q, +4.5576e+03f);
-    PARAM_DEFINE_FLOAT(Q_U_POS_Q, +6.0490e+03f);
-    PARAM_DEFINE_FLOAT(Q_U_PRES_ALT_Q, +6.5172e+01f); 	//variable 13
-    PARAM_DEFINE_FLOAT(Q_U_PRES_ALT_K, 1.0e-3f);
-    PARAM_DEFINE_FLOAT(Q_U_QUAT_Q, +7.3021e-04f); 		//variables 9,10,11,12
-    PARAM_DEFINE_FLOAT(Q_U_VEL_ALT_Q, +1.4149e-01f); 	//variable 2
-    PARAM_DEFINE_FLOAT(Q_U_VEL_Q, +7.6020e-02f); 		//variables 0,1
+// state variance
+PARAM_DEFINE_FLOAT(Q_U_ACC_BIAS_Q, +9.3722e-04f); 	//variables 3,4,5
+PARAM_DEFINE_FLOAT(Q_U_GYO_BIAS_Q, +4.6872e-02f); 	//variables 6,7,8
+PARAM_DEFINE_FLOAT(Q_U_POS_ALT_Q, +4.5576e+03f);
+PARAM_DEFINE_FLOAT(Q_U_POS_Q, +6.0490e+03f);
+PARAM_DEFINE_FLOAT(Q_U_PRES_ALT_Q, +6.5172e+01f); 	//variable 13
+PARAM_DEFINE_FLOAT(Q_U_PRES_ALT_K, 1.0e-3f);
+PARAM_DEFINE_FLOAT(Q_U_QUAT_Q, +7.3021e-04f); 		//variables 9,10,11,12
+PARAM_DEFINE_FLOAT(Q_U_VEL_ALT_Q, +1.4149e-01f); 	//variable 2
+PARAM_DEFINE_FLOAT(Q_U_VEL_Q, +7.6020e-02f); 		//variables 0,1
 
-    // Process covariance
-    PARAM_DEFINE_FLOAT(Q_U_ACC_BIAS_V, +2.7535e-07f);//changing
-    PARAM_DEFINE_FLOAT(Q_U_GYO_BIAS_V, +8.2738e-07f);
-    PARAM_DEFINE_FLOAT(Q_U_ALT_POS_V, +5.3821e-09f);
-    PARAM_DEFINE_FLOAT(Q_U_POS_V, +6.4505e-08f);
-    PARAM_DEFINE_FLOAT(Q_U_PRES_ALT_V, +1.0204e-04f);
-    PARAM_DEFINE_FLOAT(Q_U_RATE_V, +6.0568e-05f);
-    PARAM_DEFINE_FLOAT(Q_U_VEL_V, +1.0980e-07f);
-    PARAM_DEFINE_FLOAT(Q_U_ALT_VEL_V, +2.8103e-07f);
+// Process covariance
+PARAM_DEFINE_FLOAT(Q_U_ACC_BIAS_V, +2.7535e-07f);//changing
+PARAM_DEFINE_FLOAT(Q_U_GYO_BIAS_V, +8.2738e-07f);
+PARAM_DEFINE_FLOAT(Q_U_ALT_POS_V, +5.3821e-09f);
+PARAM_DEFINE_FLOAT(Q_U_POS_V, +6.4505e-08f);
+PARAM_DEFINE_FLOAT(Q_U_PRES_ALT_V, +1.0204e-04f);
+PARAM_DEFINE_FLOAT(Q_U_RATE_V, +6.0568e-05f);
+PARAM_DEFINE_FLOAT(Q_U_VEL_V, +1.0980e-07f);
+PARAM_DEFINE_FLOAT(Q_U_ALT_VEL_V, +2.8103e-07f);
 
-    PARAM_DEFINE_FLOAT(Q_U_VEL_DELAY, -1.0373e+05f);
-    PARAM_DEFINE_FLOAT(Q_U_POS_DELAY, +2.0574e+03f);
+PARAM_DEFINE_FLOAT(Q_U_VEL_DELAY, -1.0373e+05f);
+PARAM_DEFINE_FLOAT(Q_U_POS_DELAY, +2.0574e+03f);
 
-    PARAM_DEFINE_FLOAT(Q_U_GPS_ALT_M_N, +3.8535e-05f);
-    PARAM_DEFINE_FLOAT(Q_U_GPS_ALT_N, +7.6558e-05f);
-    PARAM_DEFINE_FLOAT(Q_U_GPS_POS_M_N, +4.7413e-05f);
-    PARAM_DEFINE_FLOAT(Q_U_GPS_POS_N, +1.7620e-05f);
-    PARAM_DEFINE_FLOAT(Q_U_GPS_VD_M_N, +1.5841e-02f);
-    PARAM_DEFINE_FLOAT(Q_U_GPS_VD_N, +3.7820e+00f);
-    PARAM_DEFINE_FLOAT(Q_U_GPS_VEL_M_N, +1.2336e-02f);
-    PARAM_DEFINE_FLOAT(Q_U_GPS_VEL_N, +4.6256e-02f);
+PARAM_DEFINE_FLOAT(Q_U_GPS_ALT_M_N, +3.8535e-05f);
+PARAM_DEFINE_FLOAT(Q_U_GPS_ALT_N, +7.6558e-05f);
+PARAM_DEFINE_FLOAT(Q_U_GPS_POS_M_N, +4.7413e-05f);
+PARAM_DEFINE_FLOAT(Q_U_GPS_POS_N, +1.7620e-05f);
+PARAM_DEFINE_FLOAT(Q_U_GPS_VD_M_N, +1.5841e-02f);
+PARAM_DEFINE_FLOAT(Q_U_GPS_VD_N, +3.7820e+00f);
+PARAM_DEFINE_FLOAT(Q_U_GPS_VEL_M_N, +1.2336e-02f);
+PARAM_DEFINE_FLOAT(Q_U_GPS_VEL_N, +4.6256e-02f);
 
-    PARAM_DEFINE_INT32(Q_U_SENS_HIST, 10);
-    PARAM_DEFINE_INT32(Q_U_SENS_INTV, 5);
+PARAM_DEFINE_INT32(Q_U_SENS_HIST, 10);
+PARAM_DEFINE_INT32(Q_U_SENS_INTV, 5);
 
 PARAM_DEFINE_FLOAT(Q_N_MAX_SPEED,	    5.0f);	// m/s
 PARAM_DEFINE_FLOAT(Q_N_MAX_DECENT,	    1.5f);	// m/s
@@ -87,6 +87,7 @@ PARAM_DEFINE_FLOAT(Q_N_ALT_SPED_I,0.00475f);//	    2.85f);
 PARAM_DEFINE_FLOAT(Q_N_ALT_SPED_PM,0.25f);//	    150.0f);
 PARAM_DEFINE_FLOAT(Q_N_ALT_SPED_IM,0.8f);//	    600.0f);
 PARAM_DEFINE_FLOAT(Q_N_ALT_SPED_OM,0.8f);//	    600.0f);
+PARAM_DEFINE_FLOAT(Q_N_ACC_INAIR_D,0.4f);
 
 int parameters_init(struct quat_position_control_NAV_param_handles *nav,
 		struct quat_position_control_UKF_param_handles *ukf)
@@ -113,6 +114,8 @@ int parameters_init(struct quat_position_control_NAV_param_handles *nav,
 	nav->nav_alt_pos_pm = param_find("Q_N_ALT_POS_PM");
 	nav->nav_alt_pos_im = param_find("Q_N_ALT_POS_IM");
 	nav->nav_alt_pos_om = param_find("Q_N_ALT_POS_OM");
+	nav->nav_in_air_acc_deviation = param_find("Q_N_ACC_INAIR_D");
+
 
 	ukf->ukf_acc_bias_q = param_find("Q_U_ACC_BIAS_Q");
 	ukf->ukf_acc_bias_v = param_find("Q_U_ACC_BIAS_V");
@@ -181,6 +184,7 @@ int parameters_update(const struct quat_position_control_NAV_param_handles *nav_
 	param_get(nav_handles->nav_alt_pos_pm, &(nav_params->nav_alt_pos_pm));
 	param_get(nav_handles->nav_alt_pos_im, &(nav_params->nav_alt_pos_im));
 	param_get(nav_handles->nav_alt_pos_om, &(nav_params->nav_alt_pos_om));
+	param_get(nav_handles->nav_in_air_acc_deviation, &(nav_params->nav_in_air_acc_deviation));
 
 	param_get(ukf_handles->ukf_acc_bias_q, &(ukf_params->ukf_acc_bias_q));
 	param_get(ukf_handles->ukf_acc_bias_v, &(ukf_params->ukf_acc_bias_v));
