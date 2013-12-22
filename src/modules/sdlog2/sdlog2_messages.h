@@ -247,12 +247,6 @@ struct log_GVSP_s {
 	float vz;
 };
 
-/* --- TIME - TIME STAMP --- */
-#define LOG_TIME_MSG 129
-struct log_TIME_s {
-	uint64_t t;
-};
-
 /* --- UKV State -- */
 #define LOG_UKFS_MSG 21
 struct log_UKFS_s {
@@ -285,6 +279,12 @@ struct log_FFLO_s {
 	float ned_vx; 				/**< Ground X Speed (Latitude), m/s in NED */
 	float ned_vy;				/**< Ground Y Speed (Longitude), m/s in NED */
 	float ned_vz;				/**< Ground Z Speed (Altitude), m/s	in NED */
+};
+
+/* --- TIME - TIME STAMP --- */
+#define LOG_TIME_MSG 129
+struct log_TIME_s {
+	uint64_t t;
 };
 
 /* --- VER - VERSION --- */
@@ -324,13 +324,13 @@ static const struct log_format_s log_formats[] = {
 	LOG_FORMAT(GPSP, "BLLfffbBffff", "AltRel,Lat,Lon,Alt,Yaw,LoiterR,LoiterDir,NavCmd,P1,P2,P3,P4"),
 	LOG_FORMAT(ESC, "HBBBHHHHHHfH", "Counter,NumESC,Conn,N,Ver,Adr,Volt,Amp,RPM,Temp,SetP,SetPRAW"),
 	LOG_FORMAT(GVSP, "fff", "VX,VY,VZ"),
+	LOG_FORMAT(UKFS, "fffffffffffff", "vn,ve,vd,pn,pe,pd,abx,aby,abz,gbx,gby,gbz,pa"),
+	LOG_FORMAT(FFLO, "IbBBBBffffff","sc,land,xyv,zv,vxyv,vzv,x,y,z,vx,vy,vz"),
 	/* system-level messages, ID >= 0x80 */
 	// FMT: don't write format of format message, it's useless
 	LOG_FORMAT(TIME, "Q", "StartTime"),
 	LOG_FORMAT(VER, "NZ", "Arch,FwGit"),
 	LOG_FORMAT(PARM, "Nf", "Name,Value"),
-	LOG_FORMAT(UKFS, "fffffffffffff", "vn,ve,vd,pn,pe,pd,abx,aby,abz,gbx,gby,gbz,pa"),
-	LOG_FORMAT(FFLO, "IbBBBBffffff","sc,land,xyv,zv,vxyv,vzv,x,y,z,vx,vy,vz"),
 };
 
 static const int log_formats_num = sizeof(log_formats) / sizeof(struct log_format_s);

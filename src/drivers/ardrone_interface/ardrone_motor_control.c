@@ -213,9 +213,10 @@ int ar_init_motors(int ardrone_uart, int gpios)
 	uint8_t initbuf[] = {0xE0, 0x91, 0xA1, 0x00, 0x40};
 	uint8_t multicastbuf[] = {0xA0, 0xA0, 0xA0, 0xA0, 0xA0, 0xA0};
 
+	uint8_t status[2];
+
 	/* deselect all motors */
 	ar_deselect_motor(gpios, 0);
-	usleep(200);
 
 	/* initialize all motors
 	 * - select one motor at a time
@@ -228,6 +229,7 @@ int ar_init_motors(int ardrone_uart, int gpios)
 	/* initial setup run */
 	for (i = 1; i < 5; ++i) {
 		/* Initialize motors 1-4 */
+		printf("select motor %i\n",i);
 		errcounter += ar_select_motor(gpios, i);
 		usleep(200);
 
@@ -236,8 +238,14 @@ int ar_init_motors(int ardrone_uart, int gpios)
 		 * receive one status byte
 		 */
 		write(ardrone_uart, &(initbuf[0]), 1);
+
+
 		fsync(ardrone_uart);
 		usleep(UART_TRANSFER_TIME_BYTE_US*1);
+
+
+		//read(ardrone_uart, &(status[0]), 2);
+		//printf("status :%u%u\n",initbuf[0], initbuf[1]);
 
 		/*
 		 * write 0x91 - request checksum
@@ -274,7 +282,7 @@ int ar_init_motors(int ardrone_uart, int gpios)
 
 		ar_deselect_motor(gpios, i);
 		/* sleep 200 ms */
-		usleep(600000);
+		usleep(200000);
 	}
 
 	/* start the multicast part */

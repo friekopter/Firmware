@@ -18,7 +18,7 @@
 #include <drivers/drv_hrt.h>
 #include <stdio.h>
 
-#define LOGGER_BUF_SIZE			200u
+#define LOGGER_BUF_SIZE			100u
 
 enum {
     LOG_LASTUPDATE = 0,

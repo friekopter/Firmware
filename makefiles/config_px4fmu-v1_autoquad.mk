@@ -27,7 +27,7 @@ MODULES		+= drivers/hmc5883
 MODULES		+= drivers/ms5611
 #MODULES		+= drivers/mb12xx
 MODULES		+= drivers/gps
-MODULES		+= drivers/hil
+#MODULES		+= drivers/hil
 #MODULES		+= drivers/hott/hott_telemetry
 #MODULES		+= drivers/hott/hott_sensors
 MODULES		+= drivers/blinkm
@@ -70,8 +70,8 @@ MODULES		+= modules/gpio_led
 #
 # Estimation modules (EKF / other filters)
 #
-MODULES		+= modules/attitude_estimator_ekf
-MODULES		+= modules/att_pos_estimator_ekf
+#MODULES		+= modules/attitude_estimator_ekf
+#MODULES		+= modules/att_pos_estimator_ekf
 #MODULES		+= modules/position_estimator_inav
 MODULES		+= examples/flow_position_estimator
 
@@ -81,8 +81,8 @@ MODULES		+= examples/flow_position_estimator
 #MODULES		+= modules/segway # XXX needs state machine update
 #MODULES		+= modules/fw_pos_control_l1
 #MODULES		+= modules/fw_att_control
-MODULES		+= modules/multirotor_att_control
-MODULES		+= modules/multirotor_pos_control
+#MODULES		+= modules/multirotor_att_control
+#MODULES		+= modules/multirotor_pos_control
 #MODULES		+= examples/flow_position_control
 #MODULES		+= examples/flow_speed_control
 

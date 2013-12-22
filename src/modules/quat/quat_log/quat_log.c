@@ -98,10 +98,10 @@ logFields_t logFields[] = {
 	    {LOG_UKF_POSE, LOG_TYPE_FLOAT},
 	    {LOG_UKF_POSD, LOG_TYPE_FLOAT},
 	    {LOG_UKF_PRES_ALT, LOG_TYPE_FLOAT},
-	    {LOG_UKF_ALT, LOG_TYPE_FLOAT},
+	    {LOG_UKF_ALT, LOG_TYPE_FLOAT},/*
 	    {LOG_UKF_VELN, LOG_TYPE_FLOAT},
 	    {LOG_UKF_VELE, LOG_TYPE_FLOAT},
-	    {LOG_UKF_VELD, LOG_TYPE_FLOAT},/*
+	    {LOG_UKF_VELD, LOG_TYPE_FLOAT},
 	    {LOG_MOT_MOTOR0, LOG_TYPE_S16},
 	    {LOG_MOT_MOTOR1, LOG_TYPE_S16},
 	    {LOG_MOT_MOTOR2, LOG_TYPE_S16},
@@ -214,8 +214,9 @@ void logDo(void) {
     *buf++ = 'M';
 
     // number of fields
-    for (i = 0; i < logData.numFields; i++)
-	buf += logData.fp[i].copyFunc(buf, logData.fp[i].fieldPointer);
+    for (i = 0; i < logData.numFields; i++) {
+    	buf += logData.fp[i].copyFunc(buf, logData.fp[i].fieldPointer);
+    }
 
     ckA = ckB = 0;
     buf = logData.logBuf + head;
@@ -231,18 +232,19 @@ void logDo(void) {
 
 size_t logWrite(FILE* loggingFile) {
     uint32_t size;
+    uint32_t block = 512u;
     size_t res;
     uint32_t bufferLength = LOGGER_BUF_SIZE * logData.packetSize;
 	if (head > tail) {
 		size = head - tail;
-		if(size < 512) return 0;
+		if(size < block) return 0;
 	}
 	else {
 		size = bufferLength - tail;
 	}
 	// try to write 512 byte or more blocks
-	if (size > 512) {
-		size = size / 512 * 512;
+	if (size > block) {
+		size = size / block * block;
 	}
 
 	res = fwrite(logData.logBuf + tail,1,size,loggingFile);
