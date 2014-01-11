@@ -284,7 +284,7 @@ void simDoPresUpdate(float pres,
     float y[2];            // measurment(s)
 
     noise[0] = params->ukf_alt_n;
-    noise[0] = params->ukf_alt_n;
+    noise[1] = params->ukf_alt_n;
 
     y[0] = utilPresToAlt(pres);
     y[1] = y[0];

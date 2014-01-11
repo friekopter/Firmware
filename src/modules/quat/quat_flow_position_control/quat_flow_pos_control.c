@@ -331,8 +331,9 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 
 	printf("[quat flow pos control] Init position control\n");
 	quat_flow_pos_runInit(&raw);
-	printf("[quat flow pos control] Init ukf\n");
+	printf("[quat flow pos control] Init ukf with states:%d\n",ukf_params.ukf_states);
 	navFlowUkfInit(&ukf_params,&raw);
+	printf("[quat flow pos control] Init ukf done. States:%d,\t%d\n",navFlowUkfData.kf->S, navFlowUkfData.kf->V);
 	//sleep(1);
 	bool initCompleted = false;
 	printf("[quat flow pos control] Mag-Ref X: %8.4f\t Y: %8.4f\t Z: %8.4f\n", (double)navFlowUkfData.v0m[0], (double)navFlowUkfData.v0m[1], (double)navFlowUkfData.v0m[2]);
@@ -432,7 +433,7 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 				    arm_std_f32(gyZ, UKF_GYO_AVG_NUM, &stdZ);
 				}
 				float std = stdX + stdY + stdZ;
-				printf("[quat flow pos control] Init %d:\t std: %8.4f\t errorX: %8.4f\t errorY: %8.4f\t errorZ: %8.4f\n", l, (double)std, (double)rotError[0], (double)rotError[1], (double)rotError[2]);
+				//printf("[quat flow pos control] Init %d:\t std: %8.4f\t errorX: %8.4f\t errorY: %8.4f\t errorZ: %8.4f\n", l, (double)std, (double)rotError[0], (double)rotError[1], (double)rotError[2]);
 
 				l++;
 			    if (l > UKF_GYO_AVG_NUM*5 && std < 0.004f) {
@@ -478,8 +479,8 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 	///////////////////////////////////////////
 	// Start main loop
 	///////////////////////////////////////////
+	printf("[quat flow pos control] States: %u\n", (uint8_t)ukf_params.ukf_states);
 	while (!thread_should_exit) {
-
 		int ret = poll(fds, 2, 1000);
 		if (ret < 0)
 		{
@@ -592,7 +593,6 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 					runData.sumPres += runData.presHist[runData.presHistIndex];
 					runData.presHistIndex = (runData.presHistIndex + 1) % run_sensor_hist;
 				}
-
 				if (!(loopcounter % 20)) {
 				   acc_noise = navFlowDoAccUpdate(	runData.sumAcc[0]*(1.0f / (float)run_sensor_hist),
 						   	   	   	runData.sumAcc[1]*(1.0f / (float)run_sensor_hist),
@@ -628,18 +628,21 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 				perf_end(quat_flow_ukf_finish_perf);
 				perf_end(quat_flow_pos_sensor_perf);
 			}
-			// observe that the rates are exactly 0 if not flying or moving
-			bool mightByFlying = control_mode.flag_armed;
+
 			if (fds[1].revents & POLLIN)
 			{
 				orb_copy(ORB_ID(filtered_bottom_flow), filtered_bottom_flow_sub, &filtered_bottom_flow_data);
-				navFlowUkfFlowVelUpate(&filtered_bottom_flow_data,raw.baro_alt_meter,dt,&control_mode,&ukf_params);
+				const uint32_t current_counter = filtered_bottom_flow_data.sonar_counter;
+				//if(current_counter > sonar_counter) {
+				navFlowUkfFlowPosUpate(&filtered_bottom_flow_data,raw.baro_alt_meter,&control_mode,&ukf_params);
+				//}
+				navFlowUkfFlowVelUpate(&filtered_bottom_flow_data,&control_mode,&ukf_params);
 			}
 			if(dt < FLT_MIN) {
 				perf_end(quat_flow_pos_loop_perf);
 				continue;
 			}
-			if (!(loopcounter % 100) && !mightByFlying ) {
+			if (!(loopcounter % 100) && !control_mode.flag_armed ) {
 			    static int axis = 0;
 			    float stdX, stdY, stdZ;
 
@@ -652,18 +655,41 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 			    	navFlowUkfZeroRate(raw.gyro_rad_s[current_axis], current_axis);
 			    }
 			}
-
+			// Set local position calculation results
+			if(UKF_FLOW_CALCULATES_POSITION) {
+				local_position_data.x = UKF_FLOW_POSX;
+				local_position_data.y = UKF_FLOW_POSY;
+			} else {
+				local_position_data.x = filtered_bottom_flow_data.ned_x;
+				local_position_data.y = filtered_bottom_flow_data.ned_y;
+			}
+			// local altitude is the negative distance to ground
+			if(UKF_FLOW_CALCULATES_ALTITUDE) {
+				local_position_data.z = UKF_FLOW_POSD;// + navFlowUkfData.sonarAltOffset;
+			} else {
+				local_position_data.z = -UKF_FLOW_PRES_ALT + navFlowUkfData.sonarAltOffset;
+			}
+			local_position_data.xy_valid = filtered_bottom_flow_data.ned_xy_valid;
+			local_position_data.z_valid = filtered_bottom_flow_data.ned_z_valid;
+			local_position_data.vx = UKF_FLOW_VELX;
+			local_position_data.vy = UKF_FLOW_VELY;
+			local_position_data.v_xy_valid = true;
+			local_position_data.vz = UKF_FLOW_VELD;
+			local_position_data.v_z_valid = true;
+			local_position_data.timestamp = raw.timestamp;
+			local_position_data.yaw = att.yaw;
+			local_position_data.landed = !inAir;//filtered_bottom_flow_data.landed;
+			// Local position calculation results set
 			perf_begin(quat_flow_pos_nav_perf);
-			navFlowNavigate(&control_mode,&nav_params,&manual,&filtered_bottom_flow_data, &att, raw.timestamp);
+			navFlowNavigate(&control_mode,&nav_params,&manual,&local_position_data, &att, raw.timestamp);
 			perf_end(quat_flow_pos_nav_perf);
-
 			// rotate nav's NE frame of reference to our craft's local frame of reference
 			// Tilt north means for yaw=0 nose up. If yaw=90 degrees it means left wing up that is positive roll
 			att_sp.pitch_body = navFlowData.holdTiltX * DEG_TO_RAD;
 			att_sp.roll_body  = navFlowData.holdTiltY * DEG_TO_RAD;
 			// speed down is negative, if holdSpeed > -UKF_FLOW_VELD -> thrust positive
 			// pid gets a minus
-			att_sp.thrust = pidUpdate(navFlowData.altSpeedPID, -navFlowData.holdSpeedAlt, -UKF_FLOW_VELD);
+			att_sp.thrust = pidUpdate(navFlowData.altSpeedPID, -navFlowData.holdSpeedAlt, -local_position_data.vz);
 			if ( att_sp.thrust < 0.0f ) {
 				att_sp.thrust = 0.0f;
 			}
@@ -692,31 +718,30 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 				ukf_state.q3 = UKF_FLOW_Q3;
 				ukf_state.q4 = UKF_FLOW_Q4;
 				ukf_state.pres_alt = UKF_FLOW_PRES_ALT;
+				if(UKF_FLOW_CALCULATES_POSITION) {
+					ukf_state.pos_x = UKF_FLOW_POSX;
+					ukf_state.pos_y = UKF_FLOW_POSY;
+				}
+				if(UKF_FLOW_CALCULATES_ALTITUDE) {
+					ukf_state.pos_d = UKF_FLOW_POSD;
+				}
 				ukf_state.acc_noise = acc_noise;
 				orb_publish(ORB_ID(ukf_state_vector), pub_ukf_state, &ukf_state);
 			}
 
-			if(!(printcounter % 20)) {
+			if(!(printcounter % 20) && navFlowData.mode != NAV_STATUS_MISSION) {
 				local_position_sp.x = navFlowData.holdPositionX;
 				local_position_sp.y = navFlowData.holdPositionY;
 				local_position_sp.z = navFlowData.holdAlt;
 				local_position_sp.yaw = navFlowData.holdHeading;
 				orb_publish(ORB_ID(vehicle_local_position_setpoint), local_pos_sp_pub, &local_position_sp);
 			} else if(!((printcounter + 10) % 20)) {
-				local_position_data.x = filtered_bottom_flow_data.ned_x;
-				local_position_data.y = filtered_bottom_flow_data.ned_y;
-				local_position_data.xy_valid = filtered_bottom_flow_data.ned_xy_valid;
-				local_position_data.z = UKF_FLOW_PRES_ALT;
-				local_position_data.z_valid = true;
-				local_position_data.vx = UKF_FLOW_VELX;
-				local_position_data.vy = UKF_FLOW_VELY;
-				local_position_data.v_xy_valid = true;
-				local_position_data.vz = UKF_FLOW_VELD;
-				local_position_data.v_z_valid = true;
-				local_position_data.timestamp = raw.timestamp;
-				local_position_data.yaw = att.yaw;
-				local_position_data.landed = !inAir;//filtered_bottom_flow_data.landed;
 				orb_publish(ORB_ID(vehicle_local_position), local_pos_pub, &local_position_data);
+			}
+
+			if (debug == true && !((printcounter+10) % 101)) {
+				printf("Pressure alt offset: %8.4fm Pressure alt: %8.4fm\tBaro alt: %8.4fm\n",navFlowUkfData.pressAltOffset,UKF_FLOW_PRES_ALT,raw.baro_alt_meter);
+				printf("Sonar offset: %8.4f meters\tSonar measured: %8.4f meters\tposd alt: %8.4fm\n",navFlowUkfData.sonarAltOffset,filtered_bottom_flow_data.ned_z, UKF_FLOW_POSD);
 			}
 			// print debug information every 1000th time
 			if (debug == true && !(printcounter % 101))

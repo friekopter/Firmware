@@ -215,7 +215,10 @@ void print_reject_arm(const char *msg);
 
 void print_status();
 
-transition_result_t check_navigation_state_machine(struct vehicle_status_s *status, struct vehicle_control_mode_s *control_mode, struct vehicle_local_position_s *local_pos);
+transition_result_t check_navigation_state_machine(struct vehicle_status_s *status,
+													struct vehicle_control_mode_s *control_mode,
+													struct vehicle_local_position_s *local_pos,
+													struct actuator_armed_s *actuator_armed);
 
 /**
  * Loop that runs at a lower rate and priority for calibration and parameter tasks.
@@ -1187,7 +1190,7 @@ int commander_thread_main(int argc, char *argv[])
 		}
 
 		/* evaluate the navigation state machine */
-		transition_result_t res = check_navigation_state_machine(&status, &control_mode, &local_position);
+		transition_result_t res = check_navigation_state_machine(&status, &control_mode, &local_position, &armed);
 
 		if (res == TRANSITION_DENIED) {
 			/* DENIED here indicates bug in the commander */
@@ -1530,13 +1533,39 @@ print_reject_arm(const char *msg)
 }
 
 transition_result_t
-check_navigation_state_machine(struct vehicle_status_s *status, struct vehicle_control_mode_s *control_mode, struct vehicle_local_position_s *local_pos)
+check_navigation_state_machine(struct vehicle_status_s *status,
+								struct vehicle_control_mode_s *control_mode,
+								struct vehicle_local_position_s *local_pos,
+								struct actuator_armed_s *actuator_armed)
 {
 	transition_result_t res = TRANSITION_DENIED;
 
 	if (status->main_state == MAIN_STATE_AUTO) {
 		if (status->arming_state == ARMING_STATE_ARMED || status->arming_state == ARMING_STATE_ARMED_ERROR) {
-			// TODO AUTO_LAND handling
+
+			if (status->navigation_state == NAVIGATION_STATE_AUTO_RTL) {
+				if (local_pos->xy_valid) {
+					float distance = sqrtf(local_pos->x * local_pos->x + local_pos->y * local_pos->y);
+					if(distance < 0.5f) {
+						res = navigation_state_transition(status, NAVIGATION_STATE_AUTO_LAND, control_mode);
+						return res;
+					}
+				}
+
+			}
+
+			if (status->navigation_state == NAVIGATION_STATE_AUTO_LAND) {
+				if (status->condition_landed) {
+					/* disarm to STANDBY if landed  */
+					res = arming_state_transition(status, &safety, control_mode, ARMING_STATE_STANDBY, actuator_armed);
+					res = navigation_state_transition(status, NAVIGATION_STATE_AUTO_READY, control_mode);
+					return res;
+				}
+				else {
+					return TRANSITION_NOT_CHANGED;
+				}
+			}
+
 			if (status->navigation_state == NAVIGATION_STATE_AUTO_TAKEOFF) {
 				/* don't switch to other states until takeoff not completed */
 				if (local_pos->z > -takeoff_alt || status->condition_landed) {
@@ -1547,7 +1576,8 @@ check_navigation_state_machine(struct vehicle_status_s *status, struct vehicle_c
 			if (status->navigation_state != NAVIGATION_STATE_AUTO_TAKEOFF &&
 			    status->navigation_state != NAVIGATION_STATE_AUTO_LOITER &&
 			    status->navigation_state != NAVIGATION_STATE_AUTO_MISSION &&
-			    status->navigation_state != NAVIGATION_STATE_AUTO_RTL) {
+			    status->navigation_state != NAVIGATION_STATE_AUTO_RTL &&
+			    status->navigation_state != NAVIGATION_STATE_AUTO_LAND) {
 				/* possibly on ground, switch to TAKEOFF if needed */
 				if (local_pos->z > -takeoff_alt || status->condition_landed) {
 					res = navigation_state_transition(status, NAVIGATION_STATE_AUTO_TAKEOFF, control_mode);

@@ -331,13 +331,13 @@ void flow_calculate_altitude(bool vehicle_liftoff,
 						filtered_flow->ned_z, sonar_last_measurement, distance,
 						time_since_last_sonar, filtered_flow->ned_vz);
 				filtered_flow->ned_v_z_valid = 255;
-				filtered_flow->sonar_counter++;
 			} else {
 				filtered_flow->ned_vz = 0.0f;
 				filtered_flow->ned_v_z_valid = 0;
 				if(debug) printf("v:%d\tt:%8.4f\n",filtered_flow->ned_z_valid,
 						time_since_last_sonar);
 			}
+			filtered_flow->sonar_counter++;
 			sonar_last_timestamp = filtered_flow->timestamp;
 			sonar_last_measurement = ned_z_lp;
 		}

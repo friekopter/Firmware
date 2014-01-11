@@ -36,7 +36,7 @@
 static orb_advert_t subsystem_info_pub = -1;
 
 void navFlowSetHoldAlt(float alt, uint8_t relative);
-void navFlowSetHoldPosition(const struct filtered_bottom_flow_s* local_position);
+void navFlowSetHoldPosition(const float ned_x, const float ned_y);
 void navFlowResetHoldPosition(void);
 navFlowStruct_t navFlowData __attribute__((section(".ccm")));
 struct subsystem_info_s altitude_control_info = {
@@ -63,9 +63,9 @@ void navFlowSetHoldAlt(float alt, uint8_t relative) {
 	navFlowData.holdAlt = alt;
 }
 
-void navFlowSetHoldPosition(const struct filtered_bottom_flow_s* local_position) {
-	navFlowData.holdPositionX = local_position->ned_x;
-	navFlowData.holdPositionY = local_position->ned_y;
+void navFlowSetHoldPosition(const float ned_x, const float ned_y) {
+	navFlowData.holdPositionX = ned_x;
+	navFlowData.holdPositionY = ned_y;
 }
 
 void navFlowResetHoldPosition(void) {
@@ -87,20 +87,22 @@ void navFlowNavigate(
 		const struct vehicle_control_mode_s *control_mode,
 		const struct quat_position_control_NAV_params* params,
 		const struct manual_control_setpoint_s* manual_control,
-		const struct filtered_bottom_flow_s* bottom_flow,
+		const struct vehicle_local_position_s* local_position_data,
 		struct vehicle_attitude_s* att,
 		uint64_t imu_timestamp
 		) {
     uint64_t currentTime = imu_timestamp;
     float tmp;
-    float measured_altitude = -UKF_FLOW_PRES_ALT;//local_position->z;//=UKF_FLOW_PRES_ALT
+    const float measured_altitude = local_position_data->z;//-UKF_FLOW_PRES_ALT;//local_position->z;//=UKF_FLOW_PRES_ALT
     static float throttle_middle_position = 1.0f;
+    const struct vehicle_local_position_s* position_data = local_position_data;
 
     // 1. Calculate mode
 	bool altCapable = control_mode->flag_control_altitude_enabled;
 	bool navCapable = altCapable &&
     		control_mode->flag_control_position_enabled &&
     		control_mode->flag_control_velocity_enabled;
+	bool missionCapable = control_mode->flag_control_auto_enabled;
 	if (control_mode->auto_state == NAVIGATION_STATE_AUTO_RTL) {
 		navFlowResetHoldPosition();
 	}
@@ -110,7 +112,7 @@ void navFlowNavigate(
 		if (navFlowData.mode != NAV_STATUS_POSHOLD &&
 			navFlowData.mode != NAV_STATUS_DVH) {
 
-			navFlowSetHoldPosition(bottom_flow);
+			navFlowSetHoldPosition(position_data->x, position_data->y);
 
 			// only zero bias if coming from lower mode
 			if (navFlowData.mode < NAV_STATUS_POSHOLD) {
@@ -121,8 +123,8 @@ void navFlowNavigate(
 				pidZeroIntegral(navFlowData.distanceYPID, 0.0f, 0.0f);
 
 				// speed
-				pidZeroIntegral(navFlowData.speedXPID, UKF_FLOW_VELX, 0.0f);
-				pidZeroIntegral(navFlowData.speedYPID, UKF_FLOW_VELY, 0.0f);
+				pidZeroIntegral(navFlowData.speedXPID, position_data->vx, 0.0f);
+				pidZeroIntegral(navFlowData.speedYPID, position_data->vy, 0.0f);
 			}
 
 			navFlowData.holdMaxHorizSpeed = params->nav_max_speed;
@@ -156,7 +158,7 @@ void navFlowNavigate(
 				navPublishSystemInfo();
 				navFlowData.holdSpeedX = 0.0f;
 				navFlowData.holdSpeedY = 0.0f;
-				navFlowSetHoldPosition(bottom_flow);
+				navFlowSetHoldPosition(position_data->x, position_data->y);
 				printf("[quat_flow_pos_control]: Position hold activated from DVH\n");
 			//}
 		}
@@ -168,9 +170,9 @@ void navFlowNavigate(
 		if(navFlowData.mode < NAV_STATUS_ALTHOLD) {
 			// set integral to current RC throttle setting
 			// there is a minus because the pidUpdate also has a minus
-			pidZeroIntegral(navFlowData.altSpeedPID, -UKF_FLOW_VELD, manual_control->throttle);
+			pidZeroIntegral(navFlowData.altSpeedPID, -position_data->vz, manual_control->throttle);
 			pidZeroIntegral(navFlowData.altPosPID, measured_altitude, 0.0f);
-			navFlowData.holdSpeedAlt = -UKF_FLOW_VELD;
+			navFlowData.holdSpeedAlt = -position_data->vz;
 		}
 		// record this altitude as the hold altitude
 		navFlowSetHoldAlt(measured_altitude, 0);
@@ -205,12 +207,12 @@ void navFlowNavigate(
 
 		navFlowData.holdSpeedX = x;
 		navFlowData.holdSpeedY = y;
-		navFlowSetHoldPosition(bottom_flow);
+		navFlowSetHoldPosition(position_data->x, position_data->y);
     }
     else {
 		// distance => velocity
-    	navFlowData.holdSpeedX = pidUpdate(navFlowData.distanceXPID, navFlowData.holdPositionX, bottom_flow->ned_x);
-    	navFlowData.holdSpeedY = pidUpdate(navFlowData.distanceYPID, navFlowData.holdPositionY, bottom_flow->ned_y);
+    	navFlowData.holdSpeedX = pidUpdate(navFlowData.distanceXPID, navFlowData.holdPositionX, position_data->x);
+    	navFlowData.holdSpeedY = pidUpdate(navFlowData.distanceYPID, navFlowData.holdPositionY, position_data->y);
     }
 
     if (fabs(navFlowData.holdSpeedX) > FLT_MIN || fabs(navFlowData.holdSpeedY) > FLT_MIN) {
@@ -229,8 +231,8 @@ void navFlowNavigate(
     speedEarthFrame[1] = navFlowData.holdSpeedY;
     utilRotateVecByRevMatrix2(speedBodyFrame, speedEarthFrame, att->R);
     // velocity => tilt
-    navFlowData.holdTiltX = -pidUpdate(navFlowData.speedXPID, speedBodyFrame[0], UKF_FLOW_VELX);
-    navFlowData.holdTiltY = +pidUpdate(navFlowData.speedYPID, speedBodyFrame[1], UKF_FLOW_VELY);
+    navFlowData.holdTiltX = -pidUpdate(navFlowData.speedXPID, speedBodyFrame[0], position_data->vx);
+    navFlowData.holdTiltY = +pidUpdate(navFlowData.speedYPID, speedBodyFrame[1], position_data->vy);
 
     if (navFlowData.mode > NAV_STATUS_MANUAL) {
 		float vertStick;
@@ -246,23 +248,27 @@ void navFlowNavigate(
 			if (vertStick > 0.0f) {
 				// positive stick
 				vertStick = vertStick / (2.0f - throttle_middle_position) / (1.0f - CTRL_DEAD_BAND);
-				if((vertStick - CTRL_DEAD_BAND) > +1.0f) 	vertStick = +1.0f;
+				if((vertStick - CTRL_DEAD_BAND) > +1.0f) {
+					vertStick = +1.0f;
+				}
 				navFlowData.targetHoldSpeedAlt = -(vertStick - CTRL_DEAD_BAND) * params->nav_alt_pos_om;
 			}
 			else {
 				// negative stick
 				vertStick = vertStick / (throttle_middle_position) / (1.0f - CTRL_DEAD_BAND);
-				if((vertStick + CTRL_DEAD_BAND) < -1.0f) 	vertStick = -1.0f;
+				if((vertStick + CTRL_DEAD_BAND) < -1.0f) {
+					vertStick = -1.0f;
+				}
 				navFlowData.targetHoldSpeedAlt = -(vertStick + CTRL_DEAD_BAND) * params->nav_max_decent;
 			}
 			// set new hold altitude to wherever we are during vertical speed overrides
 			if (navFlowData.mode != NAV_STATUS_MISSION)
 			navFlowSetHoldAlt(measured_altitude, 0);
 		}
-		/*// are we trying to land?
-		else if (navFlowData.mode == NAV_STATUS_MISSION && navFlowData.missionLegs[leg].type == NAV_LEG_LAND) {
-			navFlowData.targetHoldSpeedAlt = -navFlowData.holdMaxVertSpeed;
-		}*/
+		// are we trying to land?
+		else if (control_mode->auto_state == NAVIGATION_STATE_AUTO_LAND) {
+			navFlowData.targetHoldSpeedAlt = +0.5f;
+		}
 		else {
 			// for positive and negative altitude: if measured > hold -> speed negative
 			// PID: p-term ~ setpoint - position = holdAlt - measured -> pidUpdate has + sign

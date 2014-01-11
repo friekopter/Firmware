@@ -101,9 +101,9 @@ srcdkf_t *srcdkfInit(int s, int m, int v, int n, SRCDKFTimeUpdate_t *timeUpdate)
 	matrixInit(&f->R, n, n);	// scratch
 	matrixInit(&f->AQ, s, n);	// scratch
 
-	f->xOut = (float32_t *)aqDataCalloc(s, sizeof(float32_t));
+	f->xOut = (float32_t *)aqDataCalloc((uint16_t)s, sizeof(float32_t));
 	f->xNoise = (float32_t *)aqDataCalloc(maxN, sizeof(float32_t));
-	f->xIn = (float32_t *)aqDataCalloc(s, sizeof(float32_t));
+	f->xIn = (float32_t *)aqDataCalloc((uint16_t)s, sizeof(float32_t));
 
 	f->h = (float32_t)SRCDKF_H;
 	f->hh = f->h*f->h;
