@@ -16,7 +16,7 @@ PARAM_DEFINE_FLOAT(Q_U_DIST_N, +1.8705e-02f);  	//acc deviation from one G
 PARAM_DEFINE_FLOAT(Q_U_ALT_N, +1.7077e-01f); 	//baro sensor
 PARAM_DEFINE_FLOAT(Q_U_FLOW_VEL_N, +1e-03f); 	//flow sensor
 PARAM_DEFINE_FLOAT(Q_U_FLW_VEL_M_N, +100.0f); 	//flow sensor max noise if no valid signal available
-PARAM_DEFINE_FLOAT(Q_U_FLOW_VELA_N, +1e-09f); 	//sonar sensor
+PARAM_DEFINE_FLOAT(Q_U_FLOW_VELA_N, +1e-03f); 	//sonar sensor
 PARAM_DEFINE_FLOAT(Q_U_FLOW_A_N, +1e-03f); 	//sonar sensor
 PARAM_DEFINE_FLOAT(Q_U_MAG_N, +3.8226e-01f); 	//mag sensor
 

@@ -388,20 +388,24 @@ void navFlowUkfFlowVelUpate(
     	y[0] = 0.0f;
     	y[1] = 0.0f;
     }
-
-    /*if(bottom_flow->ned_v_z_valid > 0) {
-        if(bottom_flow->sonar_counter > sonarCount) {
-        	y[2] = bottom_flow->ned_vz;
-        	sonarCount = bottom_flow->sonar_counter;
-        }
-        else {*/
-        	y[2] = 0.0f;
-        	dim = 2;
-        /*}
-    } else {
+    if(UKF_FLOW_CALCULATES_ALTITUDE){
     	y[2] = 0.0f;
-    	noise[2] = params->ukf_flow_vel_max_n;
-    }*/
+    	dim = 2;
+    } else {
+    	if(bottom_flow->ned_v_z_valid > 0) {
+			if(bottom_flow->sonar_counter > sonarCount) {
+				y[2] = bottom_flow->ned_vz;
+				sonarCount = bottom_flow->sonar_counter;
+			}
+			else {
+				y[2] = 0.0f;
+				dim = 2;
+			}
+		} else {
+			y[2] = 0.0f;
+			noise[2] = params->ukf_flow_vel_max_n;
+		}
+    }
     if(!control_mode->flag_armed) {
     	noise[0] = 1e-5f;
     	noise[1] = noise[0];
