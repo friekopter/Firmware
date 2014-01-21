@@ -19,6 +19,7 @@ typedef struct {
     float v0a[3];
     float v0m[3];
     double holdLat, holdLon;
+    float r1, r2;
     float posX[UKF_HIST];
     float posY[UKF_HIST];
     float posD[UKF_HIST];
@@ -70,7 +71,7 @@ extern navFlowUkfStruct_t navFlowUkfData;
 #define UKF_FLOW_P0			101325.0f		    // standard static pressure at sea level
 
 
-bool navFlowIsFlying(const struct vehicle_status_s *current_status);
+bool navFlowIsArmed(const struct vehicle_control_mode_s *control_mode);
 void navFlowLogVariance(void);
 extern void navFlowUkfInit(	const struct quat_position_control_UKF_params* params,
 						const struct sensor_combined_s* sensors);
@@ -84,30 +85,34 @@ extern float navFlowDoAccUpdate(float accX, float accY, float accZ,
 extern void navFlowDoMagUpdate(float magX, float magY, float magZ,
 		 const struct vehicle_control_mode_s *control_mode,
 		 const struct quat_position_control_UKF_params* params);
-extern void navFlowUkfGpsPosUpate(
-		const struct vehicle_gps_position_s* gps_position,
-		float dt,
-		const struct vehicle_status_s *current_status,
-		const struct quat_position_control_UKF_params* params);
-extern void navFlowUkfGpsVelUpate(
-		const struct vehicle_gps_position_s* gps_position,
-		float dt,
-		const struct vehicle_status_s *current_status,
+extern void navFlowUkfSonarUpdate(
+		const struct filtered_bottom_flow_s* bottom_flow,
+		float baroAltitude,
+		const struct vehicle_control_mode_s *control_mode,
 		const struct quat_position_control_UKF_params* params);
 extern void navFlowUkfFlowPosUpate(
-				const struct filtered_bottom_flow_s* bottom_flow,
-				float baroAltitude,
-				const struct vehicle_control_mode_s *control_mode,
-				const struct quat_position_control_UKF_params* params);
+		const struct filtered_bottom_flow_s* bottom_flow,
+		const struct vehicle_control_mode_s *control_mode,
+		const struct quat_position_control_UKF_params* params);
 extern void navFlowUkfFlowVelUpate(
 		const struct filtered_bottom_flow_s* local_position,
 		const struct vehicle_control_mode_s *control_mode,
 		const struct quat_position_control_UKF_params* params);
-void navUkfGpsPosUpate(
+extern void navFlowUkfFlowUpate(
+		const struct filtered_bottom_flow_s* bottom_flow,
+		const struct vehicle_control_mode_s *control_mode,
+		const struct quat_position_control_UKF_params* params);
+extern void navFlowUkfGpsPosUpate(
 		const struct vehicle_gps_position_s* gps_position,
 		float dt,
-		const struct vehicle_status_s *current_status,
+		const struct vehicle_control_mode_s *control_mode,
 		const struct quat_position_control_UKF_params* params);
+extern void navFlowUkfGpsVelUpate(
+		const struct vehicle_gps_position_s* gps_position,
+		float dt,
+		const struct vehicle_control_mode_s *control_mode,
+		const struct quat_position_control_UKF_params* params);
+extern void navFlowUkfSetGlobalPositionTarget(double lat, double lon);
 extern void navFlowUkfZeroRate(float zRate, int axis);
 extern void navFlowUkfFinish(void);
 extern void navFlowUkfSetSonarOffset(const float sonarDistanceToEarth, const float altitude,  const float kSonarBaro);

@@ -200,6 +200,16 @@ private:
 		float mag_scale3[3];
 		float mag_inclination;
 
+		float frame_rotation_xx;
+		float frame_rotation_xy;
+		float frame_rotation_xz;
+		float frame_rotation_yx;
+		float frame_rotation_yy;
+		float frame_rotation_yz;
+		float frame_rotation_zx;
+		float frame_rotation_zy;
+		float frame_rotation_zz;
+
 		int32_t gyo_sample_rate;
 		int32_t gyo_poll_rate;
 		int32_t acc_sample_rate;
@@ -290,6 +300,16 @@ private:
 		param_t mag_scale2[3];
 		param_t mag_scale3[3];
 		param_t mag_inclination;
+
+		param_t frame_rotation_xx;
+		param_t frame_rotation_xy;
+		param_t frame_rotation_xz;
+		param_t frame_rotation_yx;
+		param_t frame_rotation_yy;
+		param_t frame_rotation_yz;
+		param_t frame_rotation_zx;
+		param_t frame_rotation_zy;
+		param_t frame_rotation_zz;
 
 		param_t gyo_sample_rate;
 		param_t gyo_poll_rate;
@@ -629,6 +649,16 @@ Quat_Sensors::Quat_Sensors() :
 	_parameter_handles.mag_align_zy = param_find("IMU_MAG_ALGN_ZY");
 	_parameter_handles.mag_inclination = param_find("IMU_MAG_INCL");
 
+	_parameter_handles.frame_rotation_xx = param_find("IMU_ROT_XX");
+	_parameter_handles.frame_rotation_xy = param_find("IMU_ROT_XY");
+	_parameter_handles.frame_rotation_xz = param_find("IMU_ROT_XZ");
+	_parameter_handles.frame_rotation_yx = param_find("IMU_ROT_YX");
+	_parameter_handles.frame_rotation_yy = param_find("IMU_ROT_YY");
+	_parameter_handles.frame_rotation_yz = param_find("IMU_ROT_YZ");
+	_parameter_handles.frame_rotation_zx = param_find("IMU_ROT_ZX");
+	_parameter_handles.frame_rotation_zy = param_find("IMU_ROT_ZY");
+	_parameter_handles.frame_rotation_zz = param_find("IMU_ROT_ZZ");
+
 	_parameter_handles.gyo_poll_rate = param_find("IMU_GYO_RA_POLL");
 	_parameter_handles.gyo_sample_rate = param_find("IMU_GYO_RA_SAMP");
 	_parameter_handles.acc_poll_rate = param_find("IMU_ACC_RA_POLL");
@@ -872,6 +902,16 @@ Quat_Sensors::parameters_update()
 	param_get(_parameter_handles.gyro_scale[1], &(_parameters.gyro_scale[1]));
 	param_get(_parameter_handles.gyro_scale[2], &(_parameters.gyro_scale[2]));
 
+	param_get(_parameter_handles.frame_rotation_xx, &(_parameters.frame_rotation_xx));
+	param_get(_parameter_handles.frame_rotation_xy, &(_parameters.frame_rotation_xy));
+	param_get(_parameter_handles.frame_rotation_xz, &(_parameters.frame_rotation_xz));
+	param_get(_parameter_handles.frame_rotation_yx, &(_parameters.frame_rotation_yx));
+	param_get(_parameter_handles.frame_rotation_yy, &(_parameters.frame_rotation_yy));
+	param_get(_parameter_handles.frame_rotation_yz, &(_parameters.frame_rotation_yz));
+	param_get(_parameter_handles.frame_rotation_zx, &(_parameters.frame_rotation_zx));
+	param_get(_parameter_handles.frame_rotation_zy, &(_parameters.frame_rotation_zy));
+	param_get(_parameter_handles.frame_rotation_zz, &(_parameters.frame_rotation_zz));
+
 	param_get(_parameter_handles.gyo_poll_rate, &(_parameters.gyo_poll_rate));
 	param_get(_parameter_handles.gyo_sample_rate, &(_parameters.gyo_sample_rate));
 	param_get(_parameter_handles.acc_poll_rate, &(_parameters.acc_poll_rate));
@@ -1039,10 +1079,14 @@ Quat_Sensors::correctAccMeasurement(struct accel_report &acc_report)
 	a /= _parameters.acc_scale[0] + _parameters.acc_scale1[0]*temp + _parameters.acc_scale2[0]*temp2 + _parameters.acc_scale3[0]*temp3;
 	b /= _parameters.acc_scale[1] + _parameters.acc_scale1[1]*temp + _parameters.acc_scale2[1]*temp2 + _parameters.acc_scale3[1]*temp3;
 	c /= _parameters.acc_scale[2] + _parameters.acc_scale1[2]*temp + _parameters.acc_scale2[2]*temp2 + _parameters.acc_scale3[2]*temp3;
-
+/*
 	acc_report.x = a;
 	acc_report.y = b;
-	acc_report.z = c;
+	acc_report.z = c;*/
+
+	acc_report.x = a * _parameters.frame_rotation_xx + b * _parameters.frame_rotation_xy + c * _parameters.frame_rotation_xz;
+	acc_report.y = a * _parameters.frame_rotation_yx + b * _parameters.frame_rotation_yy + c * _parameters.frame_rotation_yz;
+	acc_report.z = a * _parameters.frame_rotation_zx + b * _parameters.frame_rotation_zy + c * _parameters.frame_rotation_zz;
 }
 
 void
@@ -1061,10 +1105,14 @@ Quat_Sensors::correctMagMeasurement(struct mag_report &mag_report)
 	a /= _parameters.mag_scale[0] + _parameters.mag_scale1[0]*temp + _parameters.mag_scale2[0]*temp2 + _parameters.mag_scale3[0]*temp3;
 	b /= _parameters.mag_scale[1] + _parameters.mag_scale1[1]*temp + _parameters.mag_scale2[1]*temp2 + _parameters.mag_scale3[1]*temp3;
 	c /= _parameters.mag_scale[2] + _parameters.mag_scale1[2]*temp + _parameters.mag_scale2[2]*temp2 + _parameters.mag_scale3[2]*temp3;
-
+/*
 	mag_report.x = a;
 	mag_report.y = b;
 	mag_report.z = c;
+*/
+	mag_report.x = a * _parameters.frame_rotation_xx + b * _parameters.frame_rotation_xy + c * _parameters.frame_rotation_xz;
+	mag_report.y = a * _parameters.frame_rotation_yx + b * _parameters.frame_rotation_yy + c * _parameters.frame_rotation_yz;
+	mag_report.z = a * _parameters.frame_rotation_zx + b * _parameters.frame_rotation_zy + c * _parameters.frame_rotation_zz;
 }
 
 void
@@ -1084,9 +1132,13 @@ Quat_Sensors::correctGyroMeasurement(struct  gyro_report &gyro_report)
 	b /= _parameters.gyro_scale[1];
 	c /= _parameters.gyro_scale[2];
 
-	gyro_report.x = a;
-	gyro_report.y = b;
-	gyro_report.z = c;
+	/*gyro_report.x = a;
+		gyro_report.y = b;
+		gyro_report.z = c;*/
+
+	gyro_report.x = a * _parameters.frame_rotation_xx + b * _parameters.frame_rotation_xy + c * _parameters.frame_rotation_xz;
+	gyro_report.y = a * _parameters.frame_rotation_yx + b * _parameters.frame_rotation_yy + c * _parameters.frame_rotation_yz;
+	gyro_report.z = a * _parameters.frame_rotation_zx + b * _parameters.frame_rotation_zy + c * _parameters.frame_rotation_zz;
 }
 
 void

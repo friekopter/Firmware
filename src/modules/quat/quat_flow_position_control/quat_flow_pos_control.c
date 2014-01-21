@@ -21,6 +21,7 @@
 #include <sys/prctl.h>
 #include <drivers/drv_hrt.h>
 #include <drivers/drv_tone_alarm.h>
+#include <geo/geo.h>
 #include <uORB/uORB.h>
 #include <uORB/topics/vehicle_status.h>
 #include <uORB/topics/vehicle_control_mode.h>
@@ -35,6 +36,7 @@
 #include <uORB/topics/filtered_bottom_flow.h>
 #include <uORB/topics/debug_key_value.h>
 #include <uORB/topics/ukf_state_vector.h>
+#include <uORB/topics/vehicle_gps_position.h>
 #include <systemlib/systemlib.h>
 #include <systemlib/perf_counter.h>
 #include <quat/utils/quat_pos_control_params.h>
@@ -54,8 +56,10 @@ static struct manual_control_setpoint_s manual;
 static struct vehicle_control_mode_s control_mode;
 static struct sensor_combined_s raw;
 static struct vehicle_local_position_s local_position_data;
+static struct vehicle_global_position_s global_position_data;
 static struct filtered_bottom_flow_s filtered_bottom_flow_data;
 static struct ukf_state_vector_s ukf_state;
+struct vehicle_gps_position_s 	gps_data;
 
 
 static bool thread_should_exit = false;		/**< Deamon exit flag */
@@ -232,6 +236,10 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 	memset(&local_position_data, 0, sizeof(local_position_data));
 	local_position_data.landed = true;
 
+	//publish global position
+	orb_advert_t global_pos_pub = orb_advertise(ORB_ID(vehicle_global_position), &global_position_data);
+	memset(&global_position_data, 0, sizeof(global_position_data));
+
 	//publish position setpoint
 	orb_advert_t local_pos_sp_pub = orb_advertise(ORB_ID(vehicle_local_position_setpoint), &local_position_sp);
 	memset(&local_position_sp, 0, sizeof(local_position_sp));
@@ -286,6 +294,11 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 	/* rate-limit flow updates to 10Hz */
 	//orb_set_interval(filtered_bottom_flow_sub, 100);
 
+	// GPS
+	int gps_sub = orb_subscribe(ORB_ID(vehicle_gps_position));
+	memset(&gps_data, 0, sizeof(gps_data));
+	orb_set_interval(gps_sub, 200);	/* 5Hz updates */
+
 	sleep(2);
 	/* register the perf counter */
 	perf_counter_t quat_flow_pos_loop_perf = perf_alloc(PC_ELAPSED, "quat_flow_pos_control");
@@ -293,12 +306,14 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 	perf_counter_t quat_flow_pos_inertial_perf = perf_alloc(PC_ELAPSED, "quat_flow_pos_inertial_control");
 	perf_counter_t quat_flow_pos_nav_perf = perf_alloc(PC_ELAPSED, "quat_flow_pos_nav_control");
 	perf_counter_t quat_flow_ukf_finish_perf = perf_alloc(PC_ELAPSED, "quat_flow_ukf_finish_perf");
-	struct pollfd fds[5] = {
+	perf_counter_t quat_flow_position_perf = perf_alloc(PC_ELAPSED, "quat_flow_position_perf");
+	struct pollfd fds[6] = {
 		{ .fd = sub_raw,   .events = POLLIN },
 		{ .fd = filtered_bottom_flow_sub, .events = POLLIN },
 		{ .fd = manual_sub,   .events = POLLIN },
 		{ .fd = sub_params, .events = POLLIN },
-		{ .fd = control_mode_sub, .events = POLLIN }
+		{ .fd = control_mode_sub, .events = POLLIN },
+		{ .fd = gps_sub, .events = POLLIN }
 	};
 
 	//sleep(1);
@@ -476,6 +491,14 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 	usleep(1000000);
 	buzzer_deinit();
 
+	// Init local to global transformation
+	local_position_data.ref_lat = 481292910;
+	local_position_data.ref_lon = 117061650;
+	double lat_home = local_position_data.ref_lat * 1e-7f;
+	double lon_home = local_position_data.ref_lon * 1e-7f;
+	map_projection_init(lat_home, lon_home);
+
+
 	///////////////////////////////////////////
 	// Start main loop
 	///////////////////////////////////////////
@@ -629,15 +652,27 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 				perf_end(quat_flow_pos_sensor_perf);
 			}
 
+			// Attitude and position calculation from inertial sensors finished
+			// ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+			// Calculate velocity and position from Flow and GPS
+
 			if (fds[1].revents & POLLIN)
 			{
+
+				perf_begin(quat_flow_position_perf);
 				orb_copy(ORB_ID(filtered_bottom_flow), filtered_bottom_flow_sub, &filtered_bottom_flow_data);
-				const uint32_t current_counter = filtered_bottom_flow_data.sonar_counter;
-				//if(current_counter > sonar_counter) {
-				navFlowUkfFlowPosUpate(&filtered_bottom_flow_data,raw.baro_alt_meter,&control_mode,&ukf_params);
-				//}
+				navFlowUkfSonarUpdate(&filtered_bottom_flow_data,raw.baro_alt_meter,&control_mode,&ukf_params);
+				//navFlowUkfFlowUpate(&filtered_bottom_flow_data,&control_mode,&ukf_params);
+				navFlowUkfFlowPosUpate(&filtered_bottom_flow_data,&control_mode,&ukf_params);
 				navFlowUkfFlowVelUpate(&filtered_bottom_flow_data,&control_mode,&ukf_params);
+				perf_end(quat_flow_position_perf);
 			}
+
+			if (fds[5].revents & POLLIN)
+			{
+				orb_copy(ORB_ID(vehicle_gps_position), gps_sub, &gps_data);
+			}
+
 			if(dt < FLT_MIN) {
 				perf_end(quat_flow_pos_loop_perf);
 				continue;
@@ -655,6 +690,10 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 			    	navFlowUkfZeroRate(raw.gyro_rad_s[current_axis], current_axis);
 			    }
 			}
+
+			// Finished State calculation
+			// ++++++++++++++++++++++++++++++++++++++++
+
 			// Set local position calculation results
 			if(UKF_FLOW_CALCULATES_POSITION) {
 				local_position_data.x = UKF_FLOW_POSX;
@@ -665,7 +704,7 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 			}
 			// local altitude is the negative distance to ground
 			if(UKF_FLOW_CALCULATES_ALTITUDE) {
-				local_position_data.z = UKF_FLOW_POSD;// + navFlowUkfData.sonarAltOffset;
+				local_position_data.z = UKF_FLOW_POSD + navFlowUkfData.sonarAltOffset;
 			} else {
 				local_position_data.z = -UKF_FLOW_PRES_ALT + navFlowUkfData.sonarAltOffset;
 			}
@@ -678,8 +717,11 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 			local_position_data.v_z_valid = true;
 			local_position_data.timestamp = raw.timestamp;
 			local_position_data.yaw = att.yaw;
-			local_position_data.landed = !inAir;//filtered_bottom_flow_data.landed;
+			local_position_data.landed = !inAir;
 			// Local position calculation results set
+
+			// +++++++++++++++++++++++++++++++++++++++++++
+			// Do navigation, calculate setpoints
 			perf_begin(quat_flow_pos_nav_perf);
 			navFlowNavigate(&control_mode,&nav_params,&manual,&local_position_data, &att, raw.timestamp);
 			perf_end(quat_flow_pos_nav_perf);
@@ -701,8 +743,11 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 			}
 			perf_end(quat_flow_pos_loop_perf);
 
+			// +++++++++++++++++++++++++++++++++++++++++++
+			// Publish Results
 			//struct debug_key_value_s debug_message = {.key="alspeed", .timestamp_ms =filtered_bottom_flow_data.timestamp / 1000, .value = filtered_bottom_flow_data.ned_vz};
 			//orb_publish(ORB_ID(debug_key_value), pub_debug, &debug_message);
+			// Publish state
 			if(!((printcounter+3) % 100)) {
 				ukf_state.acc_bias_x = UKF_FLOW_ACC_BIAS_X;
 				ukf_state.acc_bias_y = UKF_FLOW_ACC_BIAS_Y;
@@ -729,6 +774,7 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 				orb_publish(ORB_ID(ukf_state_vector), pub_ukf_state, &ukf_state);
 			}
 
+			// Publish local position setpoint and local and global position
 			if(!(printcounter % 20) && navFlowData.mode != NAV_STATUS_MISSION) {
 				local_position_sp.x = navFlowData.holdPositionX;
 				local_position_sp.y = navFlowData.holdPositionY;
@@ -737,8 +783,21 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 				orb_publish(ORB_ID(vehicle_local_position_setpoint), local_pos_sp_pub, &local_position_sp);
 			} else if(!((printcounter + 10) % 20)) {
 				orb_publish(ORB_ID(vehicle_local_position), local_pos_pub, &local_position_data);
+			} else if(!((printcounter + 15) % 20)) {
+				double lat = 0.0f;
+				double lon = 0.0f;
+				map_projection_reproject(local_position_data.x,local_position_data.y,
+						&lat,&lon);
+				global_position_data.lat = (int32_t) (lat * (double)10e7f);
+				global_position_data.lon = (int32_t) (lon * (double)10e7f);
+				global_position_data.relative_alt = local_position_data.z;
+				global_position_data.alt = UKF_FLOW_POSD;
+				global_position_data.timestamp = hrt_absolute_time();
+				orb_publish(ORB_ID(vehicle_global_position), global_pos_pub, &global_position_data);
 			}
 
+			// +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+			// Do some logging
 			if (debug == true && !((printcounter+10) % 101)) {
 				printf("Pressure alt offset: %8.4fm Pressure alt: %8.4fm\tBaro alt: %8.4fm\n",navFlowUkfData.pressAltOffset,UKF_FLOW_PRES_ALT,raw.baro_alt_meter);
 				printf("Sonar offset: %8.4f meters\tSonar measured: %8.4f meters\tposd alt: %8.4fm\n",navFlowUkfData.sonarAltOffset,filtered_bottom_flow_data.ned_z, UKF_FLOW_POSD);

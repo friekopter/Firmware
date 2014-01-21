@@ -121,11 +121,11 @@ srcdkf_t *srcdkfInit(int s, int m, int v, int n, SRCDKFTimeUpdate_t *timeUpdate)
 void srcdkfCalcSigmaPoints(srcdkf_t *f, arm_matrix_instance_f32 *Sn) {
 	int S = f->S;			// number of states
 	int N = Sn->numRows;		// number of noise variables
-	int A = S+N;			// number of agumented states
+	int A = S+N;			// number of augmented states
 	int L = 1+A*2;			// number of sigma points
 	float32_t *x = f->x.pData;	// state
 	float32_t *Sx = f->Sx.pData;	// state covariance
-	float32_t *Xa = f->Xa.pData;	// calculaion result: augmented sigma points
+	float32_t *Xa = f->Xa.pData;	// calculation result: augmented sigma points
 	int i, j;
 
 	// set the number of sigma points
