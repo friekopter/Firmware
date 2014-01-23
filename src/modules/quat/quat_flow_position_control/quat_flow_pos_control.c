@@ -494,8 +494,8 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 	// Init local to global transformation
 	local_position_data.ref_lat = 481292910;
 	local_position_data.ref_lon = 117061650;
-	double lat_home = local_position_data.ref_lat * 1e-7f;
-	double lon_home = local_position_data.ref_lon * 1e-7f;
+	double lat_home = (float)local_position_data.ref_lat * 1e-7f;
+	double lon_home = (float)local_position_data.ref_lon * 1e-7f;
 	map_projection_init(lat_home, lon_home);
 
 
@@ -788,8 +788,8 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 				double lon = 0.0f;
 				map_projection_reproject(local_position_data.x,local_position_data.y,
 						&lat,&lon);
-				global_position_data.lat = (int32_t) (lat * (double)10e7f);
-				global_position_data.lon = (int32_t) (lon * (double)10e7f);
+				global_position_data.lat = (int32_t) (lat * (double)1e7f);
+				global_position_data.lon = (int32_t) (lon * (double)1e7f);
 				global_position_data.relative_alt = local_position_data.z;
 				global_position_data.alt = UKF_FLOW_POSD;
 				global_position_data.timestamp = hrt_absolute_time();
