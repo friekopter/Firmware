@@ -105,54 +105,54 @@ void navFlowUkfTimeUpdate(float *in, float *noise, float *out, float *u, float d
     float mat3x3[3*3];
 
     // acc bias
-    out[3] = in[3] + noise[0] * dt;
-    out[4] = in[4] + noise[1] * dt;
-    out[5] = in[5] + noise[2] * dt;
+    out[0] = in[0] + noise[0] * dt;
+    out[1] = in[1] + noise[1] * dt;
+    out[2] = in[2] + noise[2] * dt;
 
     // gbias
-    out[6] = in[6] + noise[3] * dt;
-    out[7] = in[7] + noise[4] * dt;
-    out[8] = in[8] + noise[5] * dt;
+    out[3] = in[3] + noise[3] * dt;
+    out[4] = in[4] + noise[4] * dt;
+    out[5] = in[5] + noise[5] * dt;
 
     // rate = rate + bias + noise
-    rate[0] = (u[3] + out[6] + noise[6]) * dt;
-    rate[1] = (u[4] + out[7] + noise[7]) * dt;
-    rate[2] = (u[5] + out[8] + noise[8]) * dt;
+    rate[0] = (u[3] + out[3] + noise[6]) * dt;
+    rate[1] = (u[4] + out[4] + noise[7]) * dt;
+    rate[2] = (u[5] + out[5] + noise[8]) * dt;
 
     // rotate
     utilRotateQuat(&out[9], &in[9], rate, dt);
     utilQuatToMatrix(mat3x3, &out[9], 1);
 
     // acc
-    tmp[0] = u[0] + out[3];
-    tmp[1] = u[1] + out[4];
-    tmp[2] = u[2] + out[5];
+    tmp[0] = u[0] + out[0];
+    tmp[1] = u[1] + out[1];
+    tmp[2] = u[2] + out[2];
 
     // rotate acc to world frame
     utilRotateVecByMatrix(acc, tmp, mat3x3);
     acc[2] += CONSTANTS_ONE_G;
 
     // vel
-    out[0] = in[0] + acc[0] * dt + noise[10];
-    out[1] = in[1] + acc[1] * dt + noise[11];
-    out[2] = in[2] + acc[2] * dt + noise[12];
+    out[6] = in[6] + acc[0] * dt + noise[9];
+    out[7] = in[7] + acc[1] * dt + noise[10];
+    out[8] = in[8] + acc[2] * dt + noise[11];
 
     // pres alt
-    out[13] = in[13] - (in[2] + out[2]) * 0.5f * dt + noise[9];
+    out[13] = in[13] - (in[8] + out[8]) * 0.5f * dt + noise[12];
 
     if(UKF_FLOW_CALCULATES_POSITION) {
     	// pos
-    	out[14] = in[14] + (in[0] + out[0]) * 0.5f * dt + noise[13];
-    	out[15] = in[15] + (in[1] + out[1]) * 0.5f * dt + noise[14];
+    	out[14] = in[14] + (in[6] + out[6]) * 0.5f * dt + noise[13];
+    	out[15] = in[15] + (in[7] + out[7]) * 0.5f * dt + noise[14];
     }
     if(UKF_FLOW_CALCULATES_ALTITUDE){
 
-    	out[16] = in[16] - (in[2] + out[2]) * 0.5f * dt + noise[15];
+    	out[16] = in[16] - (in[8] + out[8]) * 0.5f * dt + noise[15];
     }
 }
 
 void navFlowUkfRateUpdate(float *u, float *x, float *noise, float *y) {
-    y[0] = -x[6+(int)u[0]] + noise[0];
+    y[0] = -x[3+(int)u[0]] + noise[0];
 }
 
 void navFlowUkfAccUpdate(float *u, float *x, float *noise, float *y) {
@@ -178,13 +178,13 @@ void navFlowUkfAltitudeUpdate(float *u, float *x, float *noise, float *y) {
 }
 
 void navFlowUkfAltitudeVelocityUpdate(float *u, float *x, float *noise, float *y) {
-    y[0] = x[2] + noise[0]; // return velocity
+    y[0] = x[8] + noise[0]; // return velocity
     y[1] = x[16] + noise[1];// return position
 }
 
 void navFlowUkfVelocityUpdate(float *u, float *x, float *noise, float *y) {
-    y[0] = x[0] + noise[0]; // return velocity
-    y[1] = x[1] + noise[1];
+    y[0] = x[6] + noise[0]; // return velocity
+    y[1] = x[7] + noise[1];
 }
 
 void navFlowUkfPositionUpdate(float *u, float *x, float *noise, float *y) {
@@ -193,16 +193,16 @@ void navFlowUkfPositionUpdate(float *u, float *x, float *noise, float *y) {
 }
 
 void navFlowUkfVelocityPositionUpdate(float *u, float *x, float *noise, float *y) {
-    y[0] = x[0] + noise[0]; // return velocity
-    y[1] = x[1] + noise[1];
+    y[0] = x[6] + noise[0]; // return velocity
+    y[1] = x[7] + noise[1];
     y[2] = x[14] + noise[2]; // return position
     y[3] = x[15] + noise[3];
 }
 
 void navFlowUkfVelAltUpdate(float *u, float *x, float *noise, float *y) {
-    y[0] = x[0] + noise[0]; // return velocity
-    y[1] = x[1] + noise[1];
-    y[2] = x[2] + noise[2];
+    y[0] = x[6] + noise[0]; // return velocity
+    y[1] = x[7] + noise[1];
+    y[2] = x[8] + noise[2];
 }
 
 void navFlowUkfPosAltUpdate(float *u, float *x, float *noise, float *y) {
@@ -839,15 +839,15 @@ void navFlowUkfInit(const struct quat_position_control_UKF_params* params,
     navFlowUkfData.pressAltOffset = 0.0f;
 
     // State variance
-    Q[0] = params->ukf_vel_q;
-    Q[1] = params->ukf_vel_q;
-    Q[2] = params->ukf_vel_alt_q;
-    Q[3] = params->ukf_acc_bias_q;
-    Q[4] = params->ukf_acc_bias_q;
-    Q[5] = params->ukf_acc_bias_q;
-    Q[6] = params->ukf_gyo_bias_q;
-    Q[7] = params->ukf_gyo_bias_q;
-    Q[8] = params->ukf_gyo_bias_q;
+    Q[0] = params->ukf_acc_bias_q;
+    Q[1] = params->ukf_acc_bias_q;
+    Q[2] = params->ukf_acc_bias_q;
+    Q[3] = params->ukf_gyo_bias_q;
+    Q[4] = params->ukf_gyo_bias_q;
+    Q[5] = params->ukf_gyo_bias_q;
+    Q[6] = params->ukf_vel_q;
+    Q[7] = params->ukf_vel_q;
+    Q[8] = params->ukf_vel_alt_q;
     Q[9] = params->ukf_quat_q;
     Q[10] = params->ukf_quat_q;
     Q[11] = params->ukf_quat_q;
@@ -869,10 +869,10 @@ void navFlowUkfInit(const struct quat_position_control_UKF_params* params,
     V[6] = params->ukf_rate_v;
     V[7] = params->ukf_rate_v;
     V[8] = params->ukf_rate_v;
-    V[9] = params->ukf_pres_alt_v;
+    V[9] = params->ukf_vel_v;
     V[10] = params->ukf_vel_v;
-    V[11] = params->ukf_vel_v;
-    V[12] = params->ukf_alt_vel_v;
+    V[11] = params->ukf_alt_vel_v;
+    V[12] = params->ukf_pres_alt_v;
     //only for position
     V[13] = params->ukf_pos_v;
     V[14] = params->ukf_pos_v;

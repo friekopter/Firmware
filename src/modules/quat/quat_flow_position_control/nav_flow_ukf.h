@@ -48,15 +48,15 @@ extern navFlowUkfStruct_t navFlowUkfData;
 
 #define UKF_GYO_AVG_NUM		20
 
-#define UKF_FLOW_VELX		navFlowUkfData.x[0] //NED frame
-#define UKF_FLOW_VELY		navFlowUkfData.x[1] //NED frame
-#define UKF_FLOW_VELD		navFlowUkfData.x[2] //NED frame
-#define UKF_FLOW_ACC_BIAS_X		navFlowUkfData.x[3]
-#define UKF_FLOW_ACC_BIAS_Y		navFlowUkfData.x[4]
-#define UKF_FLOW_ACC_BIAS_Z		navFlowUkfData.x[5]
-#define UKF_FLOW_GYO_BIAS_X		navFlowUkfData.x[6]
-#define UKF_FLOW_GYO_BIAS_Y		navFlowUkfData.x[7]
-#define UKF_FLOW_GYO_BIAS_Z		navFlowUkfData.x[8]
+#define UKF_FLOW_ACC_BIAS_X		navFlowUkfData.x[0]
+#define UKF_FLOW_ACC_BIAS_Y		navFlowUkfData.x[1]
+#define UKF_FLOW_ACC_BIAS_Z		navFlowUkfData.x[2]
+#define UKF_FLOW_GYO_BIAS_X		navFlowUkfData.x[3]
+#define UKF_FLOW_GYO_BIAS_Y		navFlowUkfData.x[4]
+#define UKF_FLOW_GYO_BIAS_Z		navFlowUkfData.x[5]
+#define UKF_FLOW_VELX		navFlowUkfData.x[6] //NED frame
+#define UKF_FLOW_VELY		navFlowUkfData.x[7] //NED frame
+#define UKF_FLOW_VELD		navFlowUkfData.x[8] //NED frame
 #define UKF_FLOW_Q1			navFlowUkfData.x[9]
 #define UKF_FLOW_Q2			navFlowUkfData.x[10]
 #define UKF_FLOW_Q3			navFlowUkfData.x[11]
