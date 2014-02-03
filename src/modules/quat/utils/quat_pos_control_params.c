@@ -56,6 +56,7 @@ PARAM_DEFINE_FLOAT(Q_U_GPS_VEL_N, +4.6256e-02f);
 PARAM_DEFINE_INT32(Q_U_SENS_HIST, 10);
 PARAM_DEFINE_INT32(Q_U_SENS_INTV, 5);
 PARAM_DEFINE_INT32(Q_U_STATES, 14);
+PARAM_DEFINE_INT32(Q_U_BI_UP_CO, 1);
 
 PARAM_DEFINE_FLOAT(Q_N_MAX_SPEED,	    5.0f);	// m/s
 PARAM_DEFINE_FLOAT(Q_N_MAX_DECENT,	    1.5f);	// m/s
@@ -158,6 +159,7 @@ int parameters_init(struct quat_position_control_NAV_param_handles *nav,
 	ukf->ukf_sens_hist = param_find("Q_U_SENS_HIST");
 	ukf->ukf_raw_intv = param_find("Q_U_SENS_INTV");
 	ukf->ukf_states = param_find("Q_U_STATES");
+	ukf->ukf_bias_update_count = param_find("Q_U_BI_UP_CO");
 	return OK;
 }
 
@@ -227,6 +229,8 @@ int parameters_update(const struct quat_position_control_NAV_param_handles *nav_
 	param_get(ukf_handles->ukf_sens_hist, &(ukf_params->ukf_sens_hist));
 	param_get(ukf_handles->ukf_raw_intv, &(ukf_params->ukf_raw_intv));
 	param_get(ukf_handles->ukf_states, &(ukf_params->ukf_states));
+	param_get(ukf_handles->ukf_bias_update_count, &(ukf_params->ukf_bias_update_count));
+
 
 	return OK;
 }

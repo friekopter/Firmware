@@ -17,7 +17,7 @@ navFlowUkfStruct_t navFlowUkfData __attribute__((section(".ccm")));
 void navFlowUkfCalcEarthRadius(double lat);
 void navFlowUkfCalcDistance(double lat, double lon, float *posNorth, float *posEast);
 void navFlowUkfResetPosition(float deltaN, float deltaE, float deltaD);
-void navFlowUkfTimeUpdate(float *in, float *noise, float *out, float *u, float dt);
+void navFlowUkfTimeUpdate(float *in, float *noise, float *out, float *u, float dt, bool updateBias);
 void navFlowUkfRateUpdate(float *u, float *x, float *noise, float *y);
 void navFlowUkfInitState(const struct sensor_combined_s* sensors);
 void navFlowUkfAccUpdate(float *u, float *x, float *noise, float *y);
@@ -41,14 +41,14 @@ bool navFlowIsArmed(const struct vehicle_control_mode_s *control_mode){
 }
 
 void navFlowUkfSetSonarOffset(const float sonarDistanceToEarth, const float altitude, const float kSonarBaro) {
-	const float offsetError = sonarDistanceToEarth + navFlowUkfData.sonarAltOffset - altitude;
+	float offsetError = sonarDistanceToEarth + navFlowUkfData.sonarAltOffset - altitude;
 	//sonarAltOffset =  -sonarDistanceToEarth + altitude);
 	//altitude = sonarAltOffset + sonarDistanceToEarth
 	navFlowUkfData.sonarAltOffset -= (offsetError * kSonarBaro);
 }
 
 void navFlowUkfSetPressAltOffset(const float baroAltitude, const float altitude,  const float kSonarBaro) {
-	const float offsetError = baroAltitude + navFlowUkfData.pressAltOffset - altitude;
+	float offsetError = baroAltitude + navFlowUkfData.pressAltOffset - altitude;
 	navFlowUkfData.pressAltOffset -= (offsetError * kSonarBaro);
 }
 
@@ -99,30 +99,56 @@ void navFlowUkfSetGlobalPositionTarget(double lat, double lon) {
     navFlowUkfResetPosition(newPosX - oldPosX, newPosY - oldPosY, 0.0f);
 }
 
-void navFlowUkfTimeUpdate(float *in, float *noise, float *out, float *u, float dt) {
+void navFlowUkfTimeUpdate(float *in, float *noise, float *out, float *u, float dt, bool updateBias) {
     float tmp[3], acc[3];
     float rate[3];
     float mat3x3[3*3];
+    float *noiseVector;
+    if(true) {
+		//with bias noise
+		// acc bias
+		out[0] = in[0] + noise[0] * dt;
+		out[1] = in[1] + noise[1] * dt;
+		out[2] = in[2] + noise[2] * dt;
 
-    // acc bias
-    out[0] = in[0] + noise[0] * dt;
-    out[1] = in[1] + noise[1] * dt;
-    out[2] = in[2] + noise[2] * dt;
+		// gbias
+		out[3] = in[3] + noise[3] * dt;
+		out[4] = in[4] + noise[4] * dt;
+		out[5] = in[5] + noise[5] * dt;
 
-    // gbias
-    out[3] = in[3] + noise[3] * dt;
-    out[4] = in[4] + noise[4] * dt;
-    out[5] = in[5] + noise[5] * dt;
+		noiseVector = &noise[6];
+    }
+    else {
+        // acc bias
+        out[0] = in[0];
+        out[1] = in[1];
+        out[2] = in[2];
+
+        // gbias
+        out[3] = in[3];
+        out[4] = in[4];
+        out[5] = in[5];
+
+        noiseVector = noise;
+    }
 
     // rate = rate + bias + noise
-    rate[0] = (u[3] + out[3] + noise[6]) * dt;
-    rate[1] = (u[4] + out[4] + noise[7]) * dt;
-    rate[2] = (u[5] + out[5] + noise[8]) * dt;
+    rate[0] = (u[3] + out[3] + noiseVector[0]) * dt;
+    rate[1] = (u[4] + out[4] + noiseVector[1]) * dt;
+    rate[2] = (u[5] + out[5] + noiseVector[2]) * dt;
 
     // rotate
     utilRotateQuat(&out[9], &in[9], rate, dt);
     utilQuatToMatrix(mat3x3, &out[9], 1);
 
+    /*
+	printf("In 1:%8.4f 2:%8.4f 3:%8.4f 4:%8.4f  R: 1:%8.4f 2:%8.4f 3:%8.4f 4:%8.4f 5:%8.4f 6:%8.4f 7:%8.4f 8:%8.4f 9:%8.4f dt:%8.4f 1:%8.4f 2:%8.4f 3:%8.4f 4:%8.4f\n",
+			in[9],in[10],in[11],in[12],
+			u[3],out[3],noiseVector[0],
+			u[4],out[4],noiseVector[1],
+			u[5],out[5],noiseVector[2],dt,
+			out[9],out[10],out[11],out[12]);
+*/
     // acc
     tmp[0] = u[0] + out[0];
     tmp[1] = u[1] + out[1];
@@ -133,21 +159,21 @@ void navFlowUkfTimeUpdate(float *in, float *noise, float *out, float *u, float d
     acc[2] += CONSTANTS_ONE_G;
 
     // vel
-    out[6] = in[6] + acc[0] * dt + noise[9];
-    out[7] = in[7] + acc[1] * dt + noise[10];
-    out[8] = in[8] + acc[2] * dt + noise[11];
+    out[6] = in[6] + acc[0] * dt + noiseVector[3];
+    out[7] = in[7] + acc[1] * dt + noiseVector[4];
+    out[8] = in[8] + acc[2] * dt + noiseVector[5];
 
     // pres alt
-    out[13] = in[13] - (in[8] + out[8]) * 0.5f * dt + noise[12];
+    out[13] = in[13] - (in[8] + out[8]) * 0.5f * dt + noiseVector[6];
 
     if(UKF_FLOW_CALCULATES_POSITION) {
     	// pos
-    	out[14] = in[14] + (in[6] + out[6]) * 0.5f * dt + noise[13];
-    	out[15] = in[15] + (in[7] + out[7]) * 0.5f * dt + noise[14];
+    	out[14] = in[14] + (in[6] + out[6]) * 0.5f * dt + noiseVector[7];
+    	out[15] = in[15] + (in[7] + out[7]) * 0.5f * dt + noiseVector[8];
     }
     if(UKF_FLOW_CALCULATES_ALTITUDE){
 
-    	out[16] = in[16] - (in[8] + out[8]) * 0.5f * dt + noise[15];
+    	out[16] = in[16] - (in[8] + out[8]) * 0.5f * dt + noiseVector[9];
     }
 }
 
@@ -226,7 +252,7 @@ void navFlowUkfFinish(void) {
     //navFlowUkfData.yawSin = sinf(navFlowUkfData.yaw);
 }
 
-float navFlowUkfInertialUpdate(const struct sensor_combined_s* raw) {
+float navFlowUkfInertialUpdate(const struct sensor_combined_s* raw, bool updateBias) {
 
 	/* Calculate data time difference in seconds */
 	static uint64_t last_inertialUpdate = 0;
@@ -247,7 +273,7 @@ float navFlowUkfInertialUpdate(const struct sensor_combined_s* raw) {
     u[4] = raw->gyro_rad_s[1];
     u[5] = raw->gyro_rad_s[2];
 
-    srcdkfTimeUpdate(navFlowUkfData.kf, u, dt);
+    srcdkfTimeUpdateReduced(navFlowUkfData.kf, u, dt, updateBias);
 
     // store history
     if(UKF_FLOW_CALCULATES_POSITION) {
@@ -354,7 +380,7 @@ void navFlowCalculateOffsets(
 		const struct vehicle_control_mode_s *control_mode,
 		const struct quat_position_control_UKF_params* params) {
 
-	//static uint8_t printcounter = 0;
+	static uint8_t printcounter = 0;
 
 	// Calculate offsets
 	const float distanceToEarth = -bottom_flow->ned_z; //Positive value
@@ -372,8 +398,8 @@ void navFlowCalculateOffsets(
 			//not armed, so we know distance to earth must be 0.0
 			navFlowUkfSetSonarOffset(0.0f, referenceAltitude, 1.0f);
 
-			//if (!(printcounter % 10)) printf("Set Sonar Offset to 0.0 reference: %8.4fm\n",referenceAltitude);
-			//printcounter++;
+			/*if (!(printcounter % 10)) printf("Set Sonar Offset to 0.0 reference: %8.4fm\n",referenceAltitude);
+			printcounter++;*/
 		}
 		// navFlowUkfSetSonarOffset(0.3f, UKF_FLOW_PRES_ALT, 1.0f);
 	} else if (control_mode->flag_control_altitude_enabled) {
@@ -404,12 +430,14 @@ void navFlowUkfSonarUpdate(
 
     float y[2];
     float noise[2];
-    static uint32_t sonarCount = 0;
+    //static uint32_t sonarCount = 0;
+    //static uint8_t printcounter = 0;
 
-    if(bottom_flow->sonar_counter <= sonarCount) {
+    /*if(bottom_flow->sonar_counter <= sonarCount) {
     	return;
     }
     sonarCount = bottom_flow->sonar_counter;
+*/
 
     navFlowCalculateOffsets(bottom_flow, baroAltitude, control_mode, params);
 	const float distanceToEarth = -bottom_flow->ned_z; //Positive value
@@ -420,10 +448,14 @@ void navFlowUkfSonarUpdate(
 			noise[0] = params->ukf_flow_vel_n;
 			noise[1] = params->ukf_flow_alt_n;
 			srcdkfMeasurementUpdate(navFlowUkfData.kf, 0, y, 2, 2, noise, navFlowUkfAltitudeVelocityUpdate);
+			/*if (!(printcounter % 10)) printf("Seas Up: %8.4f, posd: %8.4f, baroalt: %8.4f\n",y[1],UKF_FLOW_POSD, baroAltitude);
+			printcounter++;*/
 		} else {
 			y[0] = -UKF_FLOW_PRES_ALT;
 			noise[0] = params->ukf_alt_n;
 			srcdkfMeasurementUpdate(navFlowUkfData.kf, 0, y, 1, 1, noise, navFlowUkfAltitudeUpdate);
+			/*if (!(printcounter % 10)) printf("Meas Up: %8.4f, posd: %8.4f, baroalt: %8.4f\n",y[0],UKF_FLOW_POSD, baroAltitude);
+			printcounter++;*/
 		}
 	} else {
 		if(bottom_flow->ned_z_valid == 255) {
@@ -779,7 +811,7 @@ void navFlowUkfInitState(const struct sensor_combined_s* sensors) {
     UKF_FLOW_Q3 =  0.0f;
     UKF_FLOW_Q4 =  0.0f;
 
-    UKF_FLOW_PRES_ALT = 0.0f;
+    UKF_FLOW_PRES_ALT = utilPresToAlt(sensors->baro_pres_mbar);
 }
 
 void navFlowLogVariance(void) {
@@ -831,7 +863,7 @@ void navFlowUkfInit(const struct quat_position_control_UKF_params* params,
     navFlowUkfData.v0m[1] = mag[1] * cosf(COMPASS_DECLINATION  * DEG_TO_RAD) + mag[0] * sinf(COMPASS_DECLINATION  * DEG_TO_RAD);
     navFlowUkfData.v0m[2] = mag[2];
 
-    navFlowUkfData.kf = srcdkfInit(states, SIM_M, navFlowUkfData.numberOfProcessNoiseVariables, SIM_N, navFlowUkfTimeUpdate);
+    navFlowUkfData.kf = srcdkfInit(states, SIM_M, navFlowUkfData.numberOfProcessNoiseVariables, navFlowUkfData.numberOfProcessNoiseVariables - 6, SIM_N, navFlowUkfTimeUpdate);
     //navFlowUkfData.kf = srcdkfInit(17, SIM_M, 16, SIM_N, navFlowUkfTimeUpdate);
 
     navFlowUkfData.x = srcdkfGetState(navFlowUkfData.kf);

@@ -20,6 +20,7 @@
 #define _srcdkf_h
 
 #include "aq_math.h"
+#include <stdbool.h>
 #include <systemlib/visibility.h>
 #include <mathlib/CMSIS/Include/arm_math.h>
 
@@ -28,13 +29,13 @@
 
 #define MAX(a, b)	((a > b) ? a : b)
 
-typedef void SRCDKFTimeUpdate_t(float32_t *x_I, float32_t *noise_I, float32_t *x_O, float32_t *u, float32_t dt);
+typedef void SRCDKFTimeUpdate_t(float32_t *x_I, float32_t *noise_I, float32_t *x_O, float32_t *u, float32_t dt, bool updateBias);
 typedef void SRCDKFMeasurementUpdate_t(float32_t *u, float32_t *x, float32_t *noise_I, float32_t *y);
 
 // define all temporary storage here so that it does not need to be allocated each iteration
 typedef struct {
 	int S;
-	int V;
+	int V;		// number of noise variables
 	int M;		// only used for parameter estimation
 	int N;		// only used for parameter estimation
 	int L;
@@ -46,6 +47,7 @@ typedef struct {
 
 	arm_matrix_instance_f32 Sx;	// state covariance
 	arm_matrix_instance_f32 SxT;	// Sx transposed
+	arm_matrix_instance_f32 SxTemp;	// temporary state
 	arm_matrix_instance_f32 Sv;	// process noise
 	arm_matrix_instance_f32 Sn;	// observation noise
 	arm_matrix_instance_f32 x;	// state estimate vector
@@ -79,11 +81,12 @@ typedef struct {
 } srcdkf_t;
 __BEGIN_DECLS
 
-__EXPORT srcdkf_t *srcdkfInit(int s, int m, int v, int n, SRCDKFTimeUpdate_t *timeUpdate);
+__EXPORT srcdkf_t *srcdkfInit(int s, int m, int v, int vMin, int n, SRCDKFTimeUpdate_t *timeUpdate);
 __EXPORT float *srcdkfGetState(srcdkf_t *f);
 __EXPORT void srcdkfSetVariance(srcdkf_t *f, float32_t *q, float32_t *v, float32_t *n, int nn);
 __EXPORT void srcdkfGetVariance(srcdkf_t *f, float32_t *q);
 __EXPORT void srcdkfTimeUpdate(srcdkf_t *f, float32_t *u, float32_t dt);
+__EXPORT void srcdkfTimeUpdateReduced(srcdkf_t *f, float32_t *u, float32_t dt, bool updateBias);
 __EXPORT void srcdkfMeasurementUpdate(srcdkf_t *f, float32_t *u, float32_t *y, int M, int N, float32_t *noise, SRCDKFMeasurementUpdate_t *measurementUpdate);
 __EXPORT void srcdkfFree(srcdkf_t *f);
 __EXPORT srcdkf_t *paramsrcdkfInit(int w, int d, int n, SRCDKFMeasurementUpdate_t *map);

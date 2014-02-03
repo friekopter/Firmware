@@ -20,6 +20,7 @@
 #include "aq_math.h"
 #include <quat/utils/util.h>
 void srcdkfCalcSigmaPoints(srcdkf_t *f, arm_matrix_instance_f32 *Sn);
+void srcdkfCalcSigmaPointsReduced(srcdkf_t *f, arm_matrix_instance_f32 *Sn, int startPosition);
 
 float *srcdkfGetState(srcdkf_t *f) {
     return f->x.pData;
@@ -65,7 +66,7 @@ void srcdkfGetVariance(srcdkf_t *f, float32_t *q) {
 }
 
 // states, max observations, process noise, max observation noise
-srcdkf_t *srcdkfInit(int s, int m, int v, int n, SRCDKFTimeUpdate_t *timeUpdate) {
+srcdkf_t *srcdkfInit(int s, int m, int v, int vMin, int n, SRCDKFTimeUpdate_t *timeUpdate) {
 	srcdkf_t *f;
 	int maxN = MAX(v, n);
 
@@ -74,8 +75,10 @@ srcdkf_t *srcdkfInit(int s, int m, int v, int n, SRCDKFTimeUpdate_t *timeUpdate)
 	f->S = s;
 	f->V = v;
 
+
 	matrixInit(&f->Sx, s, s);
 	matrixInit(&f->SxT, s, s);
+	matrixInit(&f->SxTemp, s, s);
 	matrixInit(&f->Sv, v, v);
 	matrixInit(&f->Sn, n, n);
 	matrixInit(&f->x, s, 1);
@@ -117,6 +120,54 @@ srcdkf_t *srcdkfInit(int s, int m, int v, int n, SRCDKFTimeUpdate_t *timeUpdate)
 	return f;
 }
 
+void srcdkfCalcSigmaPointsReduced(srcdkf_t *f, arm_matrix_instance_f32 *Sn, int startPosition) {
+	int S = f->S;			// number of states
+	int N = Sn->numRows - startPosition;		// number of noise variables
+	int A = S+N;			// number of augmented states
+	int L = 1+A*2;			// number of sigma points
+	float32_t *x = f->x.pData;	// state
+	float32_t *Sx = f->Sx.pData;	// state covariance
+	float32_t *Xa = f->Xa.pData;	// calculation result: augmented sigma points
+	float32_t *Nv = &Sn->pData[startPosition];	// noise vector
+	int i, j;
+
+	// set the number of sigma points
+	f->L = L;
+
+	// resize output matrix
+	f->Xa.numRows = A;
+	f->Xa.numCols = L;
+
+	//	-	   -
+	// Sa =	| Sx	0  |
+	//	    | 0	    Sn |
+	//	-	   -
+	// Augmented state: xa = [ x 	0  ]
+	// Sigma Points Xa = [ xa  (xa + h*Sa)  (xa - h*Sa) ]
+	//
+	for (i = 0; i < A; i++) {
+	//Iterate rows
+		int rOffset = i*L;
+		float32_t base = (i < S) ? x[i] : 0.0f;
+		//first column
+		Xa[rOffset + 0] = base;
+
+		for (j = 1; j <= A; j++) {
+			//iterate remaining columns
+			float32_t t = 0.0f;
+
+			if (i < S && j < S+1)
+				t = Sx[i*S + (j-1)]*f->h;
+
+			if (i >= S && j >= S+1)
+				t = Nv[(i-S)*N + (j-S-1)]*f->h;
+
+			Xa[rOffset + j]     = base + t;
+			Xa[rOffset + j + A] = base - t;
+		}
+	}
+}
+
 // given noise matrix
 void srcdkfCalcSigmaPoints(srcdkf_t *f, arm_matrix_instance_f32 *Sn) {
 	int S = f->S;			// number of states
@@ -141,14 +192,17 @@ void srcdkfCalcSigmaPoints(srcdkf_t *f, arm_matrix_instance_f32 *Sn) {
 	//	-	   -
 	// Augmented state: xa = [ x 	0  ]
 	// Sigma Points Xa = [ xa  (xa + h*Sa)  (xa - h*Sa) ]
+	//					    1     S + N       S + N
 	//
 	for (i = 0; i < A; i++) {
+		// i is the row number
 		int rOffset = i*L;
 		float32_t base = (i < S) ? x[i] : 0.0f;
 
 		Xa[rOffset + 0] = base;
 
 		for (j = 1; j <= A; j++) {
+			// j is the column number
 			float32_t t = 0.0f;
 
 			if (i < S && j < S+1)
@@ -161,6 +215,158 @@ void srcdkfCalcSigmaPoints(srcdkf_t *f, arm_matrix_instance_f32 *Sn) {
 			Xa[rOffset + j + A] = base - t;
 		}
 	}
+}
+
+void srcdkfTimeUpdateReduced(srcdkf_t *f, float32_t *u, float32_t dt, bool updateBias) {
+	int S = f->S;			// number of states
+	int V;			// number of noise variables
+	int L;				// number of sigma points
+	float32_t *x = f->x.pData;	// state estimate
+	arm_matrix_instance_f32 *Sv;				// process covariance
+	float32_t *Xa = f->Xa.pData;	// augmented sigma points
+	float32_t *xIn = f->xIn;	// callback buffer
+	float32_t *xOut = f->xOut;	// callback buffer
+	float32_t *xNoise = f->xNoise;	// callback buffer
+	float32_t *qrTempS = f->qrTempS.pData;
+	int i=0, j=0, k=0;
+
+	V = f->V;
+	Sv = &f->Sv;
+/*
+	if(updateBias) {
+		V = f->V;
+		Sv = &f->Sv;
+	}
+	else {
+		V = f->VMin;
+		Sv = &f->SvMin;
+	}*/
+
+	/*
+	//if(!updateBias) {
+		printf("II: 1:%8.4f 2:%8.4f 3:%8.4f 4:%8.4f 5:%8.4f 6:%8.4f 7:%8.4f 8:%8.4f 9:%8.4f 10:%8.4f 11:%8.4f 12:%8.4f 13:%8.4f 14:%8.4f\n",
+				x[0],x[1],x[2],x[3],x[4],
+				x[5],x[6],x[7],x[8],x[9],
+				x[10],x[11],x[12],x[13]);
+		usleep(100);
+	//}*/
+
+	srcdkfCalcSigmaPoints(f, Sv);
+	L = f->L;
+
+	// Xa = f(Xx, Xv, u, dt)
+	for (i = 0; i < L; i++) {
+		// i is column
+		// Create input values
+		for (j = 0; j < S; j++)
+			// j is row
+			xIn[j] = Xa[j*L + i];
+
+		for (j = 0; j < V; j++)
+			xNoise[j] = Xa[(S+j)*L + i];
+
+		// Do time update
+		if(updateBias) {
+			f->timeUpdate(xIn, xNoise, xOut, u, dt, updateBias);
+		} else {
+			if (i == 0) {
+				// do time update and remember result
+				f->timeUpdate(xIn, xNoise, xOut, u, dt, updateBias);
+				for (k = 0; k < S; k++) {
+					f->SxTemp.pData[k] = xOut[k];
+				}
+			} else if (i < 1 + S + 9) {
+				// this is a nonlinear problem do the calculations
+				f->timeUpdate(xIn, xNoise, xOut, u, dt, updateBias);
+			} else if (i < 1 + S + V) {
+				// linear problem its not needed to do each calculation
+				// because Sv is only trace matrix and medium is mean value
+				for (k = 0; k < S; k++) {
+					xOut[k] = f->SxTemp.pData[k];
+				}
+			} else if (i < 1 + S + V + S + 9) {
+				// this is a nonlinear problem do the calculations
+				f->timeUpdate(xIn, xNoise, xOut, u, dt, updateBias);
+			} else if (i < 1 + S + V + S + V) {
+				// linear problem its not needed to do each calculation
+				for (k = 0; k < S; k++) {
+					xOut[k] = f->SxTemp.pData[k];
+				}
+			}
+		}
+
+		// Save result to the augmented states
+		for (j = 0; j < S; j++) {
+			Xa[j*L + i] = xOut[j];
+		}
+/*
+		if(startPosition > 0) {
+			printf("xIn: 1:%8.4f 2:%8.4f 3:%8.4f 4:%8.4f 5:%8.4f 6:%8.4f 7:%8.4f 8:%8.4f 9:%8.4f 10:%8.4f 11:%8.4f 12:%8.4f 13:%8.4f 14:%8.4f\n",
+					xIn[0],xIn[1],xIn[2],xIn[3],xIn[4],
+					xIn[5],xIn[6],xIn[7],xIn[8],xIn[9],
+					xIn[10],xIn[11],xIn[12],xIn[13]);
+			usleep(200);
+		}
+		if(startPosition > 0) {
+			printf("xNo: 1:%8.4f 2:%8.4f 3:%8.4f 4:%8.4f 5:%8.4f 6:%8.4f 7:%8.4f 8:%8.4f 9:%8.4f 10:%8.4f\n",
+					xNoise[0],xNoise[1],xNoise[2],xNoise[3],xNoise[4],
+					xNoise[5],xNoise[6],xNoise[7],xNoise[8],xNoise[9]);
+			usleep(200);
+		}
+		if(startPosition > 0) {
+			printf("xOu: 1:%8.4f 2:%8.4f 3:%8.4f 4:%8.4f 5:%8.4f 6:%8.4f 7:%8.4f 8:%8.4f 9:%8.4f 10:%8.4f 11:%8.4f 12:%8.4f 13:%8.4f 14:%8.4f\n",
+					xOut[0],xOut[1],xOut[2],xOut[3],xOut[4],
+					xOut[5],xOut[6],xOut[7],xOut[8],xOut[9],
+					xOut[10],xOut[11],xOut[12],xOut[13]);
+			usleep(200);
+		}*/
+	}
+
+	// sum weighted resultant sigma points to create estimated state
+	f->w0m = (f->hh - (float32_t)(S+V)) / f->hh;
+	for (i = 0; i < S; i++) {
+		int rOffset = i*L;
+		x[i] = Xa[rOffset + 0] * f->w0m;
+		for (j = 1; j < L; j++) {
+			x[i] += Xa[rOffset + j] * f->wim;
+		}
+	}
+/*
+	//if(!updateBias) {
+		printf("OO: 1:%8.4f 2:%8.4f 3:%8.4f 4:%8.4f 5:%8.4f 6:%8.4f 7:%8.4f 8:%8.4f 9:%8.4f 10:%8.4f 11:%8.4f 12:%8.4f 13:%8.4f 14:%8.4f\n",
+				x[0],x[1],x[2],x[3],x[4],
+				x[5],x[6],x[7],x[8],x[9],
+				x[10],x[11],x[12],x[13]);
+		usleep(200);
+	//}*/
+
+	// update state covariance
+	for (i = 0; i < S; i++) {
+		int rOffset = i*(S+V)*2;
+		for (j = 0; j < S+V; j++) {
+			qrTempS[rOffset + j] = (Xa[i*L + j + 1] - Xa[i*L + S+V + j + 1]) * f->wic1;
+			qrTempS[rOffset + S+V + j] = (Xa[i*L + j + 1] + Xa[i*L + S+V + j + 1] - 2.0f*Xa[i*L + 0]) * f->wic2;
+		}
+	}
+//matrixDump("qrTempS", &f->qrTempS);
+//yield(1);
+	qrDecompositionT_f32(&f->qrTempS, NULL, &f->SxT);   // with transposition
+//matrixDump("SxT", &f->SxT);
+//yield(200);
+	arm_mat_trans_f32(&f->SxT, &f->Sx);
+
+	/*
+	usleep(1000000);
+	printf("++++++++++++++++++++++++++++++++++++++++++++\n\n\n\n\n");
+	for(i = 0; i < f->Sx.numRows; i++) {
+		for (j = 0; f->Sx.numCols; j++ ) {
+			printf("%8.4f ",f->Sx.pData[i*f->Sx.numCols + j]);
+		}
+		printf("\n");
+		usleep(20000);
+	}
+	printf("++++++++++++++++++++++++++++++++++++++++++++\n\n\n\n\n");
+	usleep(1000000);*/
 }
 
 void srcdkfTimeUpdate(srcdkf_t *f, float32_t *u, float32_t dt) {
@@ -187,7 +393,7 @@ void srcdkfTimeUpdate(srcdkf_t *f, float32_t *u, float32_t dt) {
 		for (j = 0; j < V; j++)
 			xNoise[j] = Xa[(S+j)*L + i];
 
-		f->timeUpdate(xIn, xNoise, xOut, u, dt);
+		f->timeUpdate(xIn, xNoise, xOut, u, dt, false);
 
 		for (j = 0; j < S; j++)
 			Xa[j*L + i] = xOut[j];
@@ -210,7 +416,7 @@ void srcdkfTimeUpdate(srcdkf_t *f, float32_t *u, float32_t dt) {
 
 		for (j = 0; j < S+V; j++) {
 			qrTempS[rOffset + j] = (Xa[i*L + j + 1] - Xa[i*L + S+V + j + 1]) * f->wic1;
-			qrTempS[rOffset + S+V + j] = (Xa[i*L + j + 1] + Xa[i*L + S+V + j + 1] - 2.0*Xa[i*L + 0]) * f->wic2;
+			qrTempS[rOffset + S+V + j] = (Xa[i*L + j + 1] + Xa[i*L + S+V + j + 1] - 2.0f*Xa[i*L + 0]) * f->wic2;
 		}
 	}
 //matrixDump("qrTempS", &f->qrTempS);
@@ -315,7 +521,7 @@ void srcdkfMeasurementUpdate(srcdkf_t *f, float32_t *u, float32_t *ym, int M, in
 			float32_t c, d;
 
 			c = (Y[i*L + j + 1] - Y[i*L + S+N + j + 1]) * f->wic1;
-			d = (Y[i*L + j + 1] + Y[i*L + S+N + j + 1] - 2.0*Y[i*L]) * f->wic2;
+			d = (Y[i*L + j + 1] + Y[i*L + S+N + j + 1] - 2.0f*Y[i*L]) * f->wic2;
 
 			qrTempM[rOffset + j] = c;
 			qrTempM[rOffset + S+N + j] = d;

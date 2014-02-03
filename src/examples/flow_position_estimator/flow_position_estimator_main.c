@@ -287,6 +287,7 @@ void flow_calculate_altitude(bool vehicle_liftoff,
 			filtered_flow->ned_vz = 0.0f;
 			filtered_flow->ned_v_z_valid = 0;
 			filtered_flow->ned_z_valid = 0;
+			filtered_flow->sonar_counter++;
 	}
 	else
 	{

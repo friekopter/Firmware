@@ -542,10 +542,15 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 			}
 			if (fds[0].revents & POLLIN)
 			{
+				// raw parameter changed
 				perf_begin(quat_flow_pos_inertial_perf);
 				orb_copy(ORB_ID(sensor_combined), sub_raw, &raw);
-				// raw parameter changed
-				dt = navFlowUkfInertialUpdate(&raw);
+				//dt = navFlowUkfInertialUpdate(&raw,true);
+				if ( !((loopcounter + 2) % ukf_params.ukf_bias_update_count)  ) {
+					dt = navFlowUkfInertialUpdate(&raw,true);
+				} else {
+					dt = navFlowUkfInertialUpdate(&raw,false);
+				}
 				perf_end(quat_flow_pos_inertial_perf);
 				if(dt < FLT_MIN) {
 					perf_end(quat_flow_pos_loop_perf);
@@ -662,7 +667,7 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 				perf_begin(quat_flow_position_perf);
 				orb_copy(ORB_ID(filtered_bottom_flow), filtered_bottom_flow_sub, &filtered_bottom_flow_data);
 				navFlowUkfSonarUpdate(&filtered_bottom_flow_data,raw.baro_alt_meter,&control_mode,&ukf_params);
-				//navFlowUkfFlowUpate(&filtered_bottom_flow_data,&control_mode,&ukf_params);
+				////navFlowUkfFlowUpate(&filtered_bottom_flow_data,&control_mode,&ukf_params);
 				navFlowUkfFlowPosUpate(&filtered_bottom_flow_data,&control_mode,&ukf_params);
 				navFlowUkfFlowVelUpate(&filtered_bottom_flow_data,&control_mode,&ukf_params);
 				perf_end(quat_flow_position_perf);

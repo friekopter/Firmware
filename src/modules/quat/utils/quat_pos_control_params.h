@@ -42,7 +42,8 @@
     	ukf_vel_delay;
     	int32_t ukf_sens_hist,
     	ukf_raw_intv,
-    	ukf_states;
+    	ukf_states,
+    	ukf_bias_update_count;
     };
 
     struct quat_position_control_NAV_params {
@@ -109,7 +110,8 @@
 		ukf_vel_delay,
     	ukf_sens_hist,
     	ukf_raw_intv,
-    	ukf_states;
+    	ukf_states,
+    	ukf_bias_update_count;
     };
 
     struct quat_position_control_NAV_param_handles {

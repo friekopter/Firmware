@@ -39,7 +39,7 @@ char ukfLog[UKF_LOG_BUF];
 void navUkfCalcEarthRadius(double lat);
 void navUkfCalcDistance(double lat, double lon, float *posNorth, float *posEast);
 void navUkfResetPosition(float deltaN, float deltaE, float deltaD);
-void navUkfTimeUpdate(float *in, float *noise, float *out, float *u, float dt);
+void navUkfTimeUpdate(float *in, float *noise, float *out, float *u, float dt, bool withoutBiasNoise);
 void navUkfRateUpdate(float *u, float *x, float *noise, float *y);
 void navUkfInitState(const struct sensor_combined_s* sensors);
 void navUkfAccUpdate(float *u, float *x, float *noise, float *y);
@@ -107,7 +107,7 @@ void navUkfSetGlobalPositionTarget(double lat, double lon) {
 }
 
 
-void navUkfTimeUpdate(float *in, float *noise, float *out, float *u, float dt) {
+void navUkfTimeUpdate(float *in, float *noise, float *out, float *u, float dt, bool withoutBiasNoise) {
     float tmp[3], acc[3];
     float rate[3];
     float mat3x3[3*3];
