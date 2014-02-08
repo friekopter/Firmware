@@ -576,20 +576,6 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 					runData.sumAcc[1] += runData.accHist[1][runData.accHistIndex];
 					runData.sumAcc[2] += runData.accHist[2][runData.accHistIndex];
 					runData.accHistIndex = (runData.accHistIndex + 1) % run_sensor_hist;
-					float stdDeviationAcc = 0;
-					arm_std_f32(runData.accHist[2],run_sensor_hist,&stdDeviationAcc);
-					bool inAirVibrations = stdDeviationAcc > nav_params.nav_in_air_acc_deviation;
-					static int accDeviationCounter = 0;
-					if(inAirVibrations != inAir) {
-						accDeviationCounter++;
-					}
-					//Delay switch
-					if(accDeviationCounter > 200) {
-						inAir = inAirVibrations;
-					}
-					if(inAirVibrations == inAir) {
-						accDeviationCounter = 0;
-					}
 				}
 
 				// mag
@@ -627,6 +613,21 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 						   	   	   	runData.sumAcc[2]*(1.0f / (float)run_sensor_hist),
 						   	   	   	&control_mode,
 						   	   	   	&ukf_params);
+
+					float stdDeviationAcc = 0;
+					static int accDeviationCounter = 0;
+					arm_std_f32(runData.accHist[2],run_sensor_hist,&stdDeviationAcc);
+					bool inAirVibrations = stdDeviationAcc > nav_params.nav_in_air_acc_deviation;
+					if(inAirVibrations != inAir) {
+						accDeviationCounter++;
+					}
+					//Delay switch
+					if(accDeviationCounter > 10) {
+						inAir = inAirVibrations;
+					}
+					if(inAirVibrations == inAir) {
+						accDeviationCounter = 0;
+					}
 				}
 				else if (!((loopcounter+7) % 20)) {
 					navFlowDoPresUpdate(runData.sumPres*(1.0f / (float)run_sensor_hist),
@@ -667,13 +668,12 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 				perf_begin(quat_flow_position_perf);
 				orb_copy(ORB_ID(filtered_bottom_flow), filtered_bottom_flow_sub, &filtered_bottom_flow_data);
 				navFlowUkfSonarUpdate(&filtered_bottom_flow_data,raw.baro_alt_meter,&control_mode,&ukf_params);
-				////navFlowUkfFlowUpate(&filtered_bottom_flow_data,&control_mode,&ukf_params);
-				navFlowUkfFlowPosUpate(&filtered_bottom_flow_data,&control_mode,&ukf_params);
-				navFlowUkfFlowVelUpate(&filtered_bottom_flow_data,&control_mode,&ukf_params);
+				navFlowUkfFlowUpdate(&filtered_bottom_flow_data,&control_mode,&ukf_params);
+				//navFlowUkfFlowPosUpate(&filtered_bottom_flow_data,&control_mode,&ukf_params);
+				//navFlowUkfFlowVelUpate(&filtered_bottom_flow_data,&control_mode,&ukf_params);
 				perf_end(quat_flow_position_perf);
 			}
-
-			if (fds[5].revents & POLLIN)
+			else if (fds[5].revents & POLLIN)
 			{
 				orb_copy(ORB_ID(vehicle_gps_position), gps_sub, &gps_data);
 			}
@@ -714,7 +714,7 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 				local_position_data.z = -UKF_FLOW_PRES_ALT + navFlowUkfData.sonarAltOffset;
 			}
 			local_position_data.xy_valid = filtered_bottom_flow_data.ned_xy_valid;
-			local_position_data.z_valid = filtered_bottom_flow_data.ned_z_valid;
+			local_position_data.z_valid = true;
 			local_position_data.vx = UKF_FLOW_VELX;
 			local_position_data.vy = UKF_FLOW_VELY;
 			local_position_data.v_xy_valid = true;

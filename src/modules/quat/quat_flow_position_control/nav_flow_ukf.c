@@ -438,7 +438,6 @@ void navFlowUkfSonarUpdate(
     }
     sonarCount = bottom_flow->sonar_counter;
 */
-
     navFlowCalculateOffsets(bottom_flow, baroAltitude, control_mode, params);
 	const float distanceToEarth = -bottom_flow->ned_z; //Positive value
 	if (UKF_FLOW_CALCULATES_ALTITUDE){
@@ -484,13 +483,18 @@ void navFlowUkfFlowPosUpate(
 			y[0] = bottom_flow->ned_x - zeroPositionX;
 			y[1] = bottom_flow->ned_y - zeroPositionY;
 			noise[0] = params->ukf_flow_vel_n +
-					(params->ukf_flow_vel_max_n-params->ukf_flow_vel_n) * (1.0f - (float)bottom_flow->ned_v_xy_valid/255.0f);
+					(params->ukf_flow_vel_max_n-params->ukf_flow_vel_n) * (1.0f - (float)bottom_flow->ned_xy_valid/255.0f);
 			noise[1] = noise[0];
 			srcdkfMeasurementUpdate(navFlowUkfData.kf, 0, y, 2, 2, noise, navFlowUkfPositionUpdate);
 		}
 		else {
 			zeroPositionX = bottom_flow->ned_x - UKF_FLOW_POSX;
 			zeroPositionY = bottom_flow->ned_y - UKF_FLOW_POSY;
+			y[0] = UKF_FLOW_POSX;
+			y[1] = UKF_FLOW_POSY;
+			noise[0] = params->ukf_flow_vel_max_n;
+			noise[1] = noise[0];
+			srcdkfMeasurementUpdate(navFlowUkfData.kf, 0, y, 2, 2, noise, navFlowUkfPositionUpdate);
 		}
 	} else {
 		y[0] = 0.0f;
@@ -502,95 +506,6 @@ void navFlowUkfFlowPosUpate(
 		zeroPositionY = bottom_flow->ned_y - UKF_FLOW_POSY;
 	}
 }
-
-/*
-navFlowUkfSonarVelocityUpate(
-		const struct filtered_bottom_flow_s* bottom_flow,
-		const struct vehicle_control_mode_s *control_mode,
-		const struct quat_position_control_UKF_params* params) {
-    float y[1];
-    float noise[1];
-    static uint32_t sonarCount = 0;
-    if(bottom_flow->sonar_counter <= sonarCount) {
-    	return;
-    }
-    sonarCount = bottom_flow->sonar_counter;
-
-	noise[0] = params->ukf_flow_vel_alt_n;
-
-    if(UKF_FLOW_CALCULATES_ALTITUDE){
-    	y[0] = 0.0f;
-    } else {
-    	if(bottom_flow->ned_v_z_valid > 0) {
-			y[0] = bottom_flow->ned_vz;
-		}
-		else {
-			y[0] = 0.0f;
-		}
-		} else {
-			y[2] = 0.0f;
-			noise[2] = params->ukf_flow_vel_max_n;
-		}
-    }
-    if(!control_mode->flag_armed) {
-    	noise[0] = 1e-5f;
-    }
-	srcdkfMeasurementUpdate(navFlowUkfData.kf, 0, y, 1, 1, noise, navFlowUkfVelUpdate);
-}
-
-
-
-
-void navFlowUkfFlowVelUpate(
-		const struct filtered_bottom_flow_s* bottom_flow,
-		const struct vehicle_control_mode_s *control_mode,
-		const struct quat_position_control_UKF_params* params) {
-    float y[3];
-    float noise[3];
-
-	noise[0] = params->ukf_flow_vel_max_n;
-	noise[1] = params->ukf_flow_vel_max_n;
-    uint8_t dim = 3;
-    static uint64_t sonarCount = 0;
-	noise[2] = params->ukf_flow_vel_alt_n;
-
-    if(bottom_flow->ned_v_xy_valid > 0) {
-    	// velocity in earth frame
-        y[0] = bottom_flow->ned_vx;
-        y[1] = bottom_flow->ned_vy;
-    	noise[0] = params->ukf_flow_vel_n +
-    			(params->ukf_flow_vel_max_n-params->ukf_flow_vel_n) * (1.0f - (float)bottom_flow->ned_v_xy_valid/255.0f);
-    	noise[1] = noise[0];
-    } else {
-    	y[0] = 0.0f;
-    	y[1] = 0.0f;
-    }
-    if(UKF_FLOW_CALCULATES_ALTITUDE){
-    	y[2] = 0.0f;
-    	dim = 2;
-    } else {
-    	if(bottom_flow->ned_v_z_valid > 0) {
-			if(bottom_flow->sonar_counter > sonarCount) {
-				y[2] = bottom_flow->ned_vz;
-				sonarCount = bottom_flow->sonar_counter;
-			}
-			else {
-				y[2] = 0.0f;
-				dim = 2;
-			}
-		} else {
-			y[2] = 0.0f;
-			noise[2] = params->ukf_flow_vel_max_n;
-		}
-    }
-    if(!control_mode->flag_armed) {
-    	noise[0] = 1e-5f;
-    	noise[1] = noise[0];
-    	noise[2] = noise[0];
-    }
-	srcdkfMeasurementUpdate(navFlowUkfData.kf, 0, y, dim, dim, noise, navFlowUkfVelUpdate);
-}
-*/
 
 void navFlowUkfFlowVelUpate(
 		const struct filtered_bottom_flow_s* bottom_flow,
@@ -621,7 +536,7 @@ void navFlowUkfFlowVelUpate(
 	srcdkfMeasurementUpdate(navFlowUkfData.kf, 0, y, 2, 2, noise, navFlowUkfVelocityUpdate);
 }
 
-void navFlowUkfFlowUpate(
+void navFlowUkfFlowUpdate(
 		const struct filtered_bottom_flow_s* bottom_flow,
 		const struct vehicle_control_mode_s *control_mode,
 		const struct quat_position_control_UKF_params* params) {
@@ -629,26 +544,45 @@ void navFlowUkfFlowUpate(
     float noise[4];
 	static float zeroPositionX = 0.0f;
 	static float zeroPositionY = 0.0f;
-	noise[0] = params->ukf_flow_vel_max_n;
-	noise[1] = params->ukf_flow_vel_max_n;
 	if(!UKF_FLOW_CALCULATES_POSITION){
 		return;
 	}
-
-    if((bottom_flow->ned_v_xy_valid > 0) && (bottom_flow->ned_xy_valid > 200u)) {
-    	// velocity in earth frame
-        y[0] = bottom_flow->ned_vx;
-        y[1] = bottom_flow->ned_vy;
-    	noise[0] = params->ukf_flow_vel_n +
-    			(params->ukf_flow_vel_max_n-params->ukf_flow_vel_n) * (1.0f - (float)bottom_flow->ned_v_xy_valid/255.0f);
-    	noise[1] = noise[0];
+	if (control_mode->flag_armed) {
+		y[0] = bottom_flow->ned_vx;
+		y[1] = bottom_flow->ned_vy;
 		y[2] = bottom_flow->ned_x - zeroPositionX;
 		y[3] = bottom_flow->ned_y - zeroPositionY;
-		noise[2] = params->ukf_flow_vel_n +
-				(params->ukf_flow_vel_max_n-params->ukf_flow_vel_n) * (1.0f - (float)bottom_flow->ned_v_xy_valid/255.0f);
+	    if(bottom_flow->ned_v_xy_valid > 0) {
+	    	// velocity in earth frame
+	    	noise[0] = params->ukf_flow_vel_n +
+	    			(params->ukf_flow_vel_max_n-params->ukf_flow_vel_n) * (1.0f - (float)bottom_flow->ned_v_xy_valid/255.0f);
+	    	noise[1] = noise[0];
+			noise[2] = noise[0];
+			noise[3] = noise[0];
+	    }
+	    else {
+	    	y[0] = 0.0f;
+	    	y[1] = 0.0f;
+			y[2] = UKF_FLOW_POSX;
+			y[3] = UKF_FLOW_POSY;
+			noise[0] = params->ukf_flow_vel_max_n;
+			noise[1] = noise[0];
+			noise[2] = noise[0];
+			noise[3] = noise[0];
+	    }
+	} else {
+        y[0] = 0.0f;
+        y[1] = 0.0f;
+		y[2] = 0.0f;
+		y[3] = 0.0f;
+    	noise[0] = 1e-5f;
+    	noise[1] = noise[0];
+		noise[2] = 1e-7f;
 		noise[3] = noise[2];
-		srcdkfMeasurementUpdate(navFlowUkfData.kf, 0, y, 4, 4, noise, navFlowUkfVelocityPositionUpdate);
-    }
+		zeroPositionX = bottom_flow->ned_x - UKF_FLOW_POSX;
+		zeroPositionY = bottom_flow->ned_y - UKF_FLOW_POSY;
+	}
+	srcdkfMeasurementUpdate(navFlowUkfData.kf, 0, y, 4, 4, noise, navFlowUkfVelocityPositionUpdate);
 }
 
 void navFlowUkfGpsPosUpate(

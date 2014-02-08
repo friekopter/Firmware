@@ -1079,10 +1079,6 @@ Quat_Sensors::correctAccMeasurement(struct accel_report &acc_report)
 	a /= _parameters.acc_scale[0] + _parameters.acc_scale1[0]*temp + _parameters.acc_scale2[0]*temp2 + _parameters.acc_scale3[0]*temp3;
 	b /= _parameters.acc_scale[1] + _parameters.acc_scale1[1]*temp + _parameters.acc_scale2[1]*temp2 + _parameters.acc_scale3[1]*temp3;
 	c /= _parameters.acc_scale[2] + _parameters.acc_scale1[2]*temp + _parameters.acc_scale2[2]*temp2 + _parameters.acc_scale3[2]*temp3;
-/*
-	acc_report.x = a;
-	acc_report.y = b;
-	acc_report.z = c;*/
 
 	acc_report.x = a * _parameters.frame_rotation_xx + b * _parameters.frame_rotation_xy + c * _parameters.frame_rotation_xz;
 	acc_report.y = a * _parameters.frame_rotation_yx + b * _parameters.frame_rotation_yy + c * _parameters.frame_rotation_yz;
@@ -1105,11 +1101,7 @@ Quat_Sensors::correctMagMeasurement(struct mag_report &mag_report)
 	a /= _parameters.mag_scale[0] + _parameters.mag_scale1[0]*temp + _parameters.mag_scale2[0]*temp2 + _parameters.mag_scale3[0]*temp3;
 	b /= _parameters.mag_scale[1] + _parameters.mag_scale1[1]*temp + _parameters.mag_scale2[1]*temp2 + _parameters.mag_scale3[1]*temp3;
 	c /= _parameters.mag_scale[2] + _parameters.mag_scale1[2]*temp + _parameters.mag_scale2[2]*temp2 + _parameters.mag_scale3[2]*temp3;
-/*
-	mag_report.x = a;
-	mag_report.y = b;
-	mag_report.z = c;
-*/
+
 	mag_report.x = a * _parameters.frame_rotation_xx + b * _parameters.frame_rotation_xy + c * _parameters.frame_rotation_xz;
 	mag_report.y = a * _parameters.frame_rotation_yx + b * _parameters.frame_rotation_yy + c * _parameters.frame_rotation_yz;
 	mag_report.z = a * _parameters.frame_rotation_zx + b * _parameters.frame_rotation_zy + c * _parameters.frame_rotation_zz;
@@ -1131,10 +1123,6 @@ Quat_Sensors::correctGyroMeasurement(struct  gyro_report &gyro_report)
 	a /= _parameters.gyro_scale[0];
 	b /= _parameters.gyro_scale[1];
 	c /= _parameters.gyro_scale[2];
-
-	/*gyro_report.x = a;
-		gyro_report.y = b;
-		gyro_report.z = c;*/
 
 	gyro_report.x = a * _parameters.frame_rotation_xx + b * _parameters.frame_rotation_xy + c * _parameters.frame_rotation_xz;
 	gyro_report.y = a * _parameters.frame_rotation_yx + b * _parameters.frame_rotation_yy + c * _parameters.frame_rotation_yz;

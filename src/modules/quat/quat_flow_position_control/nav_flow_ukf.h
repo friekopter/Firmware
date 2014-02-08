@@ -42,9 +42,9 @@ typedef struct {
 extern navFlowUkfStruct_t navFlowUkfData;
 
 #define SIM_S                   17		// states
-#define SIM_M                   3		// max measurements
+#define SIM_M                   4		// max measurements
 #define SIM_V                   16		// process noise
-#define SIM_N                   3		// max observation noise
+#define SIM_N                   4		// max observation noise
 
 #define UKF_GYO_AVG_NUM		20
 
