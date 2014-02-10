@@ -240,10 +240,6 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 	orb_advert_t global_pos_pub = orb_advertise(ORB_ID(vehicle_global_position), &global_position_data);
 	memset(&global_position_data, 0, sizeof(global_position_data));
 
-	//publish position setpoint
-	orb_advert_t local_pos_sp_pub = orb_advertise(ORB_ID(vehicle_local_position_setpoint), &local_position_sp);
-	memset(&local_position_sp, 0, sizeof(local_position_sp));
-
 	// Attitude
 	orb_advert_t pub_att = orb_advertise(ORB_ID(vehicle_attitude), &att);
 	memset(&att, 0, sizeof(att));
@@ -299,6 +295,10 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 	memset(&gps_data, 0, sizeof(gps_data));
 	orb_set_interval(gps_sub, 200);	/* 5Hz updates */
 
+	// Position setpoint
+	int local_pos_sp_sub = orb_subscribe(ORB_ID(vehicle_local_position_setpoint));
+	memset(&local_position_sp, 0, sizeof(local_position_sp));
+
 	sleep(2);
 	/* register the perf counter */
 	perf_counter_t quat_flow_pos_loop_perf = perf_alloc(PC_ELAPSED, "quat_flow_pos_control");
@@ -307,13 +307,14 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 	perf_counter_t quat_flow_pos_nav_perf = perf_alloc(PC_ELAPSED, "quat_flow_pos_nav_control");
 	perf_counter_t quat_flow_ukf_finish_perf = perf_alloc(PC_ELAPSED, "quat_flow_ukf_finish_perf");
 	perf_counter_t quat_flow_position_perf = perf_alloc(PC_ELAPSED, "quat_flow_position_perf");
-	struct pollfd fds[6] = {
+	struct pollfd fds[7] = {
 		{ .fd = sub_raw,   .events = POLLIN },
 		{ .fd = filtered_bottom_flow_sub, .events = POLLIN },
 		{ .fd = manual_sub,   .events = POLLIN },
 		{ .fd = sub_params, .events = POLLIN },
 		{ .fd = control_mode_sub, .events = POLLIN },
-		{ .fd = gps_sub, .events = POLLIN }
+		{ .fd = gps_sub, .events = POLLIN },
+		{ .fd = local_pos_sp_sub, .events = POLLIN }
 	};
 
 	//sleep(1);
@@ -678,6 +679,12 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 				orb_copy(ORB_ID(vehicle_gps_position), gps_sub, &gps_data);
 			}
 
+			if (fds[6].revents & POLLIN)
+			{
+				orb_copy(ORB_ID(vehicle_local_position_setpoint), local_pos_sp_sub, &local_position_sp);
+				printf("[quat flow pos control] set local position setpoint");
+			}
+
 			if(dt < FLT_MIN) {
 				perf_end(quat_flow_pos_loop_perf);
 				continue;
@@ -728,12 +735,21 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 			// +++++++++++++++++++++++++++++++++++++++++++
 			// Do navigation, calculate setpoints
 			perf_begin(quat_flow_pos_nav_perf);
-			navFlowNavigate(&control_mode,&nav_params,&manual,&local_position_data, &att, raw.timestamp);
+			navFlowNavigate(&control_mode,&nav_params,&manual,&local_position_data, &local_position_sp, &att, raw.timestamp);
 			perf_end(quat_flow_pos_nav_perf);
 			// rotate nav's NE frame of reference to our craft's local frame of reference
 			// Tilt north means for yaw=0 nose up. If yaw=90 degrees it means left wing up that is positive roll
-			att_sp.pitch_body = navFlowData.holdTiltX * DEG_TO_RAD;
-			att_sp.roll_body  = navFlowData.holdTiltY * DEG_TO_RAD;
+			float tilt[3] = { navFlowData.holdTiltX, navFlowData.holdTiltY, 0.0f };
+			float tilt_body[2] = { 0.0f, 0.0f };
+			/* project measurements vector to NED basis, skip Z component */
+			for (int i = 0; i < 2; i++) {
+				for (int j = 0; j < 3; j++) {
+					// Transposed (inverse) rotation matrix
+					tilt_body[i] += att.R[j][i] * tilt[j];
+				}
+			}
+			att_sp.pitch_body = tilt_body[0] * DEG_TO_RAD;
+			att_sp.roll_body  = tilt_body[1] * DEG_TO_RAD;
 			// speed down is negative, if holdSpeed > -UKF_FLOW_VELD -> thrust positive
 			// pid gets a minus
 			att_sp.thrust = pidUpdate(navFlowData.altSpeedPID, -navFlowData.holdSpeedAlt, -local_position_data.vz);
@@ -780,13 +796,7 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 			}
 
 			// Publish local position setpoint and local and global position
-			if(!(printcounter % 20) && navFlowData.mode != NAV_STATUS_MISSION) {
-				local_position_sp.x = navFlowData.holdPositionX;
-				local_position_sp.y = navFlowData.holdPositionY;
-				local_position_sp.z = navFlowData.holdAlt;
-				local_position_sp.yaw = navFlowData.holdHeading;
-				orb_publish(ORB_ID(vehicle_local_position_setpoint), local_pos_sp_pub, &local_position_sp);
-			} else if(!((printcounter + 10) % 20)) {
+			if(!((printcounter + 10) % 20)) {
 				orb_publish(ORB_ID(vehicle_local_position), local_pos_pub, &local_position_data);
 			} else if(!((printcounter + 15) % 20)) {
 				double lat = 0.0f;
@@ -798,6 +808,7 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 				global_position_data.relative_alt = local_position_data.z;
 				global_position_data.alt = UKF_FLOW_POSD;
 				global_position_data.timestamp = hrt_absolute_time();
+				global_position_data.valid = true;
 				orb_publish(ORB_ID(vehicle_global_position), global_pos_pub, &global_position_data);
 			}
 

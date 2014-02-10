@@ -157,7 +157,7 @@ static uint64_t last_print_mode_reject_time = 0;
 /* if connected via USB */
 static bool on_usb_power = false;
 
-static float takeoff_alt = 5.0f;
+static float takeoff_alt = 1.5f;
 
 /* tasks waiting for low prio thread */
 typedef enum {
@@ -1544,14 +1544,14 @@ check_navigation_state_machine(struct vehicle_status_s *status,
 		if (status->arming_state == ARMING_STATE_ARMED || status->arming_state == ARMING_STATE_ARMED_ERROR) {
 
 			if (status->navigation_state == NAVIGATION_STATE_AUTO_RTL) {
-				if (local_pos->xy_valid) {
+				//TODO: Find home position
+				/*if (local_pos->xy_valid) {
 					float distance = sqrtf(local_pos->x * local_pos->x + local_pos->y * local_pos->y);
-					if(distance < 0.5f) {
+					if(distance < 0.5f) {*/
 						res = navigation_state_transition(status, NAVIGATION_STATE_AUTO_LAND, control_mode);
 						return res;
-					}
-				}
-
+				/*	}
+				}*/
 			}
 
 			if (status->navigation_state == NAVIGATION_STATE_AUTO_LAND) {

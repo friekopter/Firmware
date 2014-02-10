@@ -88,6 +88,7 @@ void navFlowNavigate(
 		const struct quat_position_control_NAV_params* params,
 		const struct manual_control_setpoint_s* manual_control,
 		const struct vehicle_local_position_s* local_position_data,
+		const struct vehicle_local_position_setpoint_s* local_position_setpoint,
 		struct vehicle_attitude_s* att,
 		uint64_t imu_timestamp
 		) {
@@ -106,8 +107,16 @@ void navFlowNavigate(
 	if (control_mode->auto_state == NAVIGATION_STATE_AUTO_RTL) {
 		navFlowResetHoldPosition();
 	}
+
+	if (missionCapable){
+		if (navFlowData.mode != NAV_STATUS_MISSION) {
+			navFlowData.mode = NAV_STATUS_MISSION;
+			navPublishSystemInfo();
+			printf("[quat_flow_pos_control]: Mission mode activated\n");
+		}
+	}
    // do we want to be in position hold mode?
-	if (navCapable) {
+	else if (navCapable) {
 		// are we not in position hold mode now?
 		if (navFlowData.mode != NAV_STATUS_POSHOLD &&
 			navFlowData.mode != NAV_STATUS_DVH) {
@@ -189,9 +198,36 @@ void navFlowNavigate(
 		navPublishSystemInfo();
     }
 
+
     // 2. Do navigation
-    // DVH
-    if (navFlowData.mode == NAV_STATUS_DVH) {
+    if (navFlowData.mode == NAV_STATUS_MISSION) {
+    	// are we trying to land?
+    	if (control_mode->auto_state == NAVIGATION_STATE_AUTO_READY) {
+    		navFlowData.holdSpeedX = 0.0f;
+    		navFlowData.holdSpeedY = 0.0f;
+    	} else if (control_mode->auto_state == NAVIGATION_STATE_AUTO_TAKEOFF) {
+    		navFlowData.holdSpeedX = 0.0f;
+    		navFlowData.holdSpeedY = 0.0f;
+    	} else if (control_mode->auto_state == NAVIGATION_STATE_AUTO_LOITER) {
+    		navFlowData.holdSpeedX = 0.0f;
+    		navFlowData.holdSpeedY = 0.0f;
+    	} else if (control_mode->auto_state == NAVIGATION_STATE_AUTO_MISSION) {
+        	navFlowData.holdSpeedX = pidUpdate(navFlowData.distanceXPID, local_position_setpoint->x, position_data->x);
+        	navFlowData.holdSpeedY = pidUpdate(navFlowData.distanceYPID, local_position_setpoint->y, position_data->y);
+    	} else if (control_mode->auto_state == NAVIGATION_STATE_AUTO_RTL) {
+    		navFlowData.holdSpeedX = 0.0f;
+    		navFlowData.holdSpeedY = 0.0f;
+    	} else if (control_mode->auto_state == NAVIGATION_STATE_AUTO_LAND) {
+    		navFlowData.holdSpeedX = 0.0f;
+    		navFlowData.holdSpeedY = 0.0f;
+    	}
+    	// constrain vertical velocity
+		navFlowData.targetHoldSpeedAlt = constrainFloat(navFlowData.targetHoldSpeedAlt,
+    					(navFlowData.holdMaxVertSpeed < params->nav_max_decent) ? -navFlowData.holdMaxVertSpeed : -params->nav_max_decent, navFlowData.holdMaxVertSpeed);
+    	navFlowData.holdSpeedAlt += (navFlowData.targetHoldSpeedAlt - navFlowData.holdSpeedAlt) * 0.01f;
+    }
+    else if (navFlowData.mode == NAV_STATUS_DVH) {
+        // DVH
 		float factor = navFlowData.holdMaxHorizSpeed;
 		float x = 0.0f;
 		float y = 0.0f;
@@ -234,7 +270,43 @@ void navFlowNavigate(
     navFlowData.holdTiltX = -pidUpdate(navFlowData.speedXPID, speedBodyFrame[0], position_data->vx);
     navFlowData.holdTiltY = +pidUpdate(navFlowData.speedYPID, speedBodyFrame[1], position_data->vy);
 
-    if (navFlowData.mode > NAV_STATUS_MANUAL) {
+    if (navFlowData.mode == NAV_STATUS_MISSION) {
+    	// are we trying to land?
+    	if (control_mode->auto_state == NAVIGATION_STATE_AUTO_READY) {
+    		navFlowData.targetHoldSpeedAlt = 0.0f;
+    	} else if (control_mode->auto_state == NAVIGATION_STATE_AUTO_TAKEOFF) {
+    		navFlowData.targetHoldSpeedAlt = -0.5f;
+    	} else if (control_mode->auto_state == NAVIGATION_STATE_AUTO_LOITER) {
+    		navFlowData.targetHoldSpeedAlt = 0.0f;
+    	} else if (control_mode->auto_state == NAVIGATION_STATE_AUTO_MISSION) {
+    		if (local_position_setpoint->nav_cmd == NAV_CMD_LAND) {
+    			navFlowData.targetHoldSpeedAlt = +0.5f;
+    		} else if (local_position_setpoint->nav_cmd == NAV_CMD_TAKEOFF) {
+    			navFlowData.targetHoldSpeedAlt = -0.5f;
+    		} else if (local_position_setpoint->nav_cmd == NAV_CMD_LOITER_TIME_LIMIT) {
+    			navFlowData.targetHoldSpeedAlt = 0.0f;
+    		} else if (local_position_setpoint->nav_cmd == NAV_CMD_LOITER_TURN_COUNT) {
+    			navFlowData.targetHoldSpeedAlt = 0.0f;
+    		} else if (local_position_setpoint->nav_cmd == NAV_CMD_LOITER_UNLIMITED) {
+    			navFlowData.targetHoldSpeedAlt = 0.0f;
+    		}/* else if (local_position_setpoint->nav_cmd == NAV_CMD_RETURN_TO_LAUNCH) {
+
+    		} */else if (local_position_setpoint->nav_cmd == NAV_CMD_WAYPOINT) {
+    			navFlowData.targetHoldSpeedAlt = pidUpdate(navFlowData.altPosPID, local_position_setpoint->z, measured_altitude);
+    		} else {
+    			navFlowData.targetHoldSpeedAlt = 0.0f;
+    		}
+    	} else if (control_mode->auto_state == NAVIGATION_STATE_AUTO_RTL) {
+    		navFlowData.targetHoldSpeedAlt = 0.0f;
+    	} else if (control_mode->auto_state == NAVIGATION_STATE_AUTO_LAND) {
+    		navFlowData.targetHoldSpeedAlt = +0.5f;
+    	}
+    	// constrain vertical velocity
+		navFlowData.targetHoldSpeedAlt = constrainFloat(navFlowData.targetHoldSpeedAlt,
+    					(navFlowData.holdMaxVertSpeed < params->nav_max_decent) ? -navFlowData.holdMaxVertSpeed : -params->nav_max_decent, navFlowData.holdMaxVertSpeed);
+    	navFlowData.holdSpeedAlt += (navFlowData.targetHoldSpeedAlt - navFlowData.holdSpeedAlt) * 0.01f;
+    }
+    else if (navFlowData.mode > NAV_STATUS_MANUAL) {
 		float vertStick;
 
 		// Throttle controls vertical speed
@@ -262,12 +334,7 @@ void navFlowNavigate(
 				navFlowData.targetHoldSpeedAlt = -(vertStick + CTRL_DEAD_BAND) * params->nav_max_decent;
 			}
 			// set new hold altitude to wherever we are during vertical speed overrides
-			if (navFlowData.mode != NAV_STATUS_MISSION)
 			navFlowSetHoldAlt(measured_altitude, 0);
-		}
-		// are we trying to land?
-		else if (control_mode->auto_state == NAVIGATION_STATE_AUTO_LAND) {
-			navFlowData.targetHoldSpeedAlt = +0.5f;
 		}
 		else {
 			// for positive and negative altitude: if measured > hold -> speed negative

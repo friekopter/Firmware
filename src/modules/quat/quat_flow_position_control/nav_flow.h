@@ -27,6 +27,7 @@
 #include <uORB/topics/vehicle_attitude.h>
 #include <uORB/topics/vehicle_local_position.h>
 #include <uORB/topics/filtered_bottom_flow.h>
+#include <uORB/topics/vehicle_local_position_setpoint.h>
 #include <quat/utils/quat_pos_control_params.h>
 #include <quat/utils/pid.h>
 
@@ -88,6 +89,7 @@ extern void navFlowNavigate(
 		const struct quat_position_control_NAV_params* params,
 		const struct manual_control_setpoint_s* manual_control,
 		const struct vehicle_local_position_s* local_position_data,
+		const struct vehicle_local_position_setpoint_s* local_position_setpoint,
 		struct vehicle_attitude_s* att,
 		uint64_t imu_timestamp
 		);

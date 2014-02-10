@@ -94,7 +94,8 @@ uint8_t flow_calculate_flow(
 		struct flow_position_estimator_params* params,
 		struct vehicle_local_position_s* local_position_data,
 		struct optical_flow_s* flow,
-		struct filtered_bottom_flow_s* filtered_flow,
+		const float filtered_flow_ned_z,
+		const uint8_t filtered_flow_ned_z_valid,
 		struct vehicle_attitude_s* att);
 void flow_calculate_altitude(bool vehicle_liftoff,
 		bool armed,
@@ -169,11 +170,12 @@ uint8_t flow_calculate_flow(
 		struct flow_position_estimator_params* params,
 		struct vehicle_local_position_s* local_position_data,
 		struct optical_flow_s* flow,
-		struct filtered_bottom_flow_s* filtered_flow,
+		const float filtered_flow_ned_z,
+		const uint8_t filtered_flow_ned_z_valid,
 		struct vehicle_attitude_s* att)
 {
 	const float max_flow = params->max_velocity;	// max flow value that can be used, rad/s
-	if( filtered_flow->ned_z_valid == 0 ||
+	if( filtered_flow_ned_z_valid == 0 ||
 			flow->quality < (uint8_t)params->minimum_quality ||
 			att->R[2][2] <= 0.7f)
 	{
@@ -183,7 +185,7 @@ uint8_t flow_calculate_flow(
 		return 0;
 	}
 	/* distance to surface */
-	float flow_dist = -filtered_flow->ned_z / att->R[2][2];
+	float flow_dist = -filtered_flow_ned_z / att->R[2][2];
 	/* check if flow is too large for accurate measurements */
 	/* calculate estimated velocity in body frame */
 	float body_v_est[3] = { 0.0f, 0.0f, 0.0f };
@@ -521,7 +523,7 @@ int flow_position_estimator_thread_main(int argc, char *argv[])
 					flow_calculate_altitude(vehicle_liftoff, armed.armed, sonar_new, &params, &filtered_flow, &att);
 
 					//Calculate flow velocity
-					uint8_t flow_accuracy = flow_calculate_flow(&params,&local_position_data,&flow,&filtered_flow,&att);
+					uint8_t flow_accuracy = flow_calculate_flow(&params,&local_position_data,&flow,filtered_flow.ned_z,filtered_flow.ned_z_valid,&att);
 
 					/* calc dt between flow timestamps */
 					/* ignore first flow msg */

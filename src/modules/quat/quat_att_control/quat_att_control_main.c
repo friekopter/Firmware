@@ -250,7 +250,8 @@ quat_att_control_thread_main(int argc, char *argv[])
 				// Always control attitude no rates
 				att_sp.roll_body = manual.roll * control.controlRollF;
 				att_sp.pitch_body = manual.pitch * control.controlPitchF;
-				att_sp.yaw_body = 0;
+				att_sp.yaw_body = control_quadrotor_get_yaw();
+				att_sp.timestamp = hrt_absolute_time();
 				/* set yaw rate */
 				if (manual.yaw < -control.controlDeadBand || manual.yaw > control.controlDeadBand)
 				{
@@ -260,8 +261,6 @@ quat_att_control_thread_main(int argc, char *argv[])
 				{
 					rates_sp.yaw = 0.0f;
 				}
-				att_sp.yaw_body = control_quadrotor_get_yaw();
-				att_sp.timestamp = hrt_absolute_time();
 				if ( !control_mode.flag_control_altitude_enabled ) {
 					// enable manual altitude control
 					att_sp.thrust = manual.throttle * control.controlThrottleF;
@@ -269,7 +268,6 @@ quat_att_control_thread_main(int argc, char *argv[])
 				else {
 					// altitude is controlled by software (hopefully!)
 				}
-
 				if (motor_test_mode) {
 					att_sp.roll_body = 0.0f;
 					att_sp.pitch_body = 0.0f;
@@ -300,6 +298,8 @@ quat_att_control_thread_main(int argc, char *argv[])
 			}
 			att_sp.yaw_body = control_quadrotor_get_yaw();
 			att_sp.timestamp = hrt_absolute_time();
+		} else {
+			rates_sp.yaw = 0.0f;
 		}
 
 		/** STEP 3: Identify the controller setup to run and set up the inputs correctly */
