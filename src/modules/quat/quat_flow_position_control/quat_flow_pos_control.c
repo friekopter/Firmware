@@ -748,8 +748,8 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 					tilt_body[i] += att.R[j][i] * tilt[j];
 				}
 			}
-			att_sp.pitch_body = tilt_body[0] * DEG_TO_RAD;
-			att_sp.roll_body  = tilt_body[1] * DEG_TO_RAD;
+			att_sp.roll_body = tilt_body[0] * DEG_TO_RAD;
+			att_sp.pitch_body  = tilt_body[1] * DEG_TO_RAD;
 			// speed down is negative, if holdSpeed > -UKF_FLOW_VELD -> thrust positive
 			// pid gets a minus
 			att_sp.thrust = pidUpdate(navFlowData.altSpeedPID, -navFlowData.holdSpeedAlt, -local_position_data.vz);
