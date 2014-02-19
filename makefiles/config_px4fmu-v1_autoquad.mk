@@ -73,7 +73,7 @@ MODULES		+= modules/gpio_led
 #MODULES		+= modules/attitude_estimator_ekf
 #MODULES		+= modules/att_pos_estimator_ekf
 #MODULES		+= modules/position_estimator_inav
-MODULES		+= examples/flow_position_estimator
+#MODULES		+= examples/flow_position_estimator
 
 #
 # Vehicle Control
@@ -145,6 +145,7 @@ MODULES			+= modules/quat/quat_log
 MODULES			+= modules/quat/quat_flow_position_control
 MODULES			+= modules/quat/quat_sensors
 #MODULES			+= modules/quat/quat_flow_receiver
+MODULES			+= modules/quat/quat_flow_calculator
 MODULES			+= modules/quat/utils
 
 

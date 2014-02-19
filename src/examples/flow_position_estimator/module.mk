@@ -39,3 +39,6 @@ MODULE_COMMAND		= flow_position_estimator
 
 SRCS		= flow_position_estimator_main.c \
 		  flow_position_estimator_params.c
+
+		  
+INCLUDE_DIRS	 += ../../modules/quat/utils

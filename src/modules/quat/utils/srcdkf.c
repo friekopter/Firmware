@@ -232,16 +232,6 @@ void srcdkfTimeUpdateReduced(srcdkf_t *f, float32_t *u, float32_t dt, bool updat
 
 	V = f->V;
 	Sv = &f->Sv;
-/*
-	if(updateBias) {
-		V = f->V;
-		Sv = &f->Sv;
-	}
-	else {
-		V = f->VMin;
-		Sv = &f->SvMin;
-	}*/
-
 	/*
 	//if(!updateBias) {
 		printf("II: 1:%8.4f 2:%8.4f 3:%8.4f 4:%8.4f 5:%8.4f 6:%8.4f 7:%8.4f 8:%8.4f 9:%8.4f 10:%8.4f 11:%8.4f 12:%8.4f 13:%8.4f 14:%8.4f\n",

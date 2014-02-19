@@ -34,7 +34,7 @@
  ****************************************************************************/
 
 /**
- * @file flow_position_estimator_main.c
+ * @file quat_flow_calculator_main.c
  *
  * Optical flow position estimator
  */
@@ -69,9 +69,9 @@
 #include <systemlib/perf_counter.h>
 #include <poll.h>
 
-#include "flow_position_estimator_params.h"
+#include "quat_flow_calculator_params.h"
 
-__EXPORT int flow_position_estimator_main(int argc, char *argv[]);
+__EXPORT int quat_flow_calculator_main(int argc, char *argv[]);
 static bool thread_should_exit = false;		/**< Daemon exit flag */
 static bool thread_running = false;		/**< Daemon status flag */
 static int daemon_task;				/**< Handle of daemon task / thread */
@@ -89,19 +89,19 @@ static const int8_t rotM_flow_sensor[3][3] =   {{  0,-1, 0 },
 												{  1, 0, 0 },
 												{  0, 0, 1 }}; // 90deg rotated
 
-int flow_position_estimator_thread_main(int argc, char *argv[]);
+int quat_flow_calculator_thread_main(int argc, char *argv[]);
 static void usage(const char *reason);
-uint8_t flow_calculate_flow(
-		struct flow_position_estimator_params* params,
+uint8_t quat_flow_calculate_flow(
+		struct quat_flow_calculator_params* params,
 		struct vehicle_local_position_s* local_position_data,
 		struct optical_flow_s* flow,
 		const float filtered_flow_ned_z,
 		const uint8_t filtered_flow_ned_z_valid,
 		struct vehicle_attitude_s* att);
-void flow_calculate_altitude(bool vehicle_liftoff,
+void quat_flow_calculate_altitude(bool vehicle_liftoff,
 		bool armed,
 		float sonar_new,
-		struct flow_position_estimator_params* params,
+		struct quat_flow_calculator_params* params,
 		struct filtered_bottom_flow_s* filtered_flow,
 		struct vehicle_attitude_s* att);
 
@@ -121,7 +121,7 @@ static void usage(const char *reason)
  * The actual stack size should be set in the call
  * to task_spawn_cmd().
  */
-int flow_position_estimator_main(int argc, char *argv[])
+int quat_flow_calculator_main(int argc, char *argv[])
 {
 	if (argc < 1)
 		usage("missing command");
@@ -138,11 +138,11 @@ int flow_position_estimator_main(int argc, char *argv[])
 		}
 
 		thread_should_exit = false;
-		daemon_task = task_spawn_cmd("flow_position_estimator",
+		daemon_task = task_spawn_cmd("quat_flow_calculator",
 					 SCHED_RR,
 					 SCHED_PRIORITY_MAX - 5,
 					 4096,
-					 flow_position_estimator_thread_main,
+					 quat_flow_calculator_thread_main,
 					 (argv) ? (const char **)&argv[2] : (const char **)NULL);
 		exit(0);
 	}
@@ -167,8 +167,8 @@ int flow_position_estimator_main(int argc, char *argv[])
 	exit(1);
 }
 
-uint8_t flow_calculate_flow(
-		struct flow_position_estimator_params* params,
+uint8_t quat_flow_calculate_flow(
+		struct quat_flow_calculator_params* params,
 		struct vehicle_local_position_s* local_position_data,
 		struct optical_flow_s* flow,
 		const float filtered_flow_ned_z,
@@ -219,7 +219,6 @@ uint8_t flow_calculate_flow(
 	}
 
 	float flow_ang[3];
-	float speed[3];
 	flow_ang[0] = (float)flow->flow_raw_x * params->flow_k;
 	flow_ang[1] = (float)flow->flow_raw_y * params->flow_k;
 	flow_ang[2] = 0.0f;
@@ -244,17 +243,17 @@ uint8_t flow_calculate_flow(
 	float flow_v[3] = { 0.0f, 0.0f, 0.0f };
 
 	/* project measurements vector to NED basis, skip Z component */
-    //utilRotateVecByMatrix2(flow_v, flow_mb, att->R);
+    utilRotateVecByMatrix2(flow_v, flow_mb, att->R);
 
 	flow->flow_comp_x_m = flow_v[0];
 	flow->flow_comp_y_m = flow_v[1];
 	return flow_accuracy;
 }
 
-void flow_calculate_altitude(bool vehicle_liftoff,
+void quat_flow_calculate_altitude(bool vehicle_liftoff,
 		bool armed,
 		float sonar_new,
-		struct flow_position_estimator_params* params,
+		struct quat_flow_calculator_params* params,
 		struct filtered_bottom_flow_s* filtered_flow,
 		struct vehicle_attitude_s* att)
 {
@@ -358,7 +357,7 @@ void flow_calculate_altitude(bool vehicle_liftoff,
 	}
 }
 
-int flow_position_estimator_thread_main(int argc, char *argv[])
+int quat_flow_calculator_thread_main(int argc, char *argv[])
 {
 	/* welcome user */
 	thread_running = true;
@@ -437,16 +436,16 @@ int flow_position_estimator_thread_main(int argc, char *argv[])
 	bool sensors_ready = false;
 
 	/* parameters init*/
-	struct flow_position_estimator_params params;
-	struct flow_position_estimator_param_handles param_handles;
+	struct quat_flow_calculator_params params;
+	struct quat_flow_calculator_param_handles param_handles;
 	parameters_init(&param_handles);
 	parameters_update(&param_handles, &params);
 
 	flow_subsystem_info_pub = orb_advertise(ORB_ID(subsystem_info), &flow_control_info);
 
-	perf_counter_t mc_loop_perf = perf_alloc(PC_ELAPSED, "flow_position_estimator_runtime");
-	perf_counter_t mc_interval_perf = perf_alloc(PC_INTERVAL, "flow_position_estimator_interval");
-	perf_counter_t mc_err_perf = perf_alloc(PC_COUNT, "flow_position_estimator_err");
+	perf_counter_t mc_loop_perf = perf_alloc(PC_ELAPSED, "quat_flow_calculator_runtime");
+	perf_counter_t mc_interval_perf = perf_alloc(PC_INTERVAL, "quat_flow_calculator_interval");
+	perf_counter_t mc_err_perf = perf_alloc(PC_COUNT, "quat_flow_calculator_err");
 
 	while (!thread_should_exit)
 	{
@@ -544,10 +543,10 @@ int flow_position_estimator_thread_main(int argc, char *argv[])
 					}
 
 					//Calculate altitude
-					flow_calculate_altitude(vehicle_liftoff, armed.armed, sonar_new, &params, &filtered_flow, &att);
+					quat_flow_calculate_altitude(vehicle_liftoff, armed.armed, sonar_new, &params, &filtered_flow, &att);
 
 					//Calculate flow velocity
-					uint8_t flow_accuracy = flow_calculate_flow(&params,&local_position_data,&flow,filtered_flow.ned_z,filtered_flow.ned_z_valid,&att);
+					uint8_t flow_accuracy = quat_flow_calculate_flow(&params,&local_position_data,&flow,filtered_flow.ned_z,filtered_flow.ned_z_valid,&att);
 
 					/* calc dt between flow timestamps */
 					/* ignore first flow msg */

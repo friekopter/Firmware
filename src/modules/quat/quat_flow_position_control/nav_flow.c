@@ -260,15 +260,9 @@ void navFlowNavigate(
         }
     }
 
-    // rotate to body frame
-    static float speedEarthFrame[3] = {0.0f,0.0f,0.0f};
-    static float speedBodyFrame[3] = {0.0f,0.0f,0.0f};
-    speedEarthFrame[0] = navFlowData.holdSpeedX;
-    speedEarthFrame[1] = navFlowData.holdSpeedY;
-    utilRotateVecByRevMatrix2(speedBodyFrame, speedEarthFrame, att->R);
     // velocity => tilt
-    navFlowData.holdTiltX = -pidUpdate(navFlowData.speedXPID, speedBodyFrame[0], position_data->vx);
-    navFlowData.holdTiltY = +pidUpdate(navFlowData.speedYPID, speedBodyFrame[1], position_data->vy);
+    navFlowData.holdTiltX = pidUpdate(navFlowData.speedXPID, navFlowData.holdSpeedX, position_data->vx);
+    navFlowData.holdTiltY = pidUpdate(navFlowData.speedYPID, navFlowData.holdSpeedY, position_data->vy);
 
     if (navFlowData.mode == NAV_STATUS_MISSION) {
     	// are we trying to land?

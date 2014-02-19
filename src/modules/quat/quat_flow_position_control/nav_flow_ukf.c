@@ -13,6 +13,7 @@
 #include <uORB/topics/filtered_bottom_flow.h>
 
 navFlowUkfStruct_t navFlowUkfData __attribute__((section(".ccm")));
+static uint64_t navFlowLastInertialUpdate = 0;
 
 void navFlowUkfCalcEarthRadius(double lat);
 void navFlowUkfCalcDistance(double lat, double lon, float *posNorth, float *posEast);
@@ -154,11 +155,11 @@ void navFlowUkfTimeUpdate(float *in, float *noise, float *out, float *u, float d
     tmp[1] = u[1] + out[1];
     tmp[2] = u[2] + out[2];
 
-    // rotate acc to world frame
+    // rotate acc to world ned frame
     utilRotateVecByMatrix(acc, tmp, mat3x3);
     acc[2] += CONSTANTS_ONE_G;
 
-    // vel
+    // vel ned, down acc positiv, down speed positiv
     out[6] = in[6] + acc[0] * dt + noiseVector[3];
     out[7] = in[7] + acc[1] * dt + noiseVector[4];
     out[8] = in[8] + acc[2] * dt + noiseVector[5];
@@ -172,8 +173,8 @@ void navFlowUkfTimeUpdate(float *in, float *noise, float *out, float *u, float d
     	out[15] = in[15] + (in[7] + out[7]) * 0.5f * dt + noiseVector[8];
     }
     if(UKF_FLOW_CALCULATES_ALTITUDE){
-
-    	out[16] = in[16] - (in[8] + out[8]) * 0.5f * dt + noiseVector[9];
+    	// up vel negativ, up position negativ
+    	out[16] = in[16] + (in[8] + out[8]) * 0.5f * dt + noiseVector[9];
     }
 }
 
@@ -255,12 +256,12 @@ void navFlowUkfFinish(void) {
 float navFlowUkfInertialUpdate(const struct sensor_combined_s* raw, bool updateBias) {
 
 	/* Calculate data time difference in seconds */
-	static uint64_t last_inertialUpdate = 0;
 	float dt = 0;
-	if(last_inertialUpdate != 0) {
-		dt = ((float)(raw->timestamp - last_inertialUpdate)) / 1e6f;
+	uint64_t currentTime = hrt_absolute_time();
+	if(navFlowLastInertialUpdate != 0) {
+		dt = ((float)(currentTime - navFlowLastInertialUpdate)) / 1e6f;
 	}
-	last_inertialUpdate = raw->timestamp;
+	navFlowLastInertialUpdate = currentTime;
 	if(dt < FLT_MIN) return 0.0f;
 
     float u[6];
