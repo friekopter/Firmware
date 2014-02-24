@@ -526,7 +526,7 @@ int quat_flow_calculator_thread_main(int argc, char *argv[])
 					{
 						if (armed.armed &&
 							att_sp.thrust > params.minimum_liftoff_thrust &&
-							sonar_new > 0.3f /*&& sonar_new < 1.0f*/) {
+							sonar_new > 0.3f && sonar_new < 1.0f) {
 							vehicle_liftoff = true;
 							filtered_flow.landed = false;
 						}

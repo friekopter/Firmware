@@ -762,8 +762,8 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 			float tilt[3] = { navFlowData.holdTiltX, navFlowData.holdTiltY, 0.0f };
 			float tilt_body[3] = { 0.0f, 0.0f, 0.0f };
 			utilRotateVecByRevMatrix2(tilt_body,tilt,att.R);
-			att_sp.roll_body   = -tilt_body[0] * DEG_TO_RAD;
-			att_sp.pitch_body  = +tilt_body[1] * DEG_TO_RAD;
+			att_sp.roll_body   = +tilt_body[1] * DEG_TO_RAD;
+			att_sp.pitch_body  = -tilt_body[0] * DEG_TO_RAD;
 			// speed down is negative, if holdSpeed > -UKF_FLOW_VELD -> thrust positive
 			// pid gets a minus
 			att_sp.thrust = pidUpdate(navFlowData.altSpeedPID, -navFlowData.holdSpeedAlt, -local_position_data.vz);
@@ -828,7 +828,7 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 
 			// +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 			// Do some logging
-			if (/*debug == true &&*/ !((printcounter+10) % 101)) {
+			if (debug == true && !((printcounter+10) % 101)) {
 				printf("local z: %8.4fm hold alt: %8.4f\n",local_position_data.z,navFlowData.holdAlt);
 				printf("local vz: %8.4fm hold speed: %8.4f\n",navFlowData.holdSpeedAlt, local_position_data.vz);
 				printf("Pressure alt offset: %8.4fm Pressure alt: %8.4fm\tBaro alt: %8.4fm\n",navFlowUkfData.pressAltOffset,UKF_FLOW_PRES_ALT,raw.baro_alt_meter);

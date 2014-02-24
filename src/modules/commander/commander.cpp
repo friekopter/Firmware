@@ -488,6 +488,29 @@ void handle_command(struct vehicle_status_s *status, const struct safety_s *safe
 			break;
 		}
 
+	case VEHICLE_CMD_NAV_LAND: {
+			if (armed->armed) {
+				transition_result_t nav_res = navigation_state_transition(status, NAVIGATION_STATE_AUTO_LAND, control_mode);
+
+				if (nav_res == TRANSITION_CHANGED) {
+					mavlink_log_info(mavlink_fd, "[cmd] LAND on command");
+				}
+
+				if (nav_res != TRANSITION_DENIED) {
+					result = VEHICLE_CMD_RESULT_ACCEPTED;
+
+				} else {
+					result = VEHICLE_CMD_RESULT_TEMPORARILY_REJECTED;
+				}
+
+			} else {
+				/* reject LAND not armed */
+				result = VEHICLE_CMD_RESULT_TEMPORARILY_REJECTED;
+			}
+
+			break;
+	}
+
 	case VEHICLE_CMD_COMPONENT_ARM_DISARM: {
 			transition_result_t arming_res = TRANSITION_NOT_CHANGED;
 
@@ -1754,7 +1777,8 @@ void *commander_low_prio_loop(void *arg)
 		/* ignore commands the high-prio loop handles */
 		if (cmd.command == VEHICLE_CMD_DO_SET_MODE ||
 		    cmd.command == VEHICLE_CMD_COMPONENT_ARM_DISARM ||
-		    cmd.command == VEHICLE_CMD_NAV_TAKEOFF)
+		    cmd.command == VEHICLE_CMD_NAV_TAKEOFF ||
+		    cmd.command == VEHICLE_CMD_NAV_LAND)
 			continue;
 
 		/* only handle low-priority commands here */

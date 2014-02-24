@@ -121,7 +121,10 @@ void navFlowNavigate(
 		if (navFlowData.mode != NAV_STATUS_POSHOLD &&
 			navFlowData.mode != NAV_STATUS_DVH) {
 
+			// record this position as hold position
 			navFlowSetHoldPosition(position_data->x, position_data->y);
+			// record this altitude as the hold altitude
+			navFlowSetHoldAlt(measured_altitude, 0);
 
 			// only zero bias if coming from lower mode
 			if (navFlowData.mode < NAV_STATUS_POSHOLD) {
@@ -134,6 +137,14 @@ void navFlowNavigate(
 				// speed
 				pidZeroIntegral(navFlowData.speedXPID, position_data->vx, 0.0f);
 				pidZeroIntegral(navFlowData.speedYPID, position_data->vy, 0.0f);
+			}
+			// only reset integral if coming from lower state
+			if(navFlowData.mode < NAV_STATUS_ALTHOLD) {
+				// set integral to current RC throttle setting
+				// there is a minus because the pidUpdate also has a minus
+				pidZeroIntegral(navFlowData.altSpeedPID, -position_data->vz, manual_control->throttle);
+				pidZeroIntegral(navFlowData.altPosPID, measured_altitude, 0.0f);
+				navFlowData.holdSpeedAlt = -position_data->vz;
 			}
 
 			navFlowData.holdMaxHorizSpeed = params->nav_max_speed;
@@ -305,8 +316,8 @@ void navFlowNavigate(
 
 		// Throttle controls vertical speed
 		// Throttle is 0 ... 1
-		//Make sure that current throttle gets the hold position
-		// But asure that remaining throttle range is not too small
+		// Make sure that current throttle gets the hold position
+		// But also assure that remaining throttle range is not too small
 		if(throttle_middle_position < 0.5f || throttle_middle_position > 1.5f) throttle_middle_position = 1.0f;
 		vertStick = (manual_control->throttle * 2.0f) - throttle_middle_position;
 		if (vertStick > CTRL_DEAD_BAND || vertStick < -CTRL_DEAD_BAND) {

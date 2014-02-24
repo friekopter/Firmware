@@ -403,7 +403,7 @@ void navFlowCalculateOffsets(
 			printcounter++;*/
 		}
 		// navFlowUkfSetSonarOffset(0.3f, UKF_FLOW_PRES_ALT, 1.0f);
-	} else if (control_mode->flag_control_altitude_enabled) {
+	} else if (true){//control_mode->flag_control_altitude_enabled) {
 		// altitude hold mode using sonar
 		// don't change sonar offset because it is primary altitude source
 		// But change pressure offset slowly
