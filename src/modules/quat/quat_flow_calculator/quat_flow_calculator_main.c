@@ -275,7 +275,7 @@ void quat_flow_calculate_altitude(bool vehicle_liftoff,
 		time_sonar_validated = 0;
 		time_sonar_unvalidated = 0;
 	}
-	else if(sonar_new <= 0.3f) {
+	else if(sonar_new <= 0.3f || sonar_new >= 4.0f) {
 		time_sonar_validated = 0;
 		if(time_sonar_unvalidated == 0) {
 			time_sonar_unvalidated = filtered_flow->timestamp;
