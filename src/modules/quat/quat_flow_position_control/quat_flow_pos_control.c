@@ -83,7 +83,10 @@ static int quat_flow_pos_control_thread_main(int argc, char *argv[]);
  */
 static void usage(const char *reason);
 
-int buzzer_init()
+static int buzzer_init(void);
+static void buzzer_deinit(void);
+
+static int buzzer_init(void)
 {
 	buzzer = open("/dev/tone_alarm", O_WRONLY);
 
@@ -95,7 +98,7 @@ int buzzer_init()
 	return OK;
 }
 
-void buzzer_deinit()
+static void buzzer_deinit(void)
 {
 	close(buzzer);
 }
@@ -298,6 +301,8 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 	// Position setpoint
 	int local_pos_sp_sub = orb_subscribe(ORB_ID(vehicle_local_position_setpoint));
 	memset(&local_position_sp, 0, sizeof(local_position_sp));
+	// Sometimes also publish
+	orb_advert_t local_pos_sp_pub = orb_advertise(ORB_ID(vehicle_local_position_setpoint), &local_position_sp);
 
 	sleep(2);
 	/* register the perf counter */
@@ -697,8 +702,9 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 				orb_copy(ORB_ID(vehicle_gps_position), gps_sub, &gps_data);
 			}
 
-			if (fds[6].revents & POLLIN)
+			if (control_mode.flag_control_auto_enabled && (fds[6].revents & POLLIN))
 			{
+				// only in case of auto we listen for the setpoint, otherwise we self calculate it
 				orb_copy(ORB_ID(vehicle_local_position_setpoint), local_pos_sp_sub, &local_position_sp);
 				printf("[quat flow pos control] set local position setpoint");
 			}
@@ -770,7 +776,13 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 			if ( att_sp.thrust < 0.0f ) {
 				att_sp.thrust = 0.0f;
 			}
-			att_sp.yaw_body = navFlowData.holdHeading;
+			if(control_mode.flag_control_manual_enabled) {
+				// yaw control comes from autopilot
+				att_sp.yaw_body = navFlowData.holdHeading;
+			} else {
+				// TODO: read att setpoint from attitude control
+			}
+
 			att_sp.timestamp = hrt_absolute_time();
 			if(control_mode.flag_control_velocity_enabled ||
 				control_mode.flag_control_altitude_enabled) {
@@ -824,6 +836,12 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 				global_position_data.timestamp = hrt_absolute_time();
 				global_position_data.valid = true;
 				orb_publish(ORB_ID(vehicle_global_position), global_pos_pub, &global_position_data);
+			} else if(!control_mode.flag_control_auto_enabled && !((printcounter + 18) % 20)) {
+				local_position_sp.x = navFlowData.holdPositionX;
+				local_position_sp.y = navFlowData.holdPositionY;
+				local_position_sp.z = navFlowData.holdAlt;
+				local_position_sp.yaw = navFlowData.holdHeading;
+				orb_publish(ORB_ID(vehicle_local_position_setpoint), local_pos_sp_pub, &local_position_sp);
 			}
 
 			// +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -846,11 +864,11 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 			}
 			else if (debug == true && !(printcounter % 1000))
 			{
-				float frequence = 0;
-				static uint32_t last_measure = 0;
-				uint32_t current = hrt_absolute_time();
-				frequence = 1000.0f*1000000.0f/(float)(current - last_measure);
-				last_measure = current;
+				//float frequence = 0;
+				//static uint32_t last_measure = 0;
+				//uint32_t current = hrt_absolute_time();
+				//frequence = 1000.0f*1000000.0f/(float)(current - last_measure);
+				//last_measure = current;
 				printf("------\n");
 				navFlowLogVariance();
 				/*

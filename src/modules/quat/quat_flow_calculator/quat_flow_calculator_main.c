@@ -399,6 +399,8 @@ int quat_flow_calculator_thread_main(int argc, char *argv[])
 
 	/* subscribe to attitude setpoint */
 	int vehicle_attitude_setpoint_sub = orb_subscribe(ORB_ID(vehicle_attitude_setpoint));
+	// 5Hz frequence is enough
+	orb_set_interval(vehicle_attitude_setpoint_sub,200);
 
 	/* subscribe to optical flow*/
 	int optical_flow_sub = orb_subscribe(ORB_ID(optical_flow));
@@ -522,11 +524,13 @@ int quat_flow_calculator_thread_main(int argc, char *argv[])
 					 * -> accept sonar measurements after reaching calibration distance (values between 0.3m and 1.0m for some time)
 					 * -> minimum sonar value 0.3m
 					 */
+					// TODO use landed and started from the local position data instead of this construct
 					if (!vehicle_liftoff)
 					{
 						if (armed.armed &&
 							att_sp.thrust > params.minimum_liftoff_thrust &&
 							sonar_new > 0.3f && sonar_new < 1.0f) {
+							// limit to < 1 is important, otherwise we get spikes for reality
 							vehicle_liftoff = true;
 							filtered_flow.landed = false;
 						}

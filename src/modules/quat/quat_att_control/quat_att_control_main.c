@@ -102,8 +102,8 @@ quat_att_control_thread_main(int argc, char *argv[])
 	memset(&att_sp, 0, sizeof(att_sp));
 	struct manual_control_setpoint_s manual;
 	memset(&manual, 0, sizeof(manual));
-	struct sensor_combined_s raw;
-	memset(&raw, 0, sizeof(raw));
+	//struct sensor_combined_s raw;
+	//memset(&raw, 0, sizeof(raw));
 	struct vehicle_rates_setpoint_s rates_sp;
 	memset(&rates_sp, 0, sizeof(rates_sp));
 	struct vehicle_status_s status;
@@ -188,9 +188,23 @@ quat_att_control_thread_main(int argc, char *argv[])
 	while (!thread_should_exit) {
 
 		/* wait for an attitude update, check for exit condition every 500 ms */
-		poll(fds, 1, 500);
+		int pollResult = poll(fds, 1, 500);
+		if (pollResult == 0){
+			// poll timeout
+			fprintf(stderr,"[quat_att_control] WARNING: Not getting attitude data - attitude app running?\n");
+			continue;
+
+		} else if (pollResult < 0) {
+			// poll error
+			fprintf(stderr,"[quat_att_control] ERROR: Error getting attitude data!\n");
+			continue;
+		}
+
 		//TODO FL might be a good idea to poll for gyro because that is faster
 		perf_begin(mc_loop_perf);
+
+		/* get a local copy of attitude */
+		orb_copy(ORB_ID(vehicle_attitude), att_sub, &att);
 
 		/* get a local copy of system state */
 		bool updated;
@@ -222,18 +236,25 @@ quat_att_control_thread_main(int argc, char *argv[])
 													&yaw_angle_params,
 													&control);
 		}
+
+		orb_check(manual_sub, &updated);
+		if (updated) {
 		/* get a local copy of manual setpoint */
 		orb_copy(ORB_ID(manual_control_setpoint), manual_sub, &manual);
-		/* get a local copy of attitude */
-		orb_copy(ORB_ID(vehicle_attitude), att_sub, &att);
-		/* get a local copy of attitude setpoint */
-		orb_copy(ORB_ID(vehicle_attitude_setpoint), att_setpoint_sub, &att_sp);
-		/* get a local copy of the current sensor values */
-		orb_copy(ORB_ID(sensor_combined), sensor_sub, &raw);
+		}
 
-		att.rollspeed = raw.gyro_rad_s[0];
-		att.pitchspeed = raw.gyro_rad_s[1];
-		att.yawspeed = raw.gyro_rad_s[2];
+		orb_check(att_setpoint_sub, &updated);
+		if (updated && control_mode.flag_control_velocity_enabled) {
+			// attitude is set by autopilot
+			/* get a local copy of attitude setpoint */
+			orb_copy(ORB_ID(vehicle_attitude_setpoint), att_setpoint_sub, &att_sp);
+		}
+		/* get a local copy of the current sensor values */
+		//orb_copy(ORB_ID(sensor_combined), sensor_sub, &raw);
+
+		//att.rollspeed = raw.gyro_rad_s[0];
+		//att.pitchspeed = raw.gyro_rad_s[1];
+		//att.yawspeed = raw.gyro_rad_s[2];
 
 		/** STEP 1: Define which input is the dominating control input */
 		if (!control_mode.flag_armed) {
@@ -314,8 +335,10 @@ quat_att_control_thread_main(int argc, char *argv[])
 		if (control_mode.flag_control_manual_enabled &&
 			!control_mode.flag_control_velocity_enabled &&
 			!control_mode.flag_control_altitude_enabled) {
+			att_sp.yaw_body = control_quadrotor_get_yaw();
 			// only in this case we define the setpoints and are entitled to
 			// publish its values
+			// TODO: Yaw is also manually set if velocity and altitude enabled, how can we publish that value?
 			orb_publish(ORB_ID(vehicle_attitude_setpoint), att_sp_pub, &att_sp);
 			orb_publish(ORB_ID(vehicle_rates_setpoint), rates_sp_pub, &rates_sp);
 		}
