@@ -76,6 +76,7 @@
 #include <uORB/topics/parameter_update.h>
 #include <uORB/topics/differential_pressure.h>
 #include <uORB/topics/safety.h>
+#include <uORB/topics/actuator_armed.h>
 
 #include <drivers/drv_led.h>
 #include <drivers/drv_hrt.h>
@@ -467,7 +468,7 @@ void handle_command(struct vehicle_status_s *status, const struct safety_s *safe
 
 	case VEHICLE_CMD_NAV_TAKEOFF: {
 			if (armed->armed) {
-				transition_result_t nav_res = navigation_state_transition(status, NAVIGATION_STATE_AUTO_TAKEOFF, control_mode);
+				transition_result_t nav_res = navigation_state_transition(status, NAVIGATION_STATE_AUTO_TAKEOFF, control_mode, mavlink_fd);
 
 				if (nav_res == TRANSITION_CHANGED) {
 					mavlink_log_info(mavlink_fd, "[cmd] TAKEOFF on command");
@@ -490,7 +491,7 @@ void handle_command(struct vehicle_status_s *status, const struct safety_s *safe
 
 	case VEHICLE_CMD_NAV_LAND: {
 			if (armed->armed) {
-				transition_result_t nav_res = navigation_state_transition(status, NAVIGATION_STATE_AUTO_LAND, control_mode);
+				transition_result_t nav_res = navigation_state_transition(status, NAVIGATION_STATE_AUTO_LAND, control_mode, mavlink_fd);
 
 				if (nav_res == TRANSITION_CHANGED) {
 					mavlink_log_info(mavlink_fd, "[cmd] LAND on command");
@@ -1012,6 +1013,14 @@ int commander_thread_main(int argc, char *argv[])
 
 			critical_voltage_counter++;
 
+		} else if (status.condition_battery_voltage_valid && status.battery_remaining < 0.1f &&
+				((counter % (10000000 / COMMANDER_MONITORING_INTERVAL)) == 0)) {
+			// repeat warning every 10 seconds
+			mavlink_log_critical(mavlink_fd, "#audio: BATTERY CRITICAL CRITICAL");
+		} else if (status.condition_battery_voltage_valid && status.battery_remaining < 0.25f &&
+				((counter % (20000000 / COMMANDER_MONITORING_INTERVAL)) == 0)){
+			// repeat warning every 20 seconds
+			mavlink_log_critical(mavlink_fd, "#audio: BATTERY LOW LOW");
 		} else {
 
 			low_voltage_counter = 0;
@@ -1568,20 +1577,20 @@ check_navigation_state_machine(struct vehicle_status_s *status,
 
 			if (status->navigation_state == NAVIGATION_STATE_AUTO_RTL) {
 				//TODO: Find home position
-				/*if (local_pos->xy_valid) {
+				if (local_pos->xy_valid) {
 					float distance = sqrtf(local_pos->x * local_pos->x + local_pos->y * local_pos->y);
-					if(distance < 0.5f) {*/
-						res = navigation_state_transition(status, NAVIGATION_STATE_AUTO_LAND, control_mode);
+					if(distance < 0.5f) {
+						res = navigation_state_transition(status, NAVIGATION_STATE_AUTO_LAND, control_mode, mavlink_fd);
 						return res;
-				/*	}
-				}*/
+					}
+				}
 			}
 
 			if (status->navigation_state == NAVIGATION_STATE_AUTO_LAND) {
 				if (status->condition_landed) {
 					/* disarm to STANDBY if landed  */
 					res = arming_state_transition(status, &safety, control_mode, ARMING_STATE_STANDBY, actuator_armed);
-					res = navigation_state_transition(status, NAVIGATION_STATE_AUTO_READY, control_mode);
+					res = navigation_state_transition(status, NAVIGATION_STATE_AUTO_READY, control_mode, mavlink_fd);
 					return res;
 				}
 				else {
@@ -1603,7 +1612,7 @@ check_navigation_state_machine(struct vehicle_status_s *status,
 			    status->navigation_state != NAVIGATION_STATE_AUTO_LAND) {
 				/* possibly on ground, switch to TAKEOFF if needed */
 				if (local_pos->z > -takeoff_alt || status->condition_landed) {
-					res = navigation_state_transition(status, NAVIGATION_STATE_AUTO_TAKEOFF, control_mode);
+					res = navigation_state_transition(status, NAVIGATION_STATE_AUTO_TAKEOFF, control_mode, mavlink_fd);
 					return res;
 				}
 			}
@@ -1613,16 +1622,16 @@ check_navigation_state_machine(struct vehicle_status_s *status,
 				/* act depending on switches when manual control enabled */
 				if (status->return_switch == RETURN_SWITCH_RETURN) {
 					/* RTL */
-					res = navigation_state_transition(status, NAVIGATION_STATE_AUTO_RTL, control_mode);
+					res = navigation_state_transition(status, NAVIGATION_STATE_AUTO_RTL, control_mode, mavlink_fd);
 
 				} else {
 					if (status->mission_switch == MISSION_SWITCH_MISSION) {
 						/* MISSION */
-						res = navigation_state_transition(status, NAVIGATION_STATE_AUTO_MISSION, control_mode);
+						res = navigation_state_transition(status, NAVIGATION_STATE_AUTO_MISSION, control_mode, mavlink_fd);
 
 					} else {
 						/* LOITER */
-						res = navigation_state_transition(status, NAVIGATION_STATE_AUTO_LOITER, control_mode);
+						res = navigation_state_transition(status, NAVIGATION_STATE_AUTO_LOITER, control_mode, mavlink_fd);
 					}
 				}
 
@@ -1635,13 +1644,13 @@ check_navigation_state_machine(struct vehicle_status_s *status,
 					res = TRANSITION_NOT_CHANGED;
 
 				} else {
-					res = navigation_state_transition(status, NAVIGATION_STATE_AUTO_MISSION, control_mode);
+					res = navigation_state_transition(status, NAVIGATION_STATE_AUTO_MISSION, control_mode, mavlink_fd);
 				}
 			}
 
 		} else {
 			/* disarmed, always switch to AUTO_READY */
-			res = navigation_state_transition(status, NAVIGATION_STATE_AUTO_READY, control_mode);
+			res = navigation_state_transition(status, NAVIGATION_STATE_AUTO_READY, control_mode, mavlink_fd);
 		}
 
 	} else {
@@ -1652,7 +1661,7 @@ check_navigation_state_machine(struct vehicle_status_s *status,
 
 			if (!status->condition_landed) {
 				/* in air: try to hold position */
-				res = navigation_state_transition(status, NAVIGATION_STATE_VECTOR, control_mode);
+				res = navigation_state_transition(status, NAVIGATION_STATE_VECTOR, control_mode, mavlink_fd);
 
 			} else {
 				/* landed: don't try to hold position but land (if taking off) */
@@ -1660,7 +1669,7 @@ check_navigation_state_machine(struct vehicle_status_s *status,
 			}
 
 			if (res == TRANSITION_DENIED) {
-				res = navigation_state_transition(status, NAVIGATION_STATE_ALTHOLD, control_mode);
+				res = navigation_state_transition(status, NAVIGATION_STATE_ALTHOLD, control_mode, mavlink_fd);
 			}
 
 			control_mode->flag_control_manual_enabled = false;
@@ -1688,15 +1697,15 @@ check_navigation_state_machine(struct vehicle_status_s *status,
 		} else {
 			switch (status->main_state) {
 			case MAIN_STATE_MANUAL:
-				res = navigation_state_transition(status, status->is_rotary_wing ? NAVIGATION_STATE_STABILIZE : NAVIGATION_STATE_DIRECT, control_mode);
+				res = navigation_state_transition(status, status->is_rotary_wing ? NAVIGATION_STATE_STABILIZE : NAVIGATION_STATE_DIRECT, control_mode, mavlink_fd);
 				break;
 
 			case MAIN_STATE_SEATBELT:
-				res = navigation_state_transition(status, NAVIGATION_STATE_ALTHOLD, control_mode);
+				res = navigation_state_transition(status, NAVIGATION_STATE_ALTHOLD, control_mode, mavlink_fd);
 				break;
 
 			case MAIN_STATE_EASY:
-				res = navigation_state_transition(status, NAVIGATION_STATE_VECTOR, control_mode);
+				res = navigation_state_transition(status, NAVIGATION_STATE_VECTOR, control_mode, mavlink_fd);
 				break;
 
 			default:
