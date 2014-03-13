@@ -68,7 +68,7 @@ transition_result_t main_state_transition(struct vehicle_status_s *current_state
 
 bool check_main_state_changed();
 
-transition_result_t navigation_state_transition(struct vehicle_status_s *status, navigation_state_t new_navigation_state, struct vehicle_control_mode_s *control_mode);
+transition_result_t navigation_state_transition(struct vehicle_status_s *status, navigation_state_t new_navigation_state, struct vehicle_control_mode_s *control_mode, const int mavlink_fd);
 
 bool check_navigation_state_changed();
 

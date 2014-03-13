@@ -288,7 +288,7 @@ check_main_state_changed()
 }
 
 transition_result_t
-navigation_state_transition(struct vehicle_status_s *status, navigation_state_t new_navigation_state, struct vehicle_control_mode_s *control_mode)
+navigation_state_transition(struct vehicle_status_s *status, navigation_state_t new_navigation_state, struct vehicle_control_mode_s *control_mode, const int mavlink_fd)
 {
 	transition_result_t ret = TRANSITION_DENIED;
 
@@ -333,6 +333,7 @@ navigation_state_transition(struct vehicle_status_s *status, navigation_state_t 
 			control_mode->flag_control_climb_rate_enabled = true;
 			control_mode->flag_control_manual_enabled = true;
 			control_mode->flag_control_auto_enabled = false;
+			mavlink_log_info(mavlink_fd, "#audio: Althold Althold");
 			break;
 
 		case NAVIGATION_STATE_VECTOR:
@@ -345,6 +346,7 @@ navigation_state_transition(struct vehicle_status_s *status, navigation_state_t 
 			control_mode->flag_control_climb_rate_enabled = true;
 			control_mode->flag_control_manual_enabled = true;
 			control_mode->flag_control_auto_enabled = false;
+			mavlink_log_info(mavlink_fd, "#audio: Vector Vector");
 			break;
 
 		case NAVIGATION_STATE_AUTO_READY:
@@ -357,6 +359,7 @@ navigation_state_transition(struct vehicle_status_s *status, navigation_state_t 
 			control_mode->flag_control_climb_rate_enabled = false;
 			control_mode->flag_control_manual_enabled = false;
 			control_mode->flag_control_auto_enabled = true;
+			mavlink_log_info(mavlink_fd, "#audio: Ready Ready");
 			break;
 
 		case NAVIGATION_STATE_AUTO_TAKEOFF:
@@ -369,6 +372,7 @@ navigation_state_transition(struct vehicle_status_s *status, navigation_state_t 
 			control_mode->flag_control_climb_rate_enabled = true;
 			control_mode->flag_control_manual_enabled = false;
 			control_mode->flag_control_auto_enabled = true;
+			mavlink_log_info(mavlink_fd, "#audio: Takeoff Takeoff");
 			break;
 
 		case NAVIGATION_STATE_AUTO_LOITER:
@@ -381,6 +385,7 @@ navigation_state_transition(struct vehicle_status_s *status, navigation_state_t 
 			control_mode->flag_control_climb_rate_enabled = true;
 			control_mode->flag_control_manual_enabled = false;
 			control_mode->flag_control_auto_enabled = false;
+			mavlink_log_info(mavlink_fd, "#audio: Loiter Loiter");
 			break;
 
 		case NAVIGATION_STATE_AUTO_MISSION:
@@ -393,6 +398,7 @@ navigation_state_transition(struct vehicle_status_s *status, navigation_state_t 
 			control_mode->flag_control_climb_rate_enabled = true;
 			control_mode->flag_control_manual_enabled = false;
 			control_mode->flag_control_auto_enabled = true;
+			mavlink_log_info(mavlink_fd, "#audio: Mission Mission");
 			break;
 
 		case NAVIGATION_STATE_AUTO_RTL:
@@ -405,6 +411,7 @@ navigation_state_transition(struct vehicle_status_s *status, navigation_state_t 
 			control_mode->flag_control_climb_rate_enabled = true;
 			control_mode->flag_control_manual_enabled = false;
 			control_mode->flag_control_auto_enabled = true;
+			mavlink_log_info(mavlink_fd, "#audio: Return Return");
 			break;
 
 		case NAVIGATION_STATE_AUTO_LAND:
@@ -420,6 +427,7 @@ navigation_state_transition(struct vehicle_status_s *status, navigation_state_t 
 				control_mode->flag_control_climb_rate_enabled = true;
 				control_mode->flag_control_manual_enabled = false;
 				control_mode->flag_control_auto_enabled = true;
+				mavlink_log_info(mavlink_fd, "#audio: Land Land");
 			}
 
 			break;
