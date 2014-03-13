@@ -597,10 +597,12 @@ int flow_position_estimator_thread_main(int argc, char *argv[])
 						quality >= (float)params.minimum_quality) {
 						flow_valid  = true;
 						flow_control_info.enabled = true;
+						flow_control_info.ok = true;
 						orb_publish(ORB_ID(subsystem_info), flow_subsystem_info_pub, &flow_control_info);
 					} else if (flow_valid && quality < (float)params.minimum_quality) {
 						flow_valid = false;
 						flow_control_info.enabled = false;
+						flow_control_info.ok = false;
 						orb_publish(ORB_ID(subsystem_info), flow_subsystem_info_pub, &flow_control_info);
 					}
 

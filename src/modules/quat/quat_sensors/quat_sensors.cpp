@@ -848,6 +848,7 @@ Quat_Sensors::parameters_update()
 	param_get(_parameter_handles.mag_scale3[0], &(_parameters.mag_scale3[0]));
 	param_get(_parameter_handles.mag_scale3[1], &(_parameters.mag_scale3[1]));
 	param_get(_parameter_handles.mag_scale3[2], &(_parameters.mag_scale3[2]));
+	param_get(_parameter_handles.mag_inclination, &(_parameters.mag_inclination));
 
 	param_get(_parameter_handles.acc_align_xy, &(_parameters.acc_align_xy));
 	param_get(_parameter_handles.acc_align_xz, &(_parameters.acc_align_xz));
@@ -1604,6 +1605,7 @@ Quat_Sensors::task_main()
 	gyro_poll(raw);
 	mag_poll(raw);
 	baro_poll(raw);
+	raw.magnetometer_inclination = _parameters.mag_inclination;
 
 
 	/* calibrate sensors */

@@ -95,6 +95,7 @@ struct sensor_combined_s {
 	float magnetometer_range_ga;		/**< ± measurement range in Gauss */
 	float magnetometer_cuttoff_freq_hz;	/**< Internal analog low pass frequency of sensor */
 	uint32_t magnetometer_counter;		/**< Number of raw mag measurements taken         */
+	float magnetometer_inclination;		/**< Current inclination */
 	
 	float baro_pres_mbar;			/**< Barometric pressure, already temp. comp.     */
 	float baro_alt_meter;			/**< Altitude, already temp. comp.                */

@@ -10,6 +10,7 @@
 #include "quat/utils/quat_constants.h"
 #include "attitude_estimator_quat_params.h"
 #include "aq.h"
+#define COMPASS_INCLINATION		-64.132470167481f
 
 quatStruct_t quatData;
 

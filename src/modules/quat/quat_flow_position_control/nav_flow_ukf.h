@@ -74,7 +74,8 @@ extern navFlowUkfStruct_t navFlowUkfData;
 bool navFlowIsArmed(const struct vehicle_control_mode_s *control_mode);
 void navFlowLogVariance(void);
 extern void navFlowUkfInit(	const struct quat_position_control_UKF_params* params,
-						const struct sensor_combined_s* sensors);
+						const struct sensor_combined_s* sensors,
+						const float inclination);
 extern float navFlowUkfInertialUpdate(const struct sensor_combined_s* raw, bool updateBias);
 extern void navFlowDoPresUpdate(float pres,
 		 const struct vehicle_control_mode_s *control_mode,

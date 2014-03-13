@@ -34,21 +34,39 @@
 #define CTRL_DEAD_BAND (60.0f/1000.0f)
 
 static orb_advert_t subsystem_info_pub = -1;
+navFlowStruct_t navFlowData __attribute__((section(".ccm")));
 
 void navFlowSetHoldAlt(float alt, uint8_t relative);
 void navFlowSetHoldPosition(const float ned_x, const float ned_y);
 void navFlowResetHoldPosition(void);
-navFlowStruct_t navFlowData __attribute__((section(".ccm")));
+void navCalculateTilt(	const struct vehicle_control_mode_s *control_mode,
+						const struct quat_position_control_NAV_params* params,
+						const struct vehicle_local_position_setpoint_s* local_position_setpoint,
+						const struct vehicle_local_position_s* position_data,
+						const float manualRoll,
+						const float manualPitch,
+						const uint8_t navigationMode,
+						navFlowStruct_t *navDataResult);
+void navCalculateThrust (	const struct vehicle_control_mode_s *control_mode,
+							const struct quat_position_control_NAV_params* params,
+							const struct vehicle_local_position_setpoint_s* local_position_setpoint,
+							const float measuredAltitude,
+							const float measuredVerticalVelocityNED,
+							const float manualThrottle,
+							const uint8_t navigationMode,
+							navFlowStruct_t *navDataResult);
+float navCalculateTakeoffThrust(const uint64_t timestamp, const float takeoffThrust);
+
 struct subsystem_info_s altitude_control_info = {
 	true,
 	false,
-	true,
+	false,
 	SUBSYSTEM_TYPE_ALTITUDECONTROL
 };
 struct subsystem_info_s position_control_info = {
 	true,
 	false,
-	true,
+	false,
 	SUBSYSTEM_TYPE_POSITIONCONTROL
 };
 
@@ -93,9 +111,7 @@ void navFlowNavigate(
 		uint64_t imu_timestamp
 		) {
     uint64_t currentTime = imu_timestamp;
-    float tmp;
     const float measured_altitude = local_position_data->z;//-UKF_FLOW_PRES_ALT;//local_position->z;//=UKF_FLOW_PRES_ALT
-    static float throttle_middle_position = 1.0f;
     const struct vehicle_local_position_s* position_data = local_position_data;
 
     // 1. Calculate mode
@@ -209,109 +225,176 @@ void navFlowNavigate(
 		navPublishSystemInfo();
     }
 
-
     // 2. Do navigation
-    if (navFlowData.mode == NAV_STATUS_MISSION) {
+	navCalculateTilt( 	control_mode,
+						params,
+    					local_position_setpoint,
+    					position_data,
+						manual_control->roll,
+						manual_control->pitch,
+    					navFlowData.mode,
+    					&navFlowData);
+
+    navCalculateThrust(	control_mode,
+    					params,
+    					local_position_setpoint,
+    					measured_altitude,
+    					local_position_data->vz,
+    					manual_control->throttle,
+    					navFlowData.mode,
+    					&navFlowData);
+
+    navFlowData.lastUpdate = currentTime;
+}
+
+void navCalculateTilt(	const struct vehicle_control_mode_s *control_mode,
+						const struct quat_position_control_NAV_params* params,
+						const struct vehicle_local_position_setpoint_s* local_position_setpoint,
+						const struct vehicle_local_position_s* position_data,
+						const float manualRoll,
+						const float manualPitch,
+						const uint8_t navigationMode,
+						navFlowStruct_t *navDataResult) {
+    if (navigationMode == NAV_STATUS_MISSION) {
     	// are we trying to land?
     	if (control_mode->auto_state == NAVIGATION_STATE_AUTO_READY) {
-    		navFlowData.holdSpeedX = 0.0f;
-    		navFlowData.holdSpeedY = 0.0f;
+    		navDataResult->holdSpeedX = 0.0f;
+    		navDataResult->holdSpeedY = 0.0f;
     	} else if (control_mode->auto_state == NAVIGATION_STATE_AUTO_TAKEOFF) {
-    		navFlowData.holdSpeedX = 0.0f;
-    		navFlowData.holdSpeedY = 0.0f;
+    		navDataResult->holdSpeedX = 0.0f;
+    		navDataResult->holdSpeedY = 0.0f;
+    		navFlowSetHoldPosition(position_data->x, position_data->y);
     	} else if (control_mode->auto_state == NAVIGATION_STATE_AUTO_LOITER) {
-    		navFlowData.holdSpeedX = 0.0f;
-    		navFlowData.holdSpeedY = 0.0f;
+        	navDataResult->holdSpeedX = pidUpdate(navDataResult->distanceXPID, navDataResult->holdPositionX, position_data->x);
+        	navDataResult->holdSpeedY = pidUpdate(navDataResult->distanceYPID, navDataResult->holdPositionY, position_data->y);
     	} else if (control_mode->auto_state == NAVIGATION_STATE_AUTO_MISSION) {
-        	navFlowData.holdSpeedX = pidUpdate(navFlowData.distanceXPID, local_position_setpoint->x, position_data->x);
-        	navFlowData.holdSpeedY = pidUpdate(navFlowData.distanceYPID, local_position_setpoint->y, position_data->y);
+    		if (local_position_setpoint->nav_cmd == NAV_CMD_LAND) {
+    			navDataResult->holdSpeedX = 0.0f;
+    			navDataResult->holdSpeedY = 0.0f;
+			} else if (local_position_setpoint->nav_cmd == NAV_CMD_TAKEOFF) {
+    			navDataResult->holdSpeedX = 0.0f;
+    			navDataResult->holdSpeedY = 0.0f;
+        		navFlowSetHoldPosition(position_data->x, position_data->y);
+			} else if (local_position_setpoint->nav_cmd == NAV_CMD_LOITER_TIME_LIMIT) {
+	        	navDataResult->holdSpeedX = pidUpdate(navDataResult->distanceXPID, navDataResult->holdPositionX, position_data->x);
+	        	navDataResult->holdSpeedY = pidUpdate(navDataResult->distanceYPID, navDataResult->holdPositionY, position_data->y);
+			} else if (local_position_setpoint->nav_cmd == NAV_CMD_LOITER_TURN_COUNT) {
+	        	navDataResult->holdSpeedX = pidUpdate(navDataResult->distanceXPID, navDataResult->holdPositionX, position_data->x);
+	        	navDataResult->holdSpeedY = pidUpdate(navDataResult->distanceYPID, navDataResult->holdPositionY, position_data->y);
+			} else if (local_position_setpoint->nav_cmd == NAV_CMD_LOITER_UNLIMITED) {
+	        	navDataResult->holdSpeedX = pidUpdate(navDataResult->distanceXPID, navDataResult->holdPositionX, position_data->x);
+	        	navDataResult->holdSpeedY = pidUpdate(navDataResult->distanceYPID, navDataResult->holdPositionY, position_data->y);
+			} else if (local_position_setpoint->nav_cmd == NAV_CMD_RETURN_TO_LAUNCH) {
+	        	navDataResult->holdSpeedX = pidUpdate(navDataResult->distanceXPID, 0.0f, position_data->x);
+	        	navDataResult->holdSpeedY = pidUpdate(navDataResult->distanceYPID, 0.0f, position_data->y);
+			} else if (local_position_setpoint->nav_cmd == NAV_CMD_WAYPOINT) {
+				navDataResult->holdSpeedX = pidUpdate(navDataResult->distanceXPID, local_position_setpoint->x, position_data->x);
+				navDataResult->holdSpeedY = pidUpdate(navDataResult->distanceYPID, local_position_setpoint->y, position_data->y);
+			} else {
+	        	navDataResult->holdSpeedX = pidUpdate(navDataResult->distanceXPID, navDataResult->holdPositionX, position_data->x);
+	        	navDataResult->holdSpeedY = pidUpdate(navDataResult->distanceYPID, navDataResult->holdPositionY, position_data->y);
+			}
     	} else if (control_mode->auto_state == NAVIGATION_STATE_AUTO_RTL) {
-    		navFlowData.holdSpeedX = 0.0f;
-    		navFlowData.holdSpeedY = 0.0f;
+        	navDataResult->holdSpeedX = pidUpdate(navDataResult->distanceXPID, 0.0f, position_data->x);
+        	navDataResult->holdSpeedY = pidUpdate(navDataResult->distanceYPID, 0.0f, position_data->y);
     	} else if (control_mode->auto_state == NAVIGATION_STATE_AUTO_LAND) {
-    		navFlowData.holdSpeedX = 0.0f;
-    		navFlowData.holdSpeedY = 0.0f;
+    		navDataResult->holdSpeedX = 0.0f;
+    		navDataResult->holdSpeedY = 0.0f;
     	}
-    	// constrain vertical velocity
-		navFlowData.targetHoldSpeedAlt = constrainFloat(navFlowData.targetHoldSpeedAlt,
-    					(navFlowData.holdMaxVertSpeed < params->nav_max_decent) ? -navFlowData.holdMaxVertSpeed : -params->nav_max_decent, navFlowData.holdMaxVertSpeed);
-    	navFlowData.holdSpeedAlt += (navFlowData.targetHoldSpeedAlt - navFlowData.holdSpeedAlt) * 0.01f;
     }
-    else if (navFlowData.mode == NAV_STATUS_DVH) {
+    else if (navigationMode == NAV_STATUS_DVH) {
         // DVH
-		float factor = navFlowData.holdMaxHorizSpeed;
+		float factor = navDataResult->holdMaxHorizSpeed;
 		float x = 0.0f;
 		float y = 0.0f;
 
-		if (manual_control->pitch > CTRL_DEAD_BAND)
-			x = -(manual_control->pitch - CTRL_DEAD_BAND) * factor;
-		if (manual_control->pitch < -CTRL_DEAD_BAND)
-			x = -(manual_control->pitch + CTRL_DEAD_BAND) * factor;
-		if (manual_control->roll > CTRL_DEAD_BAND)
-			y = +(manual_control->roll - CTRL_DEAD_BAND) * factor;
-		if (manual_control->roll < -CTRL_DEAD_BAND)
-			y = +(manual_control->roll + CTRL_DEAD_BAND) * factor;
+		if (manualPitch > CTRL_DEAD_BAND)
+			x = -(manualPitch - CTRL_DEAD_BAND) * factor;
+		if (manualPitch < -CTRL_DEAD_BAND)
+			x = -(manualPitch + CTRL_DEAD_BAND) * factor;
+		if (manualRoll > CTRL_DEAD_BAND)
+			y = +(manualRoll - CTRL_DEAD_BAND) * factor;
+		if (manualRoll < -CTRL_DEAD_BAND)
+			y = +(manualRoll + CTRL_DEAD_BAND) * factor;
 
-		navFlowData.holdSpeedX = x;
-		navFlowData.holdSpeedY = y;
+		navDataResult->holdSpeedX = x;
+		navDataResult->holdSpeedY = y;
 		navFlowSetHoldPosition(position_data->x, position_data->y);
     }
     else {
 		// distance => velocity
-    	navFlowData.holdSpeedX = pidUpdate(navFlowData.distanceXPID, navFlowData.holdPositionX, position_data->x);
-    	navFlowData.holdSpeedY = pidUpdate(navFlowData.distanceYPID, navFlowData.holdPositionY, position_data->y);
+    	navDataResult->holdSpeedX = pidUpdate(navDataResult->distanceXPID, navDataResult->holdPositionX, position_data->x);
+    	navDataResult->holdSpeedY = pidUpdate(navDataResult->distanceYPID, navDataResult->holdPositionY, position_data->y);
     }
 
-    if (fabs(navFlowData.holdSpeedX) > FLT_MIN || fabs(navFlowData.holdSpeedY) > FLT_MIN) {
+    if (fabs(navDataResult->holdSpeedX) > FLT_MIN || fabs(navDataResult->holdSpeedY) > FLT_MIN) {
         // normalize N/E speed requests to fit below max nav speed
-        tmp = aq_sqrtf(navFlowData.holdSpeedX*navFlowData.holdSpeedX + navFlowData.holdSpeedY*navFlowData.holdSpeedY);
-        if (tmp > navFlowData.holdMaxHorizSpeed) {
-    		navFlowData.holdSpeedX = (navFlowData.holdSpeedX / tmp) * navFlowData.holdMaxHorizSpeed;
-    		navFlowData.holdSpeedY = (navFlowData.holdSpeedY / tmp) * navFlowData.holdMaxHorizSpeed;
+        float speedValue = aq_sqrtf(navDataResult->holdSpeedX*navDataResult->holdSpeedX + navDataResult->holdSpeedY*navDataResult->holdSpeedY);
+        if (speedValue > navDataResult->holdMaxHorizSpeed) {
+    		navDataResult->holdSpeedX = (navDataResult->holdSpeedX / speedValue) * navDataResult->holdMaxHorizSpeed;
+    		navDataResult->holdSpeedY = (navDataResult->holdSpeedY / speedValue) * navDataResult->holdMaxHorizSpeed;
         }
     }
-
     // velocity => tilt
-    navFlowData.holdTiltX = pidUpdate(navFlowData.speedXPID, navFlowData.holdSpeedX, position_data->vx);
-    navFlowData.holdTiltY = pidUpdate(navFlowData.speedYPID, navFlowData.holdSpeedY, position_data->vy);
+    navDataResult->holdTiltX = pidUpdate(navDataResult->speedXPID, navDataResult->holdSpeedX, position_data->vx);
+    navDataResult->holdTiltY = pidUpdate(navDataResult->speedYPID, navDataResult->holdSpeedY, position_data->vy);
+}
 
-    if (navFlowData.mode == NAV_STATUS_MISSION) {
+void navCalculateThrust(	const struct vehicle_control_mode_s *control_mode,
+							const struct quat_position_control_NAV_params* params,
+							const struct vehicle_local_position_setpoint_s* local_position_setpoint,
+							const float measuredAltitude,
+							const float measuredVerticalVelocityNED,
+							const float manualThrottle,
+							const uint8_t navigationMode,
+							navFlowStruct_t *navDataResult) {
+    // Calculate thrust
+    // Reset result
+    navDataResult->autoThrust = 0.0f;
+    static float throttle_middle_position = 1.0f;
+
+    if (navigationMode == NAV_STATUS_MISSION) {
     	// are we trying to land?
     	if (control_mode->auto_state == NAVIGATION_STATE_AUTO_READY) {
-    		navFlowData.targetHoldSpeedAlt = 0.0f;
+    		navDataResult->targetHoldSpeedAlt = 0.0f;
     	} else if (control_mode->auto_state == NAVIGATION_STATE_AUTO_TAKEOFF) {
-    		navFlowData.targetHoldSpeedAlt = -0.5f;
+			// set thrust hard coded
+			navDataResult->autoThrust = navCalculateTakeoffThrust(navDataResult->lastUpdate,params->nav_takeoff_thrust);
+			pidZeroIntegral(navFlowData.altSpeedPID, -measuredVerticalVelocityNED, navDataResult->autoThrust);
+			pidZeroIntegral(navFlowData.altPosPID, measuredAltitude, 0.0f);
+			navFlowSetHoldAlt(measuredAltitude, 0);
     	} else if (control_mode->auto_state == NAVIGATION_STATE_AUTO_LOITER) {
-    		navFlowData.targetHoldSpeedAlt = 0.0f;
+			navDataResult->targetHoldSpeedAlt = pidUpdate(navDataResult->altPosPID, navDataResult->holdAlt, measuredAltitude);
     	} else if (control_mode->auto_state == NAVIGATION_STATE_AUTO_MISSION) {
     		if (local_position_setpoint->nav_cmd == NAV_CMD_LAND) {
-    			navFlowData.targetHoldSpeedAlt = +0.5f;
+    			navDataResult->targetHoldSpeedAlt = +0.5f;
     		} else if (local_position_setpoint->nav_cmd == NAV_CMD_TAKEOFF) {
-    			navFlowData.targetHoldSpeedAlt = -0.5f;
-    		} else if (local_position_setpoint->nav_cmd == NAV_CMD_LOITER_TIME_LIMIT) {
-    			navFlowData.targetHoldSpeedAlt = 0.0f;
-    		} else if (local_position_setpoint->nav_cmd == NAV_CMD_LOITER_TURN_COUNT) {
-    			navFlowData.targetHoldSpeedAlt = 0.0f;
-    		} else if (local_position_setpoint->nav_cmd == NAV_CMD_LOITER_UNLIMITED) {
-    			navFlowData.targetHoldSpeedAlt = 0.0f;
-    		}/* else if (local_position_setpoint->nav_cmd == NAV_CMD_RETURN_TO_LAUNCH) {
-
-    		} */else if (local_position_setpoint->nav_cmd == NAV_CMD_WAYPOINT) {
-    			navFlowData.targetHoldSpeedAlt = pidUpdate(navFlowData.altPosPID, local_position_setpoint->z, measured_altitude);
+    			// set thrust hard coded
+    			navDataResult->autoThrust = navCalculateTakeoffThrust(navDataResult->lastUpdate,params->nav_takeoff_thrust);
+				pidZeroIntegral(navFlowData.altSpeedPID, -measuredVerticalVelocityNED, navDataResult->autoThrust);
+				pidZeroIntegral(navFlowData.altPosPID, measuredAltitude, 0.0f);
+				navFlowSetHoldAlt(measuredAltitude, 0);
+    		} else if (local_position_setpoint->nav_cmd == NAV_CMD_LOITER_TIME_LIMIT ||
+    				local_position_setpoint->nav_cmd == NAV_CMD_LOITER_TURN_COUNT ||
+    				local_position_setpoint->nav_cmd == NAV_CMD_LOITER_UNLIMITED ||
+    				local_position_setpoint->nav_cmd == NAV_CMD_RETURN_TO_LAUNCH) {
+    			navDataResult->targetHoldSpeedAlt = pidUpdate(navDataResult->altPosPID, navDataResult->holdAlt, measuredAltitude);
+    		} else if (local_position_setpoint->nav_cmd == NAV_CMD_WAYPOINT) {
+    			navDataResult->targetHoldSpeedAlt = pidUpdate(navDataResult->altPosPID, local_position_setpoint->z, measuredAltitude);
     		} else {
-    			navFlowData.targetHoldSpeedAlt = 0.0f;
+    			navDataResult->targetHoldSpeedAlt = pidUpdate(navDataResult->altPosPID, navDataResult->holdAlt, measuredAltitude);
     		}
     	} else if (control_mode->auto_state == NAVIGATION_STATE_AUTO_RTL) {
-    		navFlowData.targetHoldSpeedAlt = 0.0f;
+    		navDataResult->targetHoldSpeedAlt = pidUpdate(navDataResult->altPosPID, navDataResult->holdAlt, measuredAltitude);
     	} else if (control_mode->auto_state == NAVIGATION_STATE_AUTO_LAND) {
-    		navFlowData.targetHoldSpeedAlt = +0.5f;
+    		navDataResult->targetHoldSpeedAlt = +0.5f;
     	}
     	// constrain vertical velocity
-		navFlowData.targetHoldSpeedAlt = constrainFloat(navFlowData.targetHoldSpeedAlt,
-    					(navFlowData.holdMaxVertSpeed < params->nav_max_decent) ? -navFlowData.holdMaxVertSpeed : -params->nav_max_decent, navFlowData.holdMaxVertSpeed);
-    	navFlowData.holdSpeedAlt += (navFlowData.targetHoldSpeedAlt - navFlowData.holdSpeedAlt) * 0.01f;
+		navDataResult->targetHoldSpeedAlt = constrainFloat(navDataResult->targetHoldSpeedAlt,
+    					(navDataResult->holdMaxVertSpeed < params->nav_max_decent) ? -navDataResult->holdMaxVertSpeed : -params->nav_max_decent, navDataResult->holdMaxVertSpeed);
+    	navDataResult->holdSpeedAlt += (navDataResult->targetHoldSpeedAlt - navDataResult->holdSpeedAlt) * 0.01f;
     }
-    else if (navFlowData.mode > NAV_STATUS_MANUAL) {
+    else if (navigationMode > NAV_STATUS_MANUAL) {
 		float vertStick;
 
 		// Throttle controls vertical speed
@@ -319,7 +402,7 @@ void navFlowNavigate(
 		// Make sure that current throttle gets the hold position
 		// But also assure that remaining throttle range is not too small
 		if(throttle_middle_position < 0.5f || throttle_middle_position > 1.5f) throttle_middle_position = 1.0f;
-		vertStick = (manual_control->throttle * 2.0f) - throttle_middle_position;
+		vertStick = (manualThrottle * 2.0f) - throttle_middle_position;
 		if (vertStick > CTRL_DEAD_BAND || vertStick < -CTRL_DEAD_BAND) {
 			// altitude velocity negative proportional to throttle stick
 			if (vertStick > 0.0f) {
@@ -328,7 +411,7 @@ void navFlowNavigate(
 				if((vertStick - CTRL_DEAD_BAND) > +1.0f) {
 					vertStick = +1.0f;
 				}
-				navFlowData.targetHoldSpeedAlt = -(vertStick - CTRL_DEAD_BAND) * params->nav_alt_pos_om;
+				navDataResult->targetHoldSpeedAlt = -(vertStick - CTRL_DEAD_BAND) * params->nav_alt_pos_om;
 			}
 			else {
 				// negative stick
@@ -336,36 +419,66 @@ void navFlowNavigate(
 				if((vertStick + CTRL_DEAD_BAND) < -1.0f) {
 					vertStick = -1.0f;
 				}
-				navFlowData.targetHoldSpeedAlt = -(vertStick + CTRL_DEAD_BAND) * params->nav_max_decent;
+				navDataResult->targetHoldSpeedAlt = -(vertStick + CTRL_DEAD_BAND) * params->nav_max_decent;
 			}
 			// set new hold altitude to wherever we are during vertical speed overrides
-			navFlowSetHoldAlt(measured_altitude, 0);
+			navFlowSetHoldAlt(measuredAltitude, 0);
 		}
 		else {
 			// for positive and negative altitude: if measured > hold -> speed negative
 			// PID: p-term ~ setpoint - position = holdAlt - measured -> pidUpdate has + sign
-			navFlowData.targetHoldSpeedAlt = pidUpdate(navFlowData.altPosPID, navFlowData.holdAlt, measured_altitude);
+			navDataResult->targetHoldSpeedAlt = pidUpdate(navDataResult->altPosPID, navDataResult->holdAlt, measuredAltitude);
 		}
 
 		// constrain vertical velocity
-		navFlowData.targetHoldSpeedAlt = constrainFloat(navFlowData.targetHoldSpeedAlt,
-				(navFlowData.holdMaxVertSpeed < params->nav_max_decent) ? -navFlowData.holdMaxVertSpeed : -params->nav_max_decent, navFlowData.holdMaxVertSpeed);
+		navDataResult->targetHoldSpeedAlt = constrainFloat(navDataResult->targetHoldSpeedAlt,
+				(navDataResult->holdMaxVertSpeed < params->nav_max_decent) ? -navDataResult->holdMaxVertSpeed : -params->nav_max_decent, navDataResult->holdMaxVertSpeed);
 
 		// smooth vertical velocity changes
 		//float smoothfactor = 0.01f;
 //		if (bottom_flow->ned_z_valid == 255) {
 //			smoothfactor *= 10.0f;
 //		}
-		navFlowData.holdSpeedAlt += (navFlowData.targetHoldSpeedAlt - navFlowData.holdSpeedAlt) * 0.01f;
+		navDataResult->holdSpeedAlt += (navDataResult->targetHoldSpeedAlt - navDataResult->holdSpeedAlt) * 0.01f;
     }
     else
     {
     	// In manual mode: remember last throttle position
 		// set this throttle position as middle position
-		throttle_middle_position = manual_control->throttle * 2.0f;
-
+		throttle_middle_position = manualThrottle * 2.0f;
     }
-    navFlowData.lastUpdate = currentTime;
+    if(navDataResult->autoThrust < FLT_MIN){
+    	// no thrust override
+    	// speed down is negative, if -navDataResult.holdSpeedAlt > -measuredVerticalVelocityNED -> thrust positive
+        navDataResult->autoThrust = pidUpdate(navDataResult->altSpeedPID, -navDataResult->holdSpeedAlt, -measuredVerticalVelocityNED);
+    }
+	if ( navDataResult->autoThrust < 0.0f ) {
+		navDataResult->autoThrust = 0.0f;
+	}
+}
+
+void navTakeoff() {
+
+}
+
+float navCalculateTakeoffThrust(const uint64_t timestamp, const float takeoffThrust){
+	// set thrust hard coded
+	float thrustResult = 0.0f;
+	static uint64_t takeoffStart = 0;
+	static uint64_t lastTakeoffCycle = 0;
+	if((timestamp - lastTakeoffCycle) > 1000000) {
+		// one second since start, assume new takeoff
+		takeoffStart = timestamp;
+	}
+	lastTakeoffCycle = timestamp;
+	// Calculate motor thrust to accelerate in 5s to full speed
+	static const uint64_t accelerationTimeMicroSeconds = 5000000;
+	int64_t timeToFullSpeed = accelerationTimeMicroSeconds - (timestamp - takeoffStart);
+	if(timeToFullSpeed < 0) timeToFullSpeed = 0;
+	thrustResult = takeoffThrust *
+			(float)(accelerationTimeMicroSeconds - timeToFullSpeed)/(float)accelerationTimeMicroSeconds;
+	if(thrustResult < 0.1f) thrustResult = 0.1f;
+	return thrustResult;
 }
 
 void navPublishSystemInfo(void) {
@@ -379,20 +492,24 @@ void navPublishSystemInfo(void) {
 		// alt hold enabled
 		/* notify about state change */
 		altitude_control_info.enabled = true;
+		altitude_control_info.ok = true;
 		orb_publish(ORB_ID(subsystem_info), subsystem_info_pub, &altitude_control_info);
 	}
 	else {
 		altitude_control_info.enabled = false;
+		altitude_control_info.ok = false;
 		orb_publish(ORB_ID(subsystem_info), subsystem_info_pub, &altitude_control_info);
 	}
 	if(navFlowData.mode > NAV_STATUS_ALTHOLD) {
 		// alt hold enabled
 		/* notify about state change */
 		position_control_info.enabled = true;
+		position_control_info.ok = true;
 		orb_publish(ORB_ID(subsystem_info), subsystem_info_pub, &position_control_info);
 	}
 	else {
 		position_control_info.enabled = false;
+		position_control_info.ok = false;
 		orb_publish(ORB_ID(subsystem_info), subsystem_info_pub, &position_control_info);
 	}
 }

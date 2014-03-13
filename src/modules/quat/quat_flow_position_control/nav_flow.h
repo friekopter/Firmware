@@ -64,6 +64,7 @@ typedef struct {
     float holdTiltX;			// required tilt (North/South)
     float holdTiltY;			// required tilt (East/West)
     float holdSpeedAlt;			// required speed (Up/Down)
+    float autoThrust;			// required thrust
     float targetHoldSpeedAlt;
 
     pidStruct_t *distanceXPID;
@@ -73,7 +74,7 @@ typedef struct {
     pidStruct_t *altSpeedPID;		// PID to control U/D speed - output speed in m/s
     pidStruct_t *altPosPID;		// PID to control U/D distance - output error in meters
 
-    uint32_t lastUpdate;
+    uint64_t lastUpdate;
 
     uint8_t mode;			// navigation mode
     uint8_t navCapable;

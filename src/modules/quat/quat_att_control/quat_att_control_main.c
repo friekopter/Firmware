@@ -244,8 +244,9 @@ quat_att_control_thread_main(int argc, char *argv[])
 		}
 
 		orb_check(att_setpoint_sub, &updated);
-		if (updated && control_mode.flag_control_velocity_enabled) {
-			// attitude is set by autopilot
+		if (updated &&
+				(control_mode.flag_control_velocity_enabled || control_mode.flag_control_altitude_enabled)) {
+			// attitude or thrust is set by autopilot
 			/* get a local copy of attitude setpoint */
 			orb_copy(ORB_ID(vehicle_attitude_setpoint), att_setpoint_sub, &att_sp);
 		}

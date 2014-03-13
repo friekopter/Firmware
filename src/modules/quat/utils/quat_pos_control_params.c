@@ -60,6 +60,7 @@ PARAM_DEFINE_INT32(Q_U_BI_UP_CO, 1);
 
 PARAM_DEFINE_FLOAT(Q_N_MAX_SPEED,	    5.0f);	// m/s
 PARAM_DEFINE_FLOAT(Q_N_MAX_DECENT,	    1.5f);	// m/s
+PARAM_DEFINE_FLOAT(Q_N_TOFF_THR,		0.8f);
 
 // speed => tilt PID
 PARAM_DEFINE_FLOAT(Q_N_SPEED_P,	    7.0f);
@@ -96,6 +97,7 @@ int parameters_init(struct quat_position_control_NAV_param_handles *nav,
 {
 	nav->nav_max_speed = param_find("Q_N_MAX_SPEED");
 	nav->nav_max_decent = param_find("Q_N_MAX_DECENT");
+	nav->nav_takeoff_thrust = param_find("Q_N_TOFF_THR");
 	nav->nav_speed_p = param_find("Q_N_SPEED_P");
 	nav->nav_speed_i = param_find("Q_N_SPEED_I");
 	nav->nav_speed_pm = param_find("Q_N_SPEED_PM");
@@ -168,6 +170,7 @@ int parameters_update(const struct quat_position_control_NAV_param_handles *nav_
 {
 	param_get(nav_handles->nav_max_speed, &(nav_params->nav_max_speed));
 	param_get(nav_handles->nav_max_decent, &(nav_params->nav_max_decent));
+	param_get(nav_handles->nav_takeoff_thrust, &(nav_params->nav_takeoff_thrust));
 	param_get(nav_handles->nav_speed_p, &(nav_params->nav_speed_p));
 	param_get(nav_handles->nav_speed_i, &(nav_params->nav_speed_i));
 	param_get(nav_handles->nav_speed_pm, &(nav_params->nav_speed_pm));

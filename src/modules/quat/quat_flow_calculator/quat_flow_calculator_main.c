@@ -81,7 +81,7 @@ static bool debug = false;
 struct subsystem_info_s flow_control_info = {
 	true,
 	false,
-	true,
+	false,
 	SUBSYSTEM_TYPE_OPTICALFLOW
 };
 /* rotation matrix for transformation of optical flow speed vectors */
@@ -369,6 +369,9 @@ int quat_flow_calculator_thread_main(int argc, char *argv[])
 	static uint64_t time_last_flow = 0; // in ms
 	static float dt = 0.0f; // seconds
 	static float quality = 0;
+	static uint64_t lastSonarUpdate = 0;
+	static float lastNEDz = 0.0f;
+	static uint8_t lastZValid = 0u;
 
 	/* subscribe to vehicle status, attitude, sensors and flow*/
 	struct actuator_armed_s armed;
@@ -546,11 +549,35 @@ int quat_flow_calculator_thread_main(int argc, char *argv[])
 						}
 					}
 
-					//Calculate altitude
-					quat_flow_calculate_altitude(vehicle_liftoff, armed.armed, sonar_new, &params, &filtered_flow, &att);
+					if(flow.ground_distance_m > 0.0f) {
+						// This means the flow contains sonar data
+						//Calculate altitude only
+						quat_flow_calculate_altitude(vehicle_liftoff, armed.armed, sonar_new, &params, &filtered_flow, &att);
+						filtered_flow.timestamp = hrt_absolute_time();
+						lastSonarUpdate = filtered_flow.timestamp;
+						if(		!isfinite(filtered_flow.ned_z) ||
+								!isfinite(filtered_flow.ned_vz) ) {
+							filtered_flow.ned_v_z_valid = false;
+							filtered_flow.ned_z_valid = false;
+						}
+
+						filtered_flow.ned_v_xy_valid = false;
+						filtered_flow.ned_xy_valid = false;
+						lastNEDz = filtered_flow.ned_z;
+						lastZValid = filtered_flow.ned_z_valid;
+						orb_publish(ORB_ID(filtered_bottom_flow), filtered_flow_pub, &filtered_flow);
+						continue;
+					}
+
+					//Check if there is a recent sonar result
+					if (hrt_absolute_time() - lastSonarUpdate > 1000000*10/100) {
+						// 10 Hz Sonar update expected
+						continue;
+					}
 
 					//Calculate flow velocity
-					uint8_t flow_accuracy = quat_flow_calculate_flow(&params,&local_position_data,&flow,filtered_flow.ned_z,filtered_flow.ned_z_valid,&att);
+
+					uint8_t flow_accuracy = quat_flow_calculate_flow(&params,&local_position_data,&flow,lastNEDz,lastZValid,&att);
 
 					/* calc dt between flow timestamps */
 					/* ignore first flow msg */
@@ -600,21 +627,33 @@ int quat_flow_calculator_thread_main(int argc, char *argv[])
 						quality >= (float)params.minimum_quality) {
 						flow_valid  = true;
 						flow_control_info.enabled = true;
+						flow_control_info.ok = true;
 						orb_publish(ORB_ID(subsystem_info), flow_subsystem_info_pub, &flow_control_info);
 					} else if (flow_valid && quality < (float)params.minimum_quality) {
 						flow_valid = false;
 						flow_control_info.enabled = false;
+						flow_control_info.ok = false;
 						orb_publish(ORB_ID(subsystem_info), flow_subsystem_info_pub, &flow_control_info);
 					}
 
-					/* always publish local position */
 					filtered_flow.timestamp = hrt_absolute_time();
-					filtered_flow.ned_x = !isfinite(filtered_flow.ned_x) ? 0.0f : filtered_flow.ned_x;
-					filtered_flow.ned_y = !isfinite(filtered_flow.ned_y) ? 0.0f : filtered_flow.ned_y;
-					filtered_flow.ned_z = !isfinite(filtered_flow.ned_z) ? 0.0f : filtered_flow.ned_z;
-					filtered_flow.ned_vx = !isfinite(filtered_flow.ned_vx) ? 0.0f : filtered_flow.ned_vx;
-					filtered_flow.ned_vy = !isfinite(filtered_flow.ned_vy) ? 0.0f : filtered_flow.ned_vy;
-					filtered_flow.ned_vz = !isfinite(filtered_flow.ned_vz) ? 0.0f : filtered_flow.ned_vz;
+					if(!isfinite(filtered_flow.ned_x) ||
+							!isfinite(filtered_flow.ned_y) ||
+							!isfinite(filtered_flow.ned_z) ||
+							!isfinite(filtered_flow.ned_vx) ||
+							!isfinite(filtered_flow.ned_vy) ||
+							!isfinite(filtered_flow.ned_vz) ) {
+						filtered_flow.ned_v_xy_valid = false;
+						filtered_flow.ned_v_z_valid = false;
+						filtered_flow.ned_xy_valid = false;
+						filtered_flow.ned_z_valid = false;
+					}
+
+					//Invalidate sonar result, because we only send flow here
+					filtered_flow.ned_v_z_valid = false;
+					filtered_flow.ned_z_valid = false;
+					filtered_flow.ned_vz = 0.0f;
+					filtered_flow.ned_z = 1.0f;
 
 					orb_publish(ORB_ID(filtered_bottom_flow), filtered_flow_pub, &filtered_flow);
 

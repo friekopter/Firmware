@@ -301,6 +301,7 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 	// Position setpoint
 	int local_pos_sp_sub = orb_subscribe(ORB_ID(vehicle_local_position_setpoint));
 	memset(&local_position_sp, 0, sizeof(local_position_sp));
+	local_position_sp.nav_cmd = NAV_CMD_LOITER_UNLIMITED;
 	// Sometimes also publish
 	orb_advert_t local_pos_sp_pub = orb_advertise(ORB_ID(vehicle_local_position_setpoint), &local_position_sp);
 
@@ -353,7 +354,10 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 	printf("[quat flow pos control] Init position control\n");
 	quat_flow_pos_runInit(&raw);
 	printf("[quat flow pos control] Init ukf with states:%d\n",ukf_params.ukf_states);
-	navFlowUkfInit(&ukf_params,&raw);
+	printf("[quat flow pos control] Inclination:%8.4f\n",raw.magnetometer_inclination);
+	navFlowUkfInit(&ukf_params,
+			&raw,
+			raw.magnetometer_inclination);
 	printf("[quat flow pos control] Init ukf done. States:%d,\t%d\n",navFlowUkfData.kf->S, navFlowUkfData.kf->V);
 	//sleep(1);
 	bool initCompleted = false;
@@ -412,7 +416,6 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 				gyX[k] = raw.gyro_rad_s[0];
 				gyY[k] = raw.gyro_rad_s[1];
 				gyZ[k] = raw.gyro_rad_s[2];
-
 				k = (k + 1) % UKF_GYO_AVG_NUM;
 
 				acc[0] = raw.accelerometer_m_s2[0];
@@ -426,24 +429,26 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 				utilNormalizeVec3(acc, acc);
 				utilNormalizeVec3(mag, mag);
 
-				utilQuatToMatrix(m, &UKF_FLOW_Q1, 1);
+				//utilQuatToMatrix(m, &UKF_FLOW_Q1, 1);
 
 				// rotate gravity to body frame of reference
-				utilRotateVecByRevMatrix(estAcc, navFlowUkfData.v0a, m);
+				utilRotateVectorByRevQuat(estAcc,navFlowUkfData.v0a,&UKF_FLOW_Q1);
+				//utilRotateVecByRevMatrix(estAcc, navFlowUkfData.v0a, m);
 
 				// rotate mags to body frame of reference
-				utilRotateVecByRevMatrix(estMag, navFlowUkfData.v0m, m);
+				utilRotateVectorByRevQuat(estMag,navFlowUkfData.v0m,&UKF_FLOW_Q1);
+				//utilRotateVecByRevMatrix(estMag, navFlowUkfData.v0m, m);
 
 				// measured error
-				rotError[0] = -(mag[2] * estMag[1] - estMag[2] * mag[1]) * 0.50f;
-				rotError[1] = -(mag[0] * estMag[2] - estMag[0] * mag[2]) * 0.50f;
-				rotError[2] = -(mag[1] * estMag[0] - estMag[1] * mag[0]) * 0.50f;
+				rotError[0] = -(mag[2] * estMag[1] - estMag[2] * mag[1]) * 0.5f;
+				rotError[1] = -(mag[0] * estMag[2] - estMag[0] * mag[2]) * 0.5f;
+				rotError[2] = -(mag[1] * estMag[0] - estMag[1] * mag[0]) * 0.5f;
 				//printf("[quat flow pos control] Estmag X: %8.4f\t Y: %8.4f\t Z: %8.4f\n", (double)estMag[0], (double)estMag[1], (double)estMag[2]);
 				//printf("[quat flow pos control] Mag X: %8.4f\t Y: %8.4f\t Z: %8.4f\n", (double)mag[0], (double)mag[1], (double)mag[2]);
-				//printf("[quat flow pos control] Mag error errorX: %8.4f\t errorY: %8.4f\t errorZ: %8.4f\n", (double)rotError[0], (double)rotError[1], (double)rotError[2]);
-				rotError[0] += -(acc[2] * estAcc[1] - estAcc[2] * acc[1]) * 1.0f;
-				rotError[1] += -(acc[0] * estAcc[2] - estAcc[0] * acc[2]) * 1.0f;
-				rotError[2] += -(acc[1] * estAcc[0] - estAcc[1] * acc[0]) * 1.0f;
+				printf("[quat flow pos control] Merr X: %8.4f\t Y: %8.4f\t Z: %8.4f\n", (double)rotError[0], (double)rotError[1], (double)rotError[2]);
+				rotError[0] += -(acc[2] * estAcc[1] - estAcc[2] * acc[1]) * 0.5f;
+				rotError[1] += -(acc[0] * estAcc[2] - estAcc[0] * acc[2]) * 0.5f;
+				rotError[2] += -(acc[1] * estAcc[0] - estAcc[1] * acc[0]) * 0.5f;
 
 
 			    utilRotateQuat(&UKF_FLOW_Q1, &UKF_FLOW_Q1, rotError, 0.1f);
@@ -457,8 +462,11 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 				//printf("[quat flow pos control] Init %d:\t std: %8.4f\t errorX: %8.4f\t errorY: %8.4f\t errorZ: %8.4f\n", l, (double)std, (double)rotError[0], (double)rotError[1], (double)rotError[2]);
 
 				l++;
-			    if (l > UKF_GYO_AVG_NUM*5 && std < 0.004f) {
+			    if (l > UKF_GYO_AVG_NUM*50 && std < 0.004f) {
 			    	initCompleted = true;
+			    	printf("[quat flow pos control] Mag X: %8.4f\t Y: %8.4f\t Z: %8.4f\n", (double)mag[0], (double)mag[1], (double)mag[2]);
+			    	printf("[quat flow pos control] Est X: %8.4f\t Y: %8.4f\t Z: %8.4f\n", (double)estMag[0], (double)estMag[1], (double)estMag[2]);
+					printf("[quat flow pos control] err X: %8.4f\t Y: %8.4f\t Z: %8.4f\n", (double)rotError[0], (double)rotError[1], (double)rotError[2]);
 				    arm_mean_f32(gyX, UKF_GYO_AVG_NUM, &UKF_FLOW_GYO_BIAS_X);
 				    arm_mean_f32(gyY, UKF_GYO_AVG_NUM, &UKF_FLOW_GYO_BIAS_Y);
 				    arm_mean_f32(gyZ, UKF_GYO_AVG_NUM, &UKF_FLOW_GYO_BIAS_Z);
@@ -688,11 +696,13 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 
 			if (fds[1].revents & POLLIN)
 			{
-
 				perf_begin(quat_flow_position_perf);
 				orb_copy(ORB_ID(filtered_bottom_flow), filtered_bottom_flow_sub, &filtered_bottom_flow_data);
-				navFlowUkfSonarUpdate(&filtered_bottom_flow_data,raw.baro_alt_meter,&control_mode,&ukf_params);
-				navFlowUkfFlowUpdate(&filtered_bottom_flow_data,&control_mode,&ukf_params);
+				if(filtered_bottom_flow_data.ned_z < 0.0f) {
+					navFlowUkfSonarUpdate(&filtered_bottom_flow_data,raw.baro_alt_meter,&control_mode,&ukf_params);
+				} else {
+					navFlowUkfFlowUpdate(&filtered_bottom_flow_data,&control_mode,&ukf_params);
+				}
 				////navFlowUkfFlowPosUpate(&filtered_bottom_flow_data,&control_mode,&ukf_params);
 				////navFlowUkfFlowVelUpate(&filtered_bottom_flow_data,&control_mode,&ukf_params);
 				perf_end(quat_flow_position_perf);
@@ -706,7 +716,8 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 			{
 				// only in case of auto we listen for the setpoint, otherwise we self calculate it
 				orb_copy(ORB_ID(vehicle_local_position_setpoint), local_pos_sp_sub, &local_position_sp);
-				printf("[quat flow pos control] set local position setpoint");
+				printf("[quat flow pos control] set local position setpoint %d, %8.4f, %8.4f, %8.4f, %8.4f",local_position_sp.nav_cmd,
+						local_position_sp.param1, local_position_sp.param2, local_position_sp.param3, local_position_sp.param4);
 			}
 			if (!(loopcounter % 100) && !control_mode.flag_armed ) {
 			    static int axis = 0;
@@ -770,12 +781,7 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 			utilRotateVecByRevMatrix2(tilt_body,tilt,att.R);
 			att_sp.roll_body   = +tilt_body[1] * DEG_TO_RAD;
 			att_sp.pitch_body  = -tilt_body[0] * DEG_TO_RAD;
-			// speed down is negative, if holdSpeed > -UKF_FLOW_VELD -> thrust positive
-			// pid gets a minus
-			att_sp.thrust = pidUpdate(navFlowData.altSpeedPID, -navFlowData.holdSpeedAlt, -local_position_data.vz);
-			if ( att_sp.thrust < 0.0f ) {
-				att_sp.thrust = 0.0f;
-			}
+			att_sp.thrust = navFlowData.autoThrust;
 			if(control_mode.flag_control_manual_enabled) {
 				// yaw control comes from autopilot
 				att_sp.yaw_body = navFlowData.holdHeading;

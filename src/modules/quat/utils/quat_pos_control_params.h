@@ -49,6 +49,7 @@
     struct quat_position_control_NAV_params {
         	float nav_max_speed,
         	nav_max_decent,
+        	nav_takeoff_thrust,
         	nav_speed_p,
         	nav_speed_i,
         	nav_speed_pm,
@@ -117,6 +118,7 @@
     struct quat_position_control_NAV_param_handles {
     	param_t nav_max_speed,
         	nav_max_decent,
+        	nav_takeoff_thrust,
         	nav_speed_p,
         	nav_speed_i,
         	nav_speed_pm,
