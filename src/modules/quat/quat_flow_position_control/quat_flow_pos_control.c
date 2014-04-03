@@ -696,12 +696,20 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 
 			if (fds[1].revents & POLLIN)
 			{
+				static uint8_t count = 0;
 				perf_begin(quat_flow_position_perf);
 				orb_copy(ORB_ID(filtered_bottom_flow), filtered_bottom_flow_sub, &filtered_bottom_flow_data);
-				if(filtered_bottom_flow_data.ned_z < 0.0f) {
-					navFlowUkfSonarUpdate(&filtered_bottom_flow_data,raw.baro_alt_meter,&control_mode,&ukf_params);
+				if(!control_mode.flag_armed) {
+					if(!(count++ % 2)){
+						navFlowUkfFlowUpdate(&filtered_bottom_flow_data,dt,&control_mode,&ukf_params);
+					} else {
+						navFlowUkfSonarUpdate(&filtered_bottom_flow_data,raw.baro_alt_meter,&control_mode,&ukf_params);
+					}
+				}
+				else if(filtered_bottom_flow_data.ned_xy_valid > 0) {
+					navFlowUkfFlowUpdate(&filtered_bottom_flow_data,dt,&control_mode,&ukf_params);
 				} else {
-					navFlowUkfFlowUpdate(&filtered_bottom_flow_data,&control_mode,&ukf_params);
+					navFlowUkfSonarUpdate(&filtered_bottom_flow_data,raw.baro_alt_meter,&control_mode,&ukf_params);
 				}
 				////navFlowUkfFlowPosUpate(&filtered_bottom_flow_data,&control_mode,&ukf_params);
 				////navFlowUkfFlowVelUpate(&filtered_bottom_flow_data,&control_mode,&ukf_params);
@@ -710,6 +718,8 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 			else if (fds[5].revents & POLLIN)
 			{
 				orb_copy(ORB_ID(vehicle_gps_position), gps_sub, &gps_data);
+
+
 			}
 
 			if (control_mode.flag_control_auto_enabled && (fds[6].revents & POLLIN))
@@ -852,6 +862,9 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 
 			// +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 			// Do some logging
+			/*if(!(printcounter%20)){
+				printf("[qfpc] vxy valid %d,filtered_bottom_flow_data.ned_xy_valid);
+			}*/
 			if (debug == true && !((printcounter+10) % 101)) {
 				printf("local z: %8.4fm hold alt: %8.4f\n",local_position_data.z,navFlowData.holdAlt);
 				printf("local vz: %8.4fm hold speed: %8.4f\n",navFlowData.holdSpeedAlt, local_position_data.vz);

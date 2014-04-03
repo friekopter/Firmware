@@ -8,6 +8,7 @@
 #include <uORB/topics/vehicle_control_mode.h>
 #include <uORB/topics/vehicle_status.h>
 #include <uORB/topics/vehicle_gps_position.h>
+#include <uORB/topics/vehicle_local_position.h>
 #include <uORB/topics/sensor_combined.h>
 #include <uORB/topics/filtered_bottom_flow.h>
 #include <quat/utils/quat_pos_control_params.h>
@@ -101,10 +102,12 @@ extern void navFlowUkfFlowVelUpate(
 		const struct quat_position_control_UKF_params* params);
 extern void navFlowUkfFlowUpdate(
 		const struct filtered_bottom_flow_s* bottom_flow,
+		const float dt,
 		const struct vehicle_control_mode_s *control_mode,
 		const struct quat_position_control_UKF_params* params);
 extern void navFlowUkfGpsPosUpate(
 		const struct vehicle_gps_position_s* gps_position,
+		struct vehicle_local_position_s* local_position_data,
 		float dt,
 		const struct vehicle_control_mode_s *control_mode,
 		const struct quat_position_control_UKF_params* params);

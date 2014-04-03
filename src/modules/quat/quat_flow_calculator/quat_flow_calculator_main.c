@@ -262,6 +262,7 @@ void quat_flow_calculate_altitude(bool vehicle_liftoff,
 	static uint64_t time_sonar_unvalidated = 0; // in us
 	static float sonar_last_measurement = 0.0f;
 	static uint64_t sonar_last_timestamp = 0;
+	uint64_t current_timestamp = hrt_absolute_time();
 	static float sonar_last = 0.0f;
 	static float sonar_lp = 0.0f;
 	static float sonar_speed = 0.0f;
@@ -278,18 +279,28 @@ void quat_flow_calculate_altitude(bool vehicle_liftoff,
 	else if(sonar_new <= 0.3f || sonar_new >= 4.0f) {
 		time_sonar_validated = 0;
 		if(time_sonar_unvalidated == 0) {
-			time_sonar_unvalidated = filtered_flow->timestamp;
-		} else if (filtered_flow->timestamp - time_sonar_unvalidated > 200000) {
+			time_sonar_unvalidated = current_timestamp;
+		} else if (current_timestamp - time_sonar_unvalidated > 500 * 1000) {
+			// 500 ms delay
 			sonar_valid = false;
 		}
 	}
 	else{
 		time_sonar_unvalidated = 0;
 		if(time_sonar_validated == 0) {
-			time_sonar_validated = filtered_flow->timestamp;
-		} else if (filtered_flow->timestamp - time_sonar_validated > 2000000) {
+			time_sonar_validated = current_timestamp;
+		} else if (current_timestamp - time_sonar_validated > 1000 * 1000) {
+			// 1 sec delay
 			sonar_valid = true;
 		}
+	}
+
+	/* simple lowpass sonar filtering */
+	/* if new value or with sonar update frequency */
+	if (sonar_new != sonar_last || counter++ % 10 == 0)
+	{
+		sonar_lp = 0.05f * sonar_new + 0.95f * sonar_lp;
+		sonar_last = sonar_new;
 	}
 
 	if ((!sonar_valid || att->R[2][2] <= 0.7f) &&
@@ -302,14 +313,6 @@ void quat_flow_calculate_altitude(bool vehicle_liftoff,
 	}
 	else
 	{
-		/* simple lowpass sonar filtering */
-		/* if new value or with sonar update frequency */
-		if (sonar_new != sonar_last || counter++ % 10 == 0)
-		{
-			sonar_lp = 0.05f * sonar_new + 0.95f * sonar_lp;
-			sonar_last = sonar_new;
-		}
-
 		float height_diff = sonar_new - sonar_lp;
 
 		/* if over 1/2m spike follow lowpass */
@@ -326,7 +329,7 @@ void quat_flow_calculate_altitude(bool vehicle_liftoff,
 		}
 		// Velocity
 		// Only calculate if last measurement was valid
-		float time_since_last_sonar = ((float)(filtered_flow->timestamp - sonar_last_timestamp))/1000000.0f;
+		float time_since_last_sonar = ((float)(current_timestamp - sonar_last_timestamp))/1000000.0f;
 		float ned_z_lp = -sonar_lp * att->R[2][2];
 		if(debug) printf("..m:%8.4f\tv:%8.4f\n", filtered_flow->ned_z, time_since_last_sonar);
 
@@ -350,7 +353,7 @@ void quat_flow_calculate_altitude(bool vehicle_liftoff,
 						time_since_last_sonar);
 			}
 			filtered_flow->sonar_counter++;
-			sonar_last_timestamp = filtered_flow->timestamp;
+			sonar_last_timestamp = current_timestamp;
 			sonar_last_measurement = ned_z_lp;
 		}
 		filtered_flow->ned_z_valid = 255;
@@ -369,9 +372,6 @@ int quat_flow_calculator_thread_main(int argc, char *argv[])
 	static uint64_t time_last_flow = 0; // in ms
 	static float dt = 0.0f; // seconds
 	static float quality = 0;
-	static uint64_t lastSonarUpdate = 0;
-	static float lastNEDz = 0.0f;
-	static uint8_t lastZValid = 0u;
 
 	/* subscribe to vehicle status, attitude, sensors and flow*/
 	struct actuator_armed_s armed;
@@ -549,11 +549,11 @@ int quat_flow_calculator_thread_main(int argc, char *argv[])
 						}
 					}
 
-					if(flow.ground_distance_m > 0.0f) {
+					/*if(flow.ground_distance_m > 0.0f) {
 						// This means the flow contains sonar data
-						//Calculate altitude only
+						//Calculate altitude only*/
 						quat_flow_calculate_altitude(vehicle_liftoff, armed.armed, sonar_new, &params, &filtered_flow, &att);
-						filtered_flow.timestamp = hrt_absolute_time();
+						/*filtered_flow.timestamp = hrt_absolute_time();
 						lastSonarUpdate = filtered_flow.timestamp;
 						if(		!isfinite(filtered_flow.ned_z) ||
 								!isfinite(filtered_flow.ned_vz) ) {
@@ -567,17 +567,11 @@ int quat_flow_calculator_thread_main(int argc, char *argv[])
 						lastZValid = filtered_flow.ned_z_valid;
 						orb_publish(ORB_ID(filtered_bottom_flow), filtered_flow_pub, &filtered_flow);
 						continue;
-					}
-
-					//Check if there is a recent sonar result
-					if (hrt_absolute_time() - lastSonarUpdate > 1000000*10/100) {
-						// 10 Hz Sonar update expected
-						continue;
-					}
+					}*/
 
 					//Calculate flow velocity
 
-					uint8_t flow_accuracy = quat_flow_calculate_flow(&params,&local_position_data,&flow,lastNEDz,lastZValid,&att);
+					uint8_t flow_accuracy = quat_flow_calculate_flow(&params,&local_position_data,&flow,filtered_flow.ned_z,filtered_flow.ned_z_valid,&att);
 
 					/* calc dt between flow timestamps */
 					/* ignore first flow msg */
@@ -648,12 +642,6 @@ int quat_flow_calculator_thread_main(int argc, char *argv[])
 						filtered_flow.ned_xy_valid = false;
 						filtered_flow.ned_z_valid = false;
 					}
-
-					//Invalidate sonar result, because we only send flow here
-					filtered_flow.ned_v_z_valid = false;
-					filtered_flow.ned_z_valid = false;
-					filtered_flow.ned_vz = 0.0f;
-					filtered_flow.ned_z = 1.0f;
 
 					orb_publish(ORB_ID(filtered_bottom_flow), filtered_flow_pub, &filtered_flow);
 
