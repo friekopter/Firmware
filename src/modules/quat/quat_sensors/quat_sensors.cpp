@@ -1093,7 +1093,7 @@ Quat_Sensors::correctMagMeasurement(struct mag_report &mag_report)
 	// rates
 	x = +(+mag_report.x + _parameters.mag_bias[0] + _parameters.mag_bias1[0]*temp + _parameters.mag_bias2[0]*temp2 + _parameters.mag_bias3[0]*temp3);
 	y = +(+mag_report.y + _parameters.mag_bias[1] + _parameters.mag_bias1[1]*temp + _parameters.mag_bias2[1]*temp2 + _parameters.mag_bias3[1]*temp3);
-	z = -(+mag_report.z + _parameters.mag_bias[2] + _parameters.mag_bias1[2]*temp + _parameters.mag_bias2[2]*temp2 + _parameters.mag_bias3[2]*temp3);
+	z = +(+mag_report.z + _parameters.mag_bias[2] + _parameters.mag_bias1[2]*temp + _parameters.mag_bias2[2]*temp2 + _parameters.mag_bias3[2]*temp3);
 
 	a = x + y*_parameters.mag_align_xy + z*_parameters.mag_align_xz;
 	b = x*_parameters.mag_align_yx + y + z*_parameters.mag_align_yz;
@@ -1142,7 +1142,7 @@ Quat_Sensors::gyro_poll(struct sensor_combined_s &raw)
 
 		orb_copy(ORB_ID(sensor_gyro), _gyro_sub, &gyro_report);
 
-		if(!raw.gyro_counter % 100){
+		if(!(raw.gyro_counter % 100)){
 			temp = gyro_report.temperature - IMU_ROOM_TEMP;
 			temp2 = temp*temp;
 			temp3 = temp2*temp;
@@ -1198,8 +1198,8 @@ Quat_Sensors::mag_poll(struct sensor_combined_s &raw)
 
 		static uint16_t printcounter = 0;
 	    if (!(printcounter % 200)){
-	    	printf("mr: %8.4f %8.4f %8.4f\nmc: %8.4f %8.4f %8.4f\n",
-	    			magRaw[0],magRaw[1],magRaw[2],
+	    	printf("mr: %8.4f %8.4f %8.4f %8.4f\nmc: %8.4f %8.4f %8.4f\n",
+	    			magRaw[0],magRaw[1],magRaw[2],temp,
 	    			mag_report.x, mag_report.y, mag_report.z
 	    			);
 	    }

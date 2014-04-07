@@ -41,7 +41,9 @@
     	ukf_pos_delay,
     	ukf_vel_delay,
     	ukf_flow_pos_delay,
-    	ukf_flow_vel_delay;
+    	ukf_flow_vel_delay,
+    	ukf_sonar_pos_delay,
+    	ukf_sonar_vel_delay;
     	int32_t ukf_sens_hist,
     	ukf_raw_intv,
     	ukf_states,
@@ -113,6 +115,8 @@
 		ukf_vel_delay,
     	ukf_flow_pos_delay,
     	ukf_flow_vel_delay,
+    	ukf_sonar_pos_delay,
+    	ukf_sonar_vel_delay,
     	ukf_sens_hist,
     	ukf_raw_intv,
     	ukf_states,

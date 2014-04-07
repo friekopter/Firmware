@@ -464,12 +464,16 @@ void navFlowCalculateOffsets(
 
 void navFlowUkfSonarUpdate(
 		const struct filtered_bottom_flow_s* bottom_flow,
+		const float dt,
 		float baroAltitude,
 		const struct vehicle_control_mode_s *control_mode,
 		const struct quat_position_control_UKF_params* params) {
 
     float y[2];
     float noise[2];
+    float posDelta, velDelta;
+    posDelta = 0.0f;
+    velDelta = 0.0f;
     //static uint32_t sonarCount = 0;
     //static uint8_t printcounter = 0;
 
@@ -482,11 +486,32 @@ void navFlowUkfSonarUpdate(
 	const float distanceToEarth = -bottom_flow->ned_z; //Positive value
 	if (UKF_FLOW_CALCULATES_ALTITUDE){
 		if(bottom_flow->ned_z_valid == 255) {
+			// determine how far back this sonar position update came from
+			int histIndexPos = (hrt_absolute_time() - (bottom_flow->timestamp + params->ukf_sonar_pos_delay)) / (int)(1e6f * dt);
+			histIndexPos = navFlowUkfData.navHistIndex - histIndexPos;
+			if (histIndexPos < 0) histIndexPos += UKF_HIST;
+			if (histIndexPos < 0 || histIndexPos >= UKF_HIST) histIndexPos = 0;
+			int histIndexVel = (hrt_absolute_time() - (bottom_flow->timestamp + params->ukf_sonar_vel_delay)) / (int)(1e6f * dt);
+			histIndexVel = navFlowUkfData.navHistIndex - histIndexVel;
+			if (histIndexVel < 0) histIndexVel += UKF_HIST;
+			if (histIndexVel < 0 || histIndexVel >= UKF_HIST) histIndexVel = 0;
+			// calculate delta from current position
+			posDelta = UKF_FLOW_POSD - navFlowUkfData.posD[histIndexPos];
+			// calculate delta from current velocity
+			velDelta = UKF_FLOW_VELD - navFlowUkfData.velD[histIndexVel];
+			// set current position state to historic data
+			UKF_FLOW_POSD = navFlowUkfData.posD[histIndexPos];
+			// set current velocity state to historic data
+			UKF_FLOW_VELD = navFlowUkfData.velD[histIndexVel];
+
 			y[0] = bottom_flow->ned_vz;
 			y[1] = -(distanceToEarth + navFlowUkfData.sonarAltOffset);
 			noise[0] = params->ukf_flow_vel_n;
 			noise[1] = params->ukf_flow_alt_n;
 			srcdkfMeasurementUpdate(navFlowUkfData.kf, 0, y, 2, 2, noise, navFlowUkfAltitudeVelocityUpdate);
+
+			UKF_FLOW_POSD += posDelta;
+			UKF_FLOW_VELD += velDelta;
 			/*if (!(printcounter % 10)) printf("Seas Up: %8.4f, posd: %8.4f, baroalt: %8.4f\n",y[1],UKF_FLOW_POSD, baroAltitude);
 			printcounter++;*/
 		} else {
@@ -584,9 +609,13 @@ void navFlowUkfFlowUpdate(
     float y[4];
     float noise[4];
     float posDelta[3];
+    float velDelta[3];
     posDelta[0] = 0.0f;
     posDelta[1] = 0.0f;
     posDelta[2] = 0.0f;
+    velDelta[0] = 0.0f;
+    velDelta[1] = 0.0f;
+    velDelta[2] = 0.0f;
 	static float zeroPositionX = 0.0f;
 	static float zeroPositionY = 0.0f;
 	if(!UKF_FLOW_CALCULATES_POSITION){
@@ -607,11 +636,19 @@ void navFlowUkfFlowUpdate(
 		posDelta[0] = UKF_FLOW_POSX - navFlowUkfData.posX[histIndexPos];
 		posDelta[1] = UKF_FLOW_POSY - navFlowUkfData.posY[histIndexPos];
 		posDelta[2] = UKF_FLOW_POSD - navFlowUkfData.posD[histIndexPos];
+		// calculate delta from current velocity
+		velDelta[0] = UKF_FLOW_VELX - navFlowUkfData.velX[histIndexVel];
+		velDelta[1] = UKF_FLOW_VELY - navFlowUkfData.velY[histIndexVel];
+		velDelta[2] = UKF_FLOW_VELD - navFlowUkfData.velD[histIndexVel];
 
 		// set current position state to historic data
 		UKF_FLOW_POSX = navFlowUkfData.posX[histIndexPos];
 		UKF_FLOW_POSY = navFlowUkfData.posY[histIndexPos];
 		UKF_FLOW_POSD = navFlowUkfData.posD[histIndexPos];
+		// set current velocity state to historic data
+		UKF_FLOW_VELX = navFlowUkfData.velX[histIndexVel];
+		UKF_FLOW_VELY = navFlowUkfData.velY[histIndexVel];
+		UKF_FLOW_VELD = navFlowUkfData.velD[histIndexVel];
 	}
 
 	if (control_mode->flag_armed) {
@@ -630,8 +667,6 @@ void navFlowUkfFlowUpdate(
 	    	noise[1] = noise[0];
 			noise[2] = noise[0];
 			noise[3] = noise[0];
-
-
 	    }
 	    else {
 	    	y[0] = 0.0f;
@@ -651,18 +686,21 @@ void navFlowUkfFlowUpdate(
         y[1] = 0.0f;
 		y[2] = 0.0f;
 		y[3] = 0.0f;
-    	noise[0] = 1e-5f;
+    	noise[0] = 1e-2f;
     	noise[1] = noise[0];
-		noise[2] = 1e-7f;
+		noise[2] = 1e-2f;
 		noise[3] = noise[2];
 		zeroPositionX = bottom_flow->ned_x - UKF_FLOW_POSX;
 		zeroPositionY = bottom_flow->ned_y - UKF_FLOW_POSY;
 	}
 	srcdkfMeasurementUpdate(navFlowUkfData.kf, 0, y, 4, 4, noise, navFlowUkfVelocityPositionUpdate);
-    // add the historic position delta back to the current state
+    // add the historic  delta back to the current state
 	UKF_FLOW_POSX += posDelta[0];
 	UKF_FLOW_POSY += posDelta[1];
 	UKF_FLOW_POSD += posDelta[2];
+	UKF_FLOW_VELX += velDelta[0];
+	UKF_FLOW_VELY += velDelta[1];
+	UKF_FLOW_VELD += velDelta[2];
 }
 
 void navFlowUkfGpsPosUpate(
@@ -804,7 +842,6 @@ void navFlowUkfGpsVelUpate(
 		UKF_FLOW_VELX += velDelta[0];
 		UKF_FLOW_VELY += velDelta[1];
 		UKF_FLOW_VELD += velDelta[2];
-
     }
 }
 

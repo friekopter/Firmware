@@ -89,6 +89,7 @@ extern void navFlowDoMagUpdate(float magX, float magY, float magZ,
 		 const struct quat_position_control_UKF_params* params);
 extern void navFlowUkfSonarUpdate(
 		const struct filtered_bottom_flow_s* bottom_flow,
+		const float dt,
 		float baroAltitude,
 		const struct vehicle_control_mode_s *control_mode,
 		const struct quat_position_control_UKF_params* params);

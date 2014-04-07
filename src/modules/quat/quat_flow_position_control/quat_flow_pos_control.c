@@ -462,7 +462,7 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 				//printf("[quat flow pos control] Init %d:\t std: %8.4f\t errorX: %8.4f\t errorY: %8.4f\t errorZ: %8.4f\n", l, (double)std, (double)rotError[0], (double)rotError[1], (double)rotError[2]);
 
 				l++;
-			    if (l > UKF_GYO_AVG_NUM*50 && std < 0.004f) {
+			    if (l > UKF_GYO_AVG_NUM*10 && std < 0.004f) {
 			    	initCompleted = true;
 			    	printf("[quat flow pos control] Mag X: %8.4f\t Y: %8.4f\t Z: %8.4f\n", (double)mag[0], (double)mag[1], (double)mag[2]);
 			    	printf("[quat flow pos control] Est X: %8.4f\t Y: %8.4f\t Z: %8.4f\n", (double)estMag[0], (double)estMag[1], (double)estMag[2]);
@@ -703,13 +703,13 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 					if(!(count++ % 2)){
 						navFlowUkfFlowUpdate(&filtered_bottom_flow_data,dt,&control_mode,&ukf_params);
 					} else {
-						navFlowUkfSonarUpdate(&filtered_bottom_flow_data,raw.baro_alt_meter,&control_mode,&ukf_params);
+						navFlowUkfSonarUpdate(&filtered_bottom_flow_data,dt,raw.baro_alt_meter,&control_mode,&ukf_params);
 					}
 				}
 				else if(filtered_bottom_flow_data.ned_xy_valid > 0) {
 					navFlowUkfFlowUpdate(&filtered_bottom_flow_data,dt,&control_mode,&ukf_params);
 				} else {
-					navFlowUkfSonarUpdate(&filtered_bottom_flow_data,raw.baro_alt_meter,&control_mode,&ukf_params);
+					navFlowUkfSonarUpdate(&filtered_bottom_flow_data,dt,raw.baro_alt_meter,&control_mode,&ukf_params);
 				}
 				////navFlowUkfFlowPosUpate(&filtered_bottom_flow_data,&control_mode,&ukf_params);
 				////navFlowUkfFlowVelUpate(&filtered_bottom_flow_data,&control_mode,&ukf_params);
@@ -717,9 +717,16 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 			}
 			else if (fds[5].revents & POLLIN)
 			{
+				static uint64_t timestamp_velocity = 0;
+				static uint64_t timestamp_position = 0;
 				orb_copy(ORB_ID(vehicle_gps_position), gps_sub, &gps_data);
-
-
+				if(gps_data.timestamp_position > timestamp_position) {
+					timestamp_position = gps_data.timestamp_position;
+					//navFlowUkfGpsPosUpate(&gps_data,&local_position_data,dt,&control_mode,&ukf_params);
+				} else if(gps_data.timestamp_velocity > timestamp_velocity) {
+					timestamp_velocity = gps_data.timestamp_velocity;
+					//navFlowUkfGpsVelUpate(&gps_data,dt,&control_mode,&ukf_params);
+				}
 			}
 
 			if (control_mode.flag_control_auto_enabled && (fds[6].revents & POLLIN))
