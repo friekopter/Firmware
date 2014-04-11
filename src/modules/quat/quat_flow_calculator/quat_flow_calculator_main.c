@@ -341,7 +341,7 @@ void quat_flow_calculate_altitude(bool vehicle_liftoff,
 				float distance = ned_z_lp - sonar_last_measurement;
 				sonar_speed = distance/time_since_last_sonar;
 				// smooth
-				filtered_flow->ned_vz += (sonar_speed - filtered_flow->ned_vz) * 1.0f;
+				filtered_flow->ned_vz += (sonar_speed - filtered_flow->ned_vz) * 0.1f;
 				if(debug) printf("m:%8.4f\tl:%8.4f\td:%8.4f\tt:%8.4f\tv:%8.4f\n",
 						filtered_flow->ned_z, sonar_last_measurement, distance,
 						time_since_last_sonar, filtered_flow->ned_vz);
