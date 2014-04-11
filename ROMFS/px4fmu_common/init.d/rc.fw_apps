@@ -1,0 +1,15 @@
+#!nsh
+#
+# Standard apps for fixed wing
+#
+
+#
+# Start the attitude and position estimator
+#
+fw_att_pos_estimator start
+
+#
+# Start attitude controller
+#
+fw_att_control start
+fw_pos_control_l1 start
