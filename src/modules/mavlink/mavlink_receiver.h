@@ -65,36 +65,11 @@
 #include <uORB/topics/manual_control_setpoint.h>
 #include <uORB/topics/telemetry_status.h>
 #include <uORB/topics/debug_key_value.h>
-#include <uORB/topics/ukf_state_vector.h>
 #include <uORB/topics/airspeed.h>
 #include <uORB/topics/battery_status.h>
 
-(??)struct mavlink_subscriptions {
-(??)	int sensor_sub;
-(??)	int att_sub;
-(??)	int global_pos_sub;
-(??)	int act_0_sub;
-(??)	int act_1_sub;
-(??)	int act_2_sub;
-(??)	int act_3_sub;
-(??)	int gps_sub;
-(??)	int man_control_sp_sub;
-(??)	int safety_sub;
-(??)	int actuators_sub;
-(??)	int armed_sub;
-(??)	int actuators_effective_sub;
-(??)	int local_pos_sub;
-(??)	int spa_sub;
-(??)	int spl_sub;
-(??)	int spg_sub;
-(??)	int debug_key_value;
-(??)	int input_rc_sub;
-(??)	int optical_flow;
-(??)	int rates_setpoint_sub;
-(??)	int home_sub;
-(??)	int airspeed_sub;
-(??)	int navigation_capabilities_sub;
-(??)};
+
+class Mavlink;
 
 class MavlinkReceiver
 {

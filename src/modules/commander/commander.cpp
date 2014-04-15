@@ -520,7 +520,7 @@ bool handle_command(struct vehicle_status_s *status, const struct safety_s *safe
 
 			break;
 		}
-
+/*
 	case VEHICLE_CMD_NAV_TAKEOFF: {
 			if (armed->armed) {
 				transition_result_t nav_res = navigation_state_transition(status, NAVIGATION_STATE_AUTO_TAKEOFF, control_mode, mavlink_fd);
@@ -537,7 +537,7 @@ bool handle_command(struct vehicle_status_s *status, const struct safety_s *safe
 				}
 
 			} else {
-				/* reject TAKEOFF not armed */
+				// reject TAKEOFF not armed
 				result = VEHICLE_CMD_RESULT_TEMPORARILY_REJECTED;
 			}
 
@@ -560,13 +560,13 @@ bool handle_command(struct vehicle_status_s *status, const struct safety_s *safe
 				}
 
 			} else {
-				/* reject LAND not armed */
+				// reject LAND not armed
 				result = VEHICLE_CMD_RESULT_TEMPORARILY_REJECTED;
 			}
 
 			break;
 	}
-
+*/
 	case VEHICLE_CMD_COMPONENT_ARM_DISARM: {
 			transition_result_t arming_res = TRANSITION_NOT_CHANGED;
 

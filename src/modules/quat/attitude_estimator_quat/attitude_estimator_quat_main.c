@@ -199,7 +199,6 @@ int attitude_estimator_quat_thread_main(int argc, char *argv[])
 	thread_running = true;
 
 	/* keep track of sensor updates */
-	uint32_t sensor_last_count[3] = {0, 0, 0};
 	uint64_t sensor_last_timestamp[3] = {0, 0, 0};
 	float sensor_update_hz[3] = {0.0f, 0.0f, 0.0f};
 
@@ -298,39 +297,36 @@ int attitude_estimator_quat_thread_main(int argc, char *argv[])
 				uint8_t update_vect[3] = {0, 0, 0};
 
 				/* Fill in gyro measurements */
-				if (sensor_last_count[0] != raw.gyro_counter) {
+				if (sensor_last_timestamp[0] != raw.gyro_timestamp) {
 					update_vect[0] = 1;
-					sensor_last_count[0] = raw.gyro_counter;
+					sensor_last_timestamp[0] = raw.gyro_timestamp;
 					uint64_t sensor_dt = raw.timestamp - sensor_last_timestamp[0];
 					if(sensor_dt == 0) sensor_update_hz[0] = 0;
 					else sensor_update_hz[0] = 1e6f / sensor_dt;
-					sensor_last_timestamp[0] = raw.timestamp;
 				}
 				z_k[0] =  raw.gyro_rad_s[0];
 				z_k[1] =  raw.gyro_rad_s[1];
 				z_k[2] =  raw.gyro_rad_s[2];
 
 				/* update accelerometer measurements */
-				if (sensor_last_count[1] != raw.accelerometer_counter) {
+				if (sensor_last_timestamp[1] != raw.accelerometer_timestamp) {
 					update_vect[1] = 1;
-					sensor_last_count[1] = raw.accelerometer_counter;
+					sensor_last_timestamp[1] = raw.accelerometer_timestamp;
 					uint64_t sensor_dt = raw.timestamp - sensor_last_timestamp[1];
 					if(sensor_dt == 0) sensor_update_hz[1] = 0;
 					else sensor_update_hz[1] = 1e6f / sensor_dt;
-					sensor_last_timestamp[1] = raw.timestamp;
 				}
 				z_k[3] = raw.accelerometer_m_s2[0];
 				z_k[4] = raw.accelerometer_m_s2[1];
 				z_k[5] = raw.accelerometer_m_s2[2];
 
 				/* update magnetometer measurements */
-				if (sensor_last_count[2] != raw.magnetometer_counter) {
+				if (sensor_last_timestamp[2] != raw.magnetometer_timestamp) {
 					update_vect[2] = 1;
-					sensor_last_count[2] = raw.magnetometer_counter;
+					sensor_last_timestamp[2] = raw.magnetometer_timestamp;
 					uint64_t sensor_dt = raw.timestamp - sensor_last_timestamp[2];
 					if(sensor_dt == 0) sensor_update_hz[2] = 0;
 					else sensor_update_hz[2] = 1e6f / sensor_dt;
-					sensor_last_timestamp[2] = raw.timestamp;
 				}
 				z_k[6] = raw.magnetometer_ga[0];
 				z_k[7] = raw.magnetometer_ga[1];

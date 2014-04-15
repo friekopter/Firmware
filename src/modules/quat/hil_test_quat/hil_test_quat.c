@@ -72,7 +72,7 @@
 #include <uORB/topics/vehicle_command.h>
 #include <uORB/topics/vehicle_local_position.h>
 #include <uORB/topics/vehicle_vicon_position.h>
-#include <uORB/topics/vehicle_global_position_setpoint.h>
+#include <uORB/topics/vehicle_global_velocity_setpoint.h>
 #include <uORB/topics/vehicle_attitude_setpoint.h>
 #include <uORB/topics/optical_flow.h>
 #include <uORB/topics/actuator_outputs.h>
@@ -261,7 +261,7 @@ static void *uorb_receiveloop(void *arg)
 
 	union {
 		struct vehicle_attitude_s att;
-		struct vehicle_global_position_s global;
+		struct vehicle_global_velocity_setpoint_s global;
 		struct actuator_outputs_s actuators;
 	} buf;
 
@@ -317,19 +317,19 @@ static void *uorb_receiveloop(void *arg)
 			if (fds[1].revents & POLLIN) {
 				/* copy global position data into local buffer */
 				orb_copy(ORB_ID(vehicle_global_position), subs->global_pos_sub, &buf.global);
-				uint64_t timestamp = buf.global.timestamp;
-				int32_t lat = buf.global.lat;
-				int32_t lon = buf.global.lon;
-				int32_t alt = (int32_t)(buf.global.alt*1000);
-				int32_t relative_alt = (int32_t)(buf.global.relative_alt * 1000.0f);
+				//uint64_t timestamp = buf.global.timestamp;
+				//int32_t lat = buf.global.lat;
+				//int32_t lon = buf.global.lon;
+				//int32_t alt = (int32_t)(buf.global.alt*1000);
+				//int32_t relative_alt = (int32_t)(buf.global.relative_alt * 1000.0f);
 				int16_t vx = (int16_t)(buf.global.vx * 100.0f);
 				int16_t vy = (int16_t)(buf.global.vy * 100.0f);
 				int16_t vz = (int16_t)(buf.global.vz * 100.0f);
 				/* heading in degrees * 10, from 0 to 36.000) */
-				uint16_t hdg = (buf.global.yaw / M_PI_F) * (180.0f * 10.0f) + (180.0f * 10.0f);
+				//uint16_t hdg = (buf.global.yaw / M_PI_F) * (180.0f * 10.0f) + (180.0f * 10.0f);
 
-				mavlink_msg_global_position_int_send(chan, timestamp / 1000, lat, lon, alt,
-					relative_alt, vx, vy, vz, hdg);
+				//mavlink_msg_global_position_int_send(chan, timestamp / 1000, lat, lon, alt,
+					//relative_alt, vx, vy, vz, hdg);
 			}
 
 			/* --- VEHICLE LOCAL POSITION --- */
@@ -367,7 +367,7 @@ void handleMessage(mavlink_message_t *msg)
 	{
 		mavlink_scaled_imu_t imu;
 		mavlink_msg_scaled_imu_decode(msg, &imu);
-
+		uint64_t timestamp = hrt_absolute_time();
 		/* Copy the content of mavlink_command_long_t cmd_mavlink into command_t cmd */
 		accel_report.x = imu.xacc*9.81f/1000.0f;
 		accel_report.y = imu.yacc*9.81f/1000.0f;
@@ -375,27 +375,27 @@ void handleMessage(mavlink_message_t *msg)
 		sensors_raw_report.accelerometer_m_s2[0] = imu.xacc*9.81f/1000.0f;
 		sensors_raw_report.accelerometer_m_s2[1] = imu.yacc*9.81f/1000.0f;
 		sensors_raw_report.accelerometer_m_s2[2] = imu.zacc*9.81f/1000.0f;
-		sensors_raw_report.accelerometer_counter++;
-		accel_report.timestamp = hrt_absolute_time();
+		sensors_raw_report.accelerometer_timestamp = timestamp;
+		accel_report.timestamp = timestamp;
 		gyro_report.x = imu.xgyro/1000.0f;
 		gyro_report.y = imu.ygyro/1000.0f;
 		gyro_report.z = imu.zgyro/1000.0f;
 		sensors_raw_report.gyro_rad_s[0] = imu.xgyro/1000.0f;
 		sensors_raw_report.gyro_rad_s[1] = imu.ygyro/1000.0f;
 		sensors_raw_report.gyro_rad_s[2] = imu.zgyro/1000.0f;
-		sensors_raw_report.gyro_counter++;
-		gyro_report.timestamp = hrt_absolute_time();
+		sensors_raw_report.gyro_timestamp = timestamp;
+		gyro_report.timestamp = timestamp;
 		mag_report.x = imu.xmag/1000.0f;
 		mag_report.y = imu.ymag/1000.0f;
 		mag_report.z = imu.zmag/1000.0f;
 		sensors_raw_report.magnetometer_ga[0] = imu.xmag/1000.0f;
 		sensors_raw_report.magnetometer_ga[1] = imu.ymag/1000.0f;
 		sensors_raw_report.magnetometer_ga[2] = imu.zmag/1000.0f;
-		sensors_raw_report.magnetometer_counter++;
+		sensors_raw_report.magnetometer_timestamp = timestamp;
 		sensors_raw_report.baro_pres_mbar = pressure_mbar;
-		sensors_raw_report.baro_counter++;
-		mag_report.timestamp = hrt_absolute_time();
-		sensors_raw_report.timestamp = hrt_absolute_time();
+		sensors_raw_report.baro_timestamp= timestamp;
+		mag_report.timestamp = timestamp;
+		sensors_raw_report.timestamp = timestamp;
 		/* advertise sensor topics */
 		/* check if topic is advertised */
 		if (accel_topic <= 0)

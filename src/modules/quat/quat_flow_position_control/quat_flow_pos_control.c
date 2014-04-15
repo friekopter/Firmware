@@ -30,6 +30,7 @@
 #include <uORB/topics/vehicle_attitude_setpoint.h>
 #include <uORB/topics/vehicle_global_position.h>
 #include <uORB/topics/filtered_bottom_flow.h>
+#include <uORB/topics/position_setpoint_triplet.h>
 #include <uORB/topics/vehicle_local_position_setpoint.h>
 #include <uORB/topics/vehicle_local_position.h>
 #include <uORB/topics/parameter_update.h>
@@ -51,6 +52,7 @@ runStruct_t runData __attribute__((section(".ccm")));
 // Struct for data output. Defined here to reduce stack frame size
 static struct vehicle_attitude_setpoint_s att_sp __attribute__((section(".ccm")));
 static struct vehicle_local_position_setpoint_s local_position_sp __attribute__((section(".ccm")));
+static struct position_setpoint_s position_sp __attribute__((section(".ccm")));
 static struct vehicle_attitude_s att __attribute__((section(".ccm")));
 static struct manual_control_setpoint_s manual;
 static struct vehicle_control_mode_s control_mode;
@@ -298,12 +300,17 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 	memset(&gps_data, 0, sizeof(gps_data));
 	orb_set_interval(gps_sub, 200);	/* 5Hz updates */
 
-	// Position setpoint
+	// Local position setpoint
 	int local_pos_sp_sub = orb_subscribe(ORB_ID(vehicle_local_position_setpoint));
 	memset(&local_position_sp, 0, sizeof(local_position_sp));
 	local_position_sp.nav_cmd = NAV_CMD_LOITER_UNLIMITED;
 	// Sometimes also publish
 	orb_advert_t local_pos_sp_pub = orb_advertise(ORB_ID(vehicle_local_position_setpoint), &local_position_sp);
+
+	// Position setpoint
+	int pos_sp_sub = orb_subscribe(ORB_ID(position_setpoint_triplet));
+	memset(&position_sp, 0, sizeof(position_sp));
+	position_sp.type = SETPOINT_TYPE_LOITER;
 
 	sleep(2);
 	/* register the perf counter */
@@ -320,7 +327,7 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 		{ .fd = sub_params, .events = POLLIN },
 		{ .fd = control_mode_sub, .events = POLLIN },
 		{ .fd = gps_sub, .events = POLLIN },
-		{ .fd = local_pos_sp_sub, .events = POLLIN }
+		{ .fd = pos_sp_sub, .events = POLLIN }
 	};
 
 	//sleep(1);
@@ -579,10 +586,10 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 				perf_begin(quat_flow_pos_sensor_perf);
 				// record history for acc & mag & pressure readings for smoothing purposes
 				// acc
-				static uint32_t acc_counter = 0;
-				if(raw.accelerometer_counter > acc_counter)
+				static uint64_t acc_timestamp = 0;
+				if(raw.accelerometer_timestamp > acc_timestamp)
 				{
-					acc_counter = raw.accelerometer_counter;
+					acc_timestamp = raw.accelerometer_timestamp;
 					runData.sumAcc[0] -= runData.accHist[0][runData.accHistIndex];
 					runData.sumAcc[1] -= runData.accHist[1][runData.accHistIndex];
 					runData.sumAcc[2] -= runData.accHist[2][runData.accHistIndex];
@@ -598,10 +605,10 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 				}
 
 				// mag
-				static uint32_t mag_counter = 0;
-				if(raw.magnetometer_counter > mag_counter)
+				static uint64_t mag_timestamp = 0;
+				if(raw.magnetometer_timestamp > mag_timestamp)
 				{
-					mag_counter = raw.magnetometer_counter;
+					mag_timestamp = raw.magnetometer_timestamp;
 					runData.sumMag[0] -= runData.magHist[0][runData.magHistIndex];
 					runData.sumMag[1] -= runData.magHist[1][runData.magHistIndex];
 					runData.sumMag[2] -= runData.magHist[2][runData.magHistIndex];
@@ -617,10 +624,10 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 				}
 
 				// pressure
-				static uint32_t baro_counter = 0;
-				if(raw.baro_counter > baro_counter)
+				static uint64_t baro_timestamp = 0;
+				if(raw.baro_timestamp > baro_timestamp)
 				{
-					baro_counter = raw.baro_counter;
+					baro_timestamp = raw.baro_timestamp;
 					runData.sumPres -= runData.presHist[runData.presHistIndex];
 					runData.presHist[runData.presHistIndex] = raw.baro_pres_mbar;
 					runData.sumPres += runData.presHist[runData.presHistIndex];
@@ -729,13 +736,14 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 				}
 			}
 
-			if (control_mode.flag_control_auto_enabled && (fds[6].revents & POLLIN))
+			if (fds[6].revents & POLLIN)
 			{
 				// only in case of auto we listen for the setpoint, otherwise we self calculate it
-				orb_copy(ORB_ID(vehicle_local_position_setpoint), local_pos_sp_sub, &local_position_sp);
-				printf("[quat flow pos control] set local position setpoint %d, %8.4f, %8.4f, %8.4f, %8.4f",local_position_sp.nav_cmd,
-						local_position_sp.param1, local_position_sp.param2, local_position_sp.param3, local_position_sp.param4);
+				orb_copy(ORB_ID(position_setpoint_triplet), pos_sp_sub, &position_sp);
+				printf("[quat flow pos control] position setpoint %d, %8.4f, %8.4f, %8.4f, %8.4f",position_sp.type,
+						position_sp.alt, position_sp.lat, position_sp.lon, position_sp.yaw);
 			}
+
 			if (!(loopcounter % 100) && !control_mode.flag_armed ) {
 			    static int axis = 0;
 			    float stdX, stdY, stdZ;
@@ -789,7 +797,7 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 			// +++++++++++++++++++++++++++++++++++++++++++
 			// Do navigation, calculate setpoints
 			perf_begin(quat_flow_pos_nav_perf);
-			navFlowNavigate(&control_mode,&nav_params,&manual,&local_position_data, &local_position_sp, &att, raw.timestamp);
+			navFlowNavigate(&control_mode,&nav_params,&manual,&local_position_data, &position_sp, &att, raw.timestamp);
 			perf_end(quat_flow_pos_nav_perf);
 			// rotate nav's NE frame of reference to our craft's local frame of reference
 			// Tilt north means for yaw=0 nose up. If yaw=90 degrees it means left wing up that is positive roll
@@ -854,10 +862,10 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 						&lat,&lon);
 				global_position_data.lat = (int32_t) (lat * (double)1e7f);
 				global_position_data.lon = (int32_t) (lon * (double)1e7f);
-				global_position_data.relative_alt = local_position_data.z;
+				//global_position_data.relative_alt = local_position_data.z;
 				global_position_data.alt = UKF_FLOW_POSD;
 				global_position_data.timestamp = hrt_absolute_time();
-				global_position_data.valid = true;
+				//global_position_data.valid = true;
 				orb_publish(ORB_ID(vehicle_global_position), global_pos_pub, &global_position_data);
 			} else if(!control_mode.flag_control_auto_enabled && !((printcounter + 18) % 20)) {
 				local_position_sp.x = navFlowData.holdPositionX;

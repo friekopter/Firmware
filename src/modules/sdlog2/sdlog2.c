@@ -821,7 +821,7 @@ int sdlog2_thread_main(int argc, char *argv[])
 		int local_pos_sub;
 		int local_pos_sp_sub;
 		int global_pos_sub;
-		int global_pos_sp_sub;
+		int triplet_sub;
 		int gps_pos_sub;
 		int vicon_pos_sub;
 		int flow_sub;

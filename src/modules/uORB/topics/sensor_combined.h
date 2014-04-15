@@ -81,6 +81,7 @@ struct sensor_combined_s {
 
 	int16_t	gyro_raw[3];			/**< Raw sensor values of angular velocity        */
 	float gyro_rad_s[3];			/**< Angular velocity in radian per seconds       */
+	uint64_t gyro_timestamp;		/**< Gyro timestamp        */
 
 	int16_t accelerometer_raw[3];		/**< Raw acceleration in NED body frame           */
 	float accelerometer_m_s2[3];		/**< Acceleration in NED body frame, in m/s^2     */

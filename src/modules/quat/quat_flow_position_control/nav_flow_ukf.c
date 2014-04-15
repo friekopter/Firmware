@@ -660,7 +660,7 @@ void navFlowUkfFlowUpdate(
 		if (!((printcounter++) % 10)) {
 						printf("va: %d ned vx: %8.4f vy: %8.4f\n",bottom_flow->ned_v_xy_valid,bottom_flow->ned_vx,bottom_flow->ned_vy);
 		}
-	    if(bottom_flow->ned_v_xy_valid > 0) {
+	    if(bottom_flow->ned_v_xy_valid > 100) {
 	    	// velocity in earth frame
 	    	noise[0] = params->ukf_flow_vel_n +
 	    			(params->ukf_flow_vel_max_n-params->ukf_flow_vel_n) * (1.0f - (float)bottom_flow->ned_v_xy_valid/255.0f);
