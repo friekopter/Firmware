@@ -249,40 +249,6 @@ struct log_GVSP_s {
 	float vz;
 };
 
-/* --- UKV State -- */
-#define LOG_UKFS_MSG 21
-struct log_UKFS_s {
-	float vel_n;
-	float vel_e;
-	float vel_d;
-	float pos_n;
-	float pos_e;
-	float pos_d;
-	float acc_bias_x;
-	float acc_bias_y;
-	float acc_bias_z;
-	float gyo_bias_x;
-	float gyo_bias_y;
-	float gyo_bias_z;
-	float pres_alt;
-};
-/* --- UKV State -- */
-#define LOG_FFLO_MSG 22
-struct log_FFLO_s {
-	uint32_t sonar_counter;		/**< Raised by one if new measurement arrived */
-	int8_t landed;
-	uint8_t ned_xy_valid;			/**< true if x and y are valid */
-	uint8_t ned_z_valid;			/**< true if z is valid */
-	uint8_t ned_v_xy_valid;		/**< true if vy and vy are valid */
-	uint8_t ned_v_z_valid;			/**< true if vz is valid */
-	float ned_x;				/**< X position in meters in NED earth-fixed frame */
-	float ned_y;				/**< X position in meters in NED earth-fixed frame */
-	float ned_z;				/**< Z position in meters in NED earth-fixed frame (negative altitude) */
-	float ned_vx; 				/**< Ground X Speed (Latitude), m/s in NED */
-	float ned_vy;				/**< Ground Y Speed (Longitude), m/s in NED */
-	float ned_vz;				/**< Ground Z Speed (Altitude), m/s	in NED */
-};
-
 /* --- BATT - BATTERY --- */
 #define LOG_BATT_MSG 20
 struct log_BATT_s {
@@ -345,6 +311,42 @@ struct log_VICN_s {
 	float pitch;
 	float yaw;
 };
+
+
+/* --- UKV State -- */
+#define LOG_UKFS_MSG 51
+struct log_UKFS_s {
+	float vel_n;
+	float vel_e;
+	float vel_d;
+	float pos_n;
+	float pos_e;
+	float pos_d;
+	float acc_bias_x;
+	float acc_bias_y;
+	float acc_bias_z;
+	float gyo_bias_x;
+	float gyo_bias_y;
+	float gyo_bias_z;
+	float pres_alt;
+};
+/* --- UKV State -- */
+#define LOG_FFLO_MSG 52
+struct log_FFLO_s {
+	uint32_t sonar_counter;		/**< Raised by one if new measurement arrived */
+	int8_t landed;
+	uint8_t ned_xy_valid;			/**< true if x and y are valid */
+	uint8_t ned_z_valid;			/**< true if z is valid */
+	uint8_t ned_v_xy_valid;		/**< true if vy and vy are valid */
+	uint8_t ned_v_z_valid;			/**< true if vz is valid */
+	float ned_x;				/**< X position in meters in NED earth-fixed frame */
+	float ned_y;				/**< X position in meters in NED earth-fixed frame */
+	float ned_z;				/**< Z position in meters in NED earth-fixed frame (negative altitude) */
+	float ned_vx; 				/**< Ground X Speed (Latitude), m/s in NED */
+	float ned_vy;				/**< Ground Y Speed (Longitude), m/s in NED */
+	float ned_vz;				/**< Ground Z Speed (Altitude), m/s	in NED */
+};
+
 
 /********** SYSTEM MESSAGES, ID > 0x80 **********/
 

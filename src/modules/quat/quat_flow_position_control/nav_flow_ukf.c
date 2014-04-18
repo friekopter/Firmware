@@ -392,7 +392,7 @@ void navFlowDoMagUpdate(float magX, float magY, float magZ,
 		dt = ((float)(currentTime - lastUpdate)) / 1e6f;
 	}
     utilRotateQuat(&UKF_FLOW_Q1, &UKF_FLOW_Q1, rotError, dt);
-
+/*
     static int printcounter = 0;
     if (!(printcounter % 20)){
     	float32_t *x = &UKF_FLOW_Q1;
@@ -403,7 +403,7 @@ void navFlowDoMagUpdate(float magX, float magY, float magZ,
     			navFlowUkfData.v0m[0],navFlowUkfData.v0m[1],navFlowUkfData.v0m[2],
     			rotError[0], rotError[1], rotError[2]);
     }
-    printcounter++;
+    printcounter++;*/
 }
 
 void navFlowCalculateOffsets(

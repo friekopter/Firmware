@@ -878,14 +878,6 @@ int sdlog2_thread_main(int argc, char *argv[])
 #pragma pack(pop)
 	memset(&log_msg.body, 0, sizeof(log_msg.body));
 
-	/* --- IMPORTANT: DEFINE NUMBER OF ORB STRUCTS TO WAIT FOR HERE --- */
-	/* number of messages */
-	const ssize_t fdsc = 22;
-	/* Sanity check variable and index */
-	ssize_t fdsc_count = 0;
-	/* file descriptors to wait for */
-	struct pollfd fds[fdsc];
-
 	subs.cmd_sub = orb_subscribe(ORB_ID(vehicle_command));
 	subs.status_sub = orb_subscribe(ORB_ID(vehicle_status));
 	subs.gps_pos_sub = orb_subscribe(ORB_ID(vehicle_gps_position));
@@ -1315,6 +1307,40 @@ int sdlog2_thread_main(int argc, char *argv[])
 			LOGBUFFER_WRITE_AND_COUNT(ESTM);
 		}
 
+		if (copy_if_updated(ORB_ID(ukf_state_vector), subs.ukf_state_sub, &buf.ukf_state)) {
+			log_msg.msg_type = LOG_UKFS_MSG;
+			log_msg.body.log_UKFS.vel_n = buf.ukf_state.vel_x;
+			log_msg.body.log_UKFS.vel_e = buf.ukf_state.vel_y;
+			log_msg.body.log_UKFS.vel_d = buf.ukf_state.vel_d;
+			log_msg.body.log_UKFS.pos_n = buf.ukf_state.pos_x;
+			log_msg.body.log_UKFS.pos_e = buf.ukf_state.pos_y;
+			log_msg.body.log_UKFS.pos_d = buf.ukf_state.pos_d;
+			log_msg.body.log_UKFS.acc_bias_x = buf.ukf_state.acc_bias_x;
+			log_msg.body.log_UKFS.acc_bias_y = buf.ukf_state.acc_bias_y;
+			log_msg.body.log_UKFS.acc_bias_z = buf.ukf_state.acc_bias_z;
+			log_msg.body.log_UKFS.gyo_bias_x = buf.ukf_state.gyo_bias_x;
+			log_msg.body.log_UKFS.gyo_bias_y = buf.ukf_state.gyo_bias_y;
+			log_msg.body.log_UKFS.gyo_bias_z = buf.ukf_state.gyo_bias_z;
+			log_msg.body.log_UKFS.pres_alt = buf.ukf_state.pres_alt;
+			LOGBUFFER_WRITE_AND_COUNT(UKFS);
+		}
+
+		if (copy_if_updated(ORB_ID(filtered_bottom_flow), subs.filtered_flow_sub, &buf.filtered_bottom_flow_data)) {
+			log_msg.msg_type = LOG_FFLO_MSG;
+			log_msg.body.log_FFLO.sonar_counter = buf.filtered_bottom_flow_data.sonar_counter;
+			log_msg.body.log_FFLO.landed = (int8_t)(buf.filtered_bottom_flow_data.landed ? 1 : 0);
+			log_msg.body.log_FFLO.ned_xy_valid = buf.filtered_bottom_flow_data.ned_xy_valid;
+			log_msg.body.log_FFLO.ned_z_valid = buf.filtered_bottom_flow_data.ned_z_valid;
+			log_msg.body.log_FFLO.ned_v_xy_valid = buf.filtered_bottom_flow_data.ned_v_xy_valid;
+			log_msg.body.log_FFLO.ned_v_z_valid = buf.filtered_bottom_flow_data.ned_v_z_valid;
+			log_msg.body.log_FFLO.ned_x = buf.filtered_bottom_flow_data.ned_x;
+			log_msg.body.log_FFLO.ned_y = buf.filtered_bottom_flow_data.ned_y;
+			log_msg.body.log_FFLO.ned_z = buf.filtered_bottom_flow_data.ned_z;
+			log_msg.body.log_FFLO.ned_vx = buf.filtered_bottom_flow_data.ned_vx;
+			log_msg.body.log_FFLO.ned_vy = buf.filtered_bottom_flow_data.ned_vy;
+			log_msg.body.log_FFLO.ned_vz = buf.filtered_bottom_flow_data.ned_vz;
+			LOGBUFFER_WRITE_AND_COUNT(FFLO);
+		}
 		/* signal the other thread new data, but not yet unlock */
 		if (logbuffer_count(&lb) > MIN_BYTES_TO_WRITE) {
 			/* only request write if several packets can be written at once */

@@ -1235,13 +1235,13 @@ Quat_Sensors::mag_poll(struct sensor_combined_s &raw)
 		perf_count(_mag_perf);
 
 		orb_copy(ORB_ID(sensor_mag), _mag_sub, &mag_report);
-
+/*
 		//TODO remove+++++
 		float magRaw[3];
 		magRaw[0] = mag_report.x;
 		magRaw[1] = mag_report.y;
 		magRaw[2] = mag_report.z;
-		//+++++++++++++++++++++++
+		//+++++++++++++++++++++++*/
 
 		correctMagMeasurement(mag_report);
 
@@ -1254,9 +1254,7 @@ Quat_Sensors::mag_poll(struct sensor_combined_s &raw)
 		raw.magnetometer_raw[2] = mag_report.z_raw;
 
 		raw.magnetometer_timestamp = hrt_absolute_time();
-
-		//*******TODO DEBUG
-
+/*
 		static uint16_t printcounter = 0;
 	    if (!(printcounter % 200)){
 	    	printf("mr: %8.4f %8.4f %8.4f %8.4f\nmc: %8.4f %8.4f %8.4f\n",
@@ -1265,9 +1263,7 @@ Quat_Sensors::mag_poll(struct sensor_combined_s &raw)
 	    			);
 	    }
 	    printcounter++;
-
-
-		//*********
+*/
 	}
 }
 

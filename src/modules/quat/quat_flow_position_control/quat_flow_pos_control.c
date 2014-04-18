@@ -865,7 +865,7 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 				//global_position_data.relative_alt = local_position_data.z;
 				global_position_data.alt = UKF_FLOW_POSD;
 				global_position_data.timestamp = hrt_absolute_time();
-				//global_position_data.valid = true;
+				global_position_data.global_valid = true;
 				orb_publish(ORB_ID(vehicle_global_position), global_pos_pub, &global_position_data);
 			} else if(!control_mode.flag_control_auto_enabled && !((printcounter + 18) % 20)) {
 				local_position_sp.x = navFlowData.holdPositionX;
