@@ -41,6 +41,7 @@ void navFlowSetHoldAlt(float alt, uint8_t relative);
 void navFlowSetHoldPosition(const float ned_x, const float ned_y);
 void navFlowResetHoldPosition(void);
 void navCalculateTilt(	const struct vehicle_control_mode_s *control_mode,
+						const failsafe_state_t failsafeState,
 						const struct quat_position_control_NAV_params* params,
 						const struct position_setpoint_s *position_setpoint,
 						const struct vehicle_local_position_s* position_data,
@@ -49,6 +50,7 @@ void navCalculateTilt(	const struct vehicle_control_mode_s *control_mode,
 						const uint8_t navigationMode,
 						navFlowStruct_t *navDataResult);
 void navCalculateThrust (	const struct vehicle_control_mode_s *control_mode,
+							const failsafe_state_t failsafeState,
 							const struct quat_position_control_NAV_params* params,
 							const struct position_setpoint_s *position_setpoint,
 							const float measuredAltitude,
@@ -104,6 +106,7 @@ void navFlowSetHoldHeading(float targetHeading) {
 
 void navFlowNavigate(
 		const struct vehicle_control_mode_s *control_mode,
+		const struct vehicle_status_s *vstatus,
 		const struct quat_position_control_NAV_params* params,
 		const struct manual_control_setpoint_s* manual_control,
 		const struct vehicle_local_position_s* local_position_data,
@@ -228,6 +231,7 @@ void navFlowNavigate(
 
     // 2. Do navigation
 	navCalculateTilt( 	control_mode,
+						vstatus->failsafe_state,
 						params,
     					position_setpoint,
     					position_data,
@@ -237,6 +241,7 @@ void navFlowNavigate(
     					&navFlowData);
 
     navCalculateThrust(	control_mode,
+						vstatus->failsafe_state,
     					params,
     					position_setpoint,
     					measured_altitude,
@@ -249,6 +254,7 @@ void navFlowNavigate(
 }
 
 void navCalculateTilt(	const struct vehicle_control_mode_s *control_mode,
+						const failsafe_state_t failsafeState,
 						const struct quat_position_control_NAV_params* params,
 						const struct position_setpoint_s *position_setpoint,
 						const struct vehicle_local_position_s* position_data,
@@ -256,7 +262,11 @@ void navCalculateTilt(	const struct vehicle_control_mode_s *control_mode,
 						const float manualPitch,
 						const uint8_t navigationMode,
 						navFlowStruct_t *navDataResult) {
-    if (navigationMode == NAV_STATUS_MISSION) {
+	if (failsafeState > FAILSAFE_STATE_NORMAL) {
+		navDataResult->holdSpeedX = 0.0f;
+		navDataResult->holdSpeedY = 0.0f;
+	}
+	else if (navigationMode == NAV_STATUS_MISSION) {
     	if (position_setpoint->type == SETPOINT_TYPE_NORMAL) {
 			//navDataResult->holdSpeedX = pidUpdate(navDataResult->distanceXPID, local_position_setpoint->x, position_data->x);
 			//navDataResult->holdSpeedY = pidUpdate(navDataResult->distanceYPID, local_position_setpoint->y, position_data->y);
@@ -315,6 +325,7 @@ void navCalculateTilt(	const struct vehicle_control_mode_s *control_mode,
 }
 
 void navCalculateThrust(	const struct vehicle_control_mode_s *control_mode,
+							const failsafe_state_t failsafeState,
 							const struct quat_position_control_NAV_params* params,
 							const struct position_setpoint_s *position_setpoint,
 							const float measuredAltitude,
@@ -327,7 +338,10 @@ void navCalculateThrust(	const struct vehicle_control_mode_s *control_mode,
     navDataResult->autoThrust = 0.0f;
     static float throttle_middle_position = 1.0f;
 
-    if (navigationMode == NAV_STATUS_MISSION) {
+	if (failsafeState > FAILSAFE_STATE_NORMAL) {
+		navDataResult->targetHoldSpeedAlt = +0.5f;
+	}
+	else if (navigationMode == NAV_STATUS_MISSION) {
     	if (position_setpoint->type == SETPOINT_TYPE_NORMAL) {
 			//navDataResult->targetHoldSpeedAlt = pidUpdate(navDataResult->altPosPID, local_position_setpoint->z, measuredAltitude);
 			navDataResult->targetHoldSpeedAlt = pidUpdate(navDataResult->altPosPID, navDataResult->holdAlt, measuredAltitude);
@@ -394,7 +408,7 @@ void navCalculateThrust(	const struct vehicle_control_mode_s *control_mode,
 //		if (bottom_flow->ned_z_valid == 255) {
 //			smoothfactor *= 10.0f;
 //		}
-		navDataResult->holdSpeedAlt += (navDataResult->targetHoldSpeedAlt - navDataResult->holdSpeedAlt) * 0.01f;
+		navDataResult->holdSpeedAlt += (navDataResult->targetHoldSpeedAlt - navDataResult->holdSpeedAlt) * 0.1f;
     }
     else
     {

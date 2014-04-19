@@ -56,6 +56,7 @@ static struct position_setpoint_s position_sp __attribute__((section(".ccm")));
 static struct vehicle_attitude_s att __attribute__((section(".ccm")));
 static struct manual_control_setpoint_s manual;
 static struct vehicle_control_mode_s control_mode;
+static struct vehicle_status_s vstatus;
 static struct sensor_combined_s raw;
 static struct vehicle_local_position_s local_position_data;
 static struct vehicle_global_position_s global_position_data;
@@ -312,6 +313,12 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 	memset(&position_sp, 0, sizeof(position_sp));
 	position_sp.type = SETPOINT_TYPE_LOITER;
 
+	// Vehicle Status
+	int vehicle_status_sub = orb_subscribe(ORB_ID(vehicle_status));
+	memset(&vstatus, 0, sizeof(vstatus));
+	/* rate-limit updates to 1Hz */
+	orb_set_interval(sub_params, 1000);
+
 	sleep(2);
 	/* register the perf counter */
 	perf_counter_t quat_flow_pos_loop_perf = perf_alloc(PC_ELAPSED, "quat_flow_pos_control");
@@ -320,14 +327,15 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 	perf_counter_t quat_flow_pos_nav_perf = perf_alloc(PC_ELAPSED, "quat_flow_pos_nav_control");
 	perf_counter_t quat_flow_ukf_finish_perf = perf_alloc(PC_ELAPSED, "quat_flow_ukf_finish_perf");
 	perf_counter_t quat_flow_position_perf = perf_alloc(PC_ELAPSED, "quat_flow_position_perf");
-	struct pollfd fds[7] = {
+	struct pollfd fds[8] = {
 		{ .fd = sub_raw,   .events = POLLIN },
 		{ .fd = filtered_bottom_flow_sub, .events = POLLIN },
 		{ .fd = manual_sub,   .events = POLLIN },
 		{ .fd = sub_params, .events = POLLIN },
 		{ .fd = control_mode_sub, .events = POLLIN },
 		{ .fd = gps_sub, .events = POLLIN },
-		{ .fd = pos_sp_sub, .events = POLLIN }
+		{ .fd = pos_sp_sub, .events = POLLIN },
+		{ .fd = vehicle_status_sub, .events = POLLIN }
 	};
 
 	//sleep(1);
@@ -559,6 +567,11 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 			if (updated)
 			{
 				orb_copy(ORB_ID(manual_control_setpoint), manual_sub, &manual);
+			}
+			orb_check(fds[7].fd, &updated);
+			if (updated)
+			{
+				orb_copy(ORB_ID(vehicle_status), vehicle_status_sub, &vstatus);
 			}
 			if (fds[0].revents & POLLIN)
 			{
@@ -797,7 +810,14 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 			// +++++++++++++++++++++++++++++++++++++++++++
 			// Do navigation, calculate setpoints
 			perf_begin(quat_flow_pos_nav_perf);
-			navFlowNavigate(&control_mode,&nav_params,&manual,&local_position_data, &position_sp, &att, raw.timestamp);
+			navFlowNavigate(&control_mode,
+							&vstatus,
+							&nav_params,
+							&manual,
+							&local_position_data,
+							&position_sp,
+							&att,
+							raw.timestamp);
 			perf_end(quat_flow_pos_nav_perf);
 			// rotate nav's NE frame of reference to our craft's local frame of reference
 			// Tilt north means for yaw=0 nose up. If yaw=90 degrees it means left wing up that is positive roll

@@ -620,7 +620,7 @@ void navFlowUkfFlowUpdate(
 	static float zeroPositionY = 0.0f;
 	if(!UKF_FLOW_CALCULATES_POSITION){
 		return;
-	}
+	}/*
 	if(bottom_flow->ned_xy_valid > 0 && control_mode->flag_armed) {
 		// determine how far back this flow position update came from
 		int histIndexPos = (hrt_absolute_time() - (bottom_flow->timestamp + params->ukf_flow_pos_delay)) / (int)(1e6f * dt);
@@ -649,7 +649,7 @@ void navFlowUkfFlowUpdate(
 		UKF_FLOW_VELX = navFlowUkfData.velX[histIndexVel];
 		UKF_FLOW_VELY = navFlowUkfData.velY[histIndexVel];
 		UKF_FLOW_VELD = navFlowUkfData.velD[histIndexVel];
-	}
+	}*/
 
 	if (control_mode->flag_armed) {
 		y[0] = bottom_flow->ned_vx;
@@ -695,12 +695,12 @@ void navFlowUkfFlowUpdate(
 	}
 	srcdkfMeasurementUpdate(navFlowUkfData.kf, 0, y, 4, 4, noise, navFlowUkfVelocityPositionUpdate);
     // add the historic  delta back to the current state
-	UKF_FLOW_POSX += posDelta[0];
+	/*UKF_FLOW_POSX += posDelta[0];
 	UKF_FLOW_POSY += posDelta[1];
 	UKF_FLOW_POSD += posDelta[2];
 	UKF_FLOW_VELX += velDelta[0];
 	UKF_FLOW_VELY += velDelta[1];
-	UKF_FLOW_VELD += velDelta[2];
+	UKF_FLOW_VELD += velDelta[2];*/
 }
 
 void navFlowUkfGpsPosUpate(

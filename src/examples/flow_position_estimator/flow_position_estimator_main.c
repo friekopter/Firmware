@@ -492,6 +492,7 @@ int flow_position_estimator_thread_main(int argc, char *argv[])
 				{
 					perf_begin(mc_loop_perf);
 					orb_copy(ORB_ID(optical_flow), optical_flow_sub, &flow);
+					uint64_t currentTime = hrt_absolute_time();
 
 					bool updated = false;
 					/* got flow, updating attitude and status as well */
@@ -550,14 +551,9 @@ int flow_position_estimator_thread_main(int argc, char *argv[])
 					uint8_t flow_accuracy = flow_calculate_flow(&params,&local_position_data,&flow,filtered_flow.ned_z,filtered_flow.ned_z_valid,&att);
 
 					/* calc dt between flow timestamps */
-					/* ignore first flow msg */
-					if(time_last_flow == 0)
-					{
-						time_last_flow = flow.timestamp;
-						continue;
-					}
-					dt = (float)(flow.timestamp - time_last_flow) * time_scale;
-					time_last_flow = flow.timestamp;
+					if(time_last_flow == 0) continue;
+					dt = (float)(currentTime - time_last_flow) * time_scale;
+					time_last_flow = currentTime;
 
 					/* only make position update if vehicle is lift off or DEBUG is activated*/
 					if (vehicle_liftoff || params.debug)
@@ -607,7 +603,7 @@ int flow_position_estimator_thread_main(int argc, char *argv[])
 					}
 
 					/* always publish local position */
-					filtered_flow.timestamp = hrt_absolute_time();
+					filtered_flow.timestamp = currentTime;
 					filtered_flow.ned_x = !isfinite(filtered_flow.ned_x) ? 0.0f : filtered_flow.ned_x;
 					filtered_flow.ned_y = !isfinite(filtered_flow.ned_y) ? 0.0f : filtered_flow.ned_y;
 					filtered_flow.ned_z = !isfinite(filtered_flow.ned_z) ? 0.0f : filtered_flow.ned_z;
