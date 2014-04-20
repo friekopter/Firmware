@@ -57,6 +57,7 @@ void navCalculateThrust (	const struct vehicle_control_mode_s *control_mode,
 							const float measuredVerticalVelocityNED,
 							const float manualThrottle,
 							const uint8_t navigationMode,
+							const bool preciseAltitude,
 							navFlowStruct_t *navDataResult);
 float navCalculateTakeoffThrust(const uint64_t timestamp, const float takeoffThrust);
 
@@ -112,6 +113,7 @@ void navFlowNavigate(
 		const struct vehicle_local_position_s* local_position_data,
 		const struct position_setpoint_s *position_setpoint,
 		struct vehicle_attitude_s* att,
+		const bool preciseAltitude,
 		uint64_t imu_timestamp
 		) {
     uint64_t currentTime = imu_timestamp;
@@ -153,7 +155,6 @@ void navFlowNavigate(
 				// distance
 				pidZeroIntegral(navFlowData.distanceXPID, 0.0f, 0.0f);
 				pidZeroIntegral(navFlowData.distanceYPID, 0.0f, 0.0f);
-
 				// speed
 				pidZeroIntegral(navFlowData.speedXPID, position_data->vx, 0.0f);
 				pidZeroIntegral(navFlowData.speedYPID, position_data->vy, 0.0f);
@@ -248,6 +249,7 @@ void navFlowNavigate(
     					local_position_data->vz,
     					manual_control->throttle,
     					navFlowData.mode,
+    					preciseAltitude,
     					&navFlowData);
 
     navFlowData.lastUpdate = currentTime;
@@ -332,6 +334,7 @@ void navCalculateThrust(	const struct vehicle_control_mode_s *control_mode,
 							const float measuredVerticalVelocityNED,
 							const float manualThrottle,
 							const uint8_t navigationMode,
+							const bool preciseAltitude,
 							navFlowStruct_t *navDataResult) {
     // Calculate thrust
     // Reset result
@@ -405,7 +408,7 @@ void navCalculateThrust(	const struct vehicle_control_mode_s *control_mode,
 
 		// smooth vertical velocity changes
 		//float smoothfactor = 0.01f;
-//		if (bottom_flow->ned_z_valid == 255) {
+//		if (preciseAltitude) {
 //			smoothfactor *= 10.0f;
 //		}
 		navDataResult->holdSpeedAlt += (navDataResult->targetHoldSpeedAlt - navDataResult->holdSpeedAlt) * 0.1f;

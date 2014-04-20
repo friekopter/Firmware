@@ -95,6 +95,7 @@ extern void navFlowNavigate(
 		const struct vehicle_local_position_s* local_position_data,
 		const struct position_setpoint_s *position_setpoint,
 		struct vehicle_attitude_s* att,
+		const bool preciseAltitude,
 		uint64_t imu_timestamp
 		);
 extern void navFlowResetHoldAlt(float delta);

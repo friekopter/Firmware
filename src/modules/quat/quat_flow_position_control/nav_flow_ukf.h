@@ -13,7 +13,7 @@
 #include <uORB/topics/filtered_bottom_flow.h>
 #include <quat/utils/quat_pos_control_params.h>
 
-#define UKF_HIST		20
+#define UKF_HIST		40
 
 typedef struct {
     srcdkf_t *kf;
@@ -87,7 +87,7 @@ extern float navFlowDoAccUpdate(float accX, float accY, float accZ,
 extern void navFlowDoMagUpdate(float magX, float magY, float magZ,
 		 const struct vehicle_control_mode_s *control_mode,
 		 const struct quat_position_control_UKF_params* params);
-extern void navFlowUkfSonarUpdate(
+extern bool navFlowUkfSonarUpdate(
 		const struct filtered_bottom_flow_s* bottom_flow,
 		const float dt,
 		float baroAltitude,
@@ -105,14 +105,15 @@ extern void navFlowUkfFlowUpdate(
 		const struct filtered_bottom_flow_s* bottom_flow,
 		const float dt,
 		const struct vehicle_control_mode_s *control_mode,
+		const bool gpsValid,
 		const struct quat_position_control_UKF_params* params);
-extern void navFlowUkfGpsPosUpate(
+extern bool navFlowUkfGpsPosUpate(
 		const struct vehicle_gps_position_s* gps_position,
 		struct vehicle_local_position_s* local_position_data,
 		float dt,
 		const struct vehicle_control_mode_s *control_mode,
 		const struct quat_position_control_UKF_params* params);
-extern void navFlowUkfGpsVelUpate(
+extern bool navFlowUkfGpsVelUpate(
 		const struct vehicle_gps_position_s* gps_position,
 		float dt,
 		const struct vehicle_control_mode_s *control_mode,

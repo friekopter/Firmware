@@ -230,6 +230,8 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 	int loopcounter = 0;
 	int printcounter = 0;
 	float acc_noise = 0.0f;
+	bool sonarValid = false;
+	bool gpsValid = false;
 
 	// Output
 	// Calculation result is the attitude setpoint
@@ -721,15 +723,15 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 				orb_copy(ORB_ID(filtered_bottom_flow), filtered_bottom_flow_sub, &filtered_bottom_flow_data);
 				if(!control_mode.flag_armed) {
 					if(!(count++ % 2)){
-						navFlowUkfFlowUpdate(&filtered_bottom_flow_data,dt,&control_mode,&ukf_params);
+						navFlowUkfFlowUpdate(&filtered_bottom_flow_data,dt,&control_mode,gpsValid,&ukf_params);
 					} else {
-						navFlowUkfSonarUpdate(&filtered_bottom_flow_data,dt,raw.baro_alt_meter,&control_mode,&ukf_params);
+						sonarValid = navFlowUkfSonarUpdate(&filtered_bottom_flow_data,dt,raw.baro_alt_meter,&control_mode,&ukf_params);
 					}
 				}
 				else if(filtered_bottom_flow_data.ned_xy_valid > 0) {
-					navFlowUkfFlowUpdate(&filtered_bottom_flow_data,dt,&control_mode,&ukf_params);
+					navFlowUkfFlowUpdate(&filtered_bottom_flow_data,dt,&control_mode,gpsValid,&ukf_params);
 				} else {
-					navFlowUkfSonarUpdate(&filtered_bottom_flow_data,dt,raw.baro_alt_meter,&control_mode,&ukf_params);
+					sonarValid = navFlowUkfSonarUpdate(&filtered_bottom_flow_data,dt,raw.baro_alt_meter,&control_mode,&ukf_params);
 				}
 				////navFlowUkfFlowPosUpate(&filtered_bottom_flow_data,&control_mode,&ukf_params);
 				////navFlowUkfFlowVelUpate(&filtered_bottom_flow_data,&control_mode,&ukf_params);
@@ -742,10 +744,10 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 				orb_copy(ORB_ID(vehicle_gps_position), gps_sub, &gps_data);
 				if(gps_data.timestamp_position > timestamp_position) {
 					timestamp_position = gps_data.timestamp_position;
-					//navFlowUkfGpsPosUpate(&gps_data,&local_position_data,dt,&control_mode,&ukf_params);
+					//gpsValid = navFlowUkfGpsPosUpate(&gps_data,&local_position_data,dt,&control_mode,&ukf_params);
 				} else if(gps_data.timestamp_velocity > timestamp_velocity) {
 					timestamp_velocity = gps_data.timestamp_velocity;
-					//navFlowUkfGpsVelUpate(&gps_data,dt,&control_mode,&ukf_params);
+					//gpsValid = navFlowUkfGpsVelUpate(&gps_data,dt,&control_mode,&ukf_params);
 				}
 			}
 
@@ -817,6 +819,7 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 							&local_position_data,
 							&position_sp,
 							&att,
+							sonarValid,
 							raw.timestamp);
 			perf_end(quat_flow_pos_nav_perf);
 			// rotate nav's NE frame of reference to our craft's local frame of reference

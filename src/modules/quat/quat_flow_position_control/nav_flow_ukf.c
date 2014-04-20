@@ -462,7 +462,7 @@ void navFlowCalculateOffsets(
 	}
 }
 
-void navFlowUkfSonarUpdate(
+bool navFlowUkfSonarUpdate(
 		const struct filtered_bottom_flow_s* bottom_flow,
 		const float dt,
 		float baroAltitude,
@@ -514,19 +514,23 @@ void navFlowUkfSonarUpdate(
 			UKF_FLOW_VELD += velDelta;
 			/*if (!(printcounter % 10)) printf("Seas Up: %8.4f, posd: %8.4f, baroalt: %8.4f\n",y[1],UKF_FLOW_POSD, baroAltitude);
 			printcounter++;*/
+			return true;
 		} else {
 			y[0] = -UKF_FLOW_PRES_ALT;
 			noise[0] = params->ukf_alt_n;
 			srcdkfMeasurementUpdate(navFlowUkfData.kf, 0, y, 1, 1, noise, navFlowUkfAltitudeUpdate);
 			/*if (!(printcounter % 10)) printf("Meas Up: %8.4f, posd: %8.4f, baroalt: %8.4f\n",y[0],UKF_FLOW_POSD, baroAltitude);
 			printcounter++;*/
+			return false;
 		}
 	} else {
 		if(bottom_flow->ned_z_valid == 255) {
 			y[0] = distanceToEarth + navFlowUkfData.sonarAltOffset;
 			noise[0] = params->ukf_flow_alt_n;
 			srcdkfMeasurementUpdate(navFlowUkfData.kf, 0, y, 1, 1, noise, navFlowUkfPresUpdate);
+			return true;
 		}
+		return false;
 	}
 }
 
@@ -605,6 +609,7 @@ void navFlowUkfFlowUpdate(
 		const struct filtered_bottom_flow_s* bottom_flow,
 		const float dt,
 		const struct vehicle_control_mode_s *control_mode,
+		const bool gpsValid,
 		const struct quat_position_control_UKF_params* params) {
     float y[4];
     float noise[4];
@@ -618,6 +623,7 @@ void navFlowUkfFlowUpdate(
     velDelta[2] = 0.0f;
 	static float zeroPositionX = 0.0f;
 	static float zeroPositionY = 0.0f;
+	static bool flowValid = false;
 	if(!UKF_FLOW_CALCULATES_POSITION){
 		return;
 	}/*
@@ -656,11 +662,17 @@ void navFlowUkfFlowUpdate(
 		y[1] = bottom_flow->ned_vy;
 		y[2] = bottom_flow->ned_x - zeroPositionX;
 		y[3] = bottom_flow->ned_y - zeroPositionY;
+		/*
 		static uint8_t printcounter = 0;
 		if (!((printcounter++) % 10)) {
 						printf("va: %d ned vx: %8.4f vy: %8.4f\n",bottom_flow->ned_v_xy_valid,bottom_flow->ned_vx,bottom_flow->ned_vy);
-		}
+		}*/
 	    if(bottom_flow->ned_v_xy_valid > 100) {
+	    	if(!flowValid) {
+	    		flowValid = true;
+	    		printf("+Flow Valid! %d", hrt_absolute_time());
+	    	}
+
 	    	// velocity in earth frame
 	    	noise[0] = params->ukf_flow_vel_n +
 	    			(params->ukf_flow_vel_max_n-params->ukf_flow_vel_n) * (1.0f - (float)bottom_flow->ned_v_xy_valid/255.0f);
@@ -668,7 +680,20 @@ void navFlowUkfFlowUpdate(
 			noise[2] = noise[0];
 			noise[3] = noise[0];
 	    }
+	    else if(gpsValid) {
+	    	// no flow but gps valid: no measurement update
+	    	if(flowValid) {
+	    		flowValid = false;
+	    		printf("-Flow Valid but GPS! %d", hrt_absolute_time());
+	    	}
+	    	return;
+	    }
 	    else {
+	    	// no flow and no gps: measurement update with current position to stabilize
+	    	if(flowValid) {
+	    		flowValid = false;
+	    		printf("-Flow Valid no GPS! %d", hrt_absolute_time());
+	    	}
 	    	y[0] = 0.0f;
 	    	y[1] = 0.0f;
 			y[2] = UKF_FLOW_POSX;
@@ -679,9 +704,13 @@ void navFlowUkfFlowUpdate(
 			noise[3] = noise[0];
 			zeroPositionX = bottom_flow->ned_x - UKF_FLOW_POSX;
 			zeroPositionY = bottom_flow->ned_y - UKF_FLOW_POSY;
-			// TODO: Don't do updates here if GPS is valid !?
 	    }
-	} else {
+	} else if (gpsValid){
+		// not armed and GPS valid: no measurement update
+		return;
+	}
+	else {
+		// not armed and no gps: measurement update with current position to stabilize
         y[0] = 0.0f;
         y[1] = 0.0f;
 		y[2] = 0.0f;
@@ -703,7 +732,7 @@ void navFlowUkfFlowUpdate(
 	UKF_FLOW_VELD += velDelta[2];*/
 }
 
-void navFlowUkfGpsPosUpate(
+bool navFlowUkfGpsPosUpate(
 		const struct vehicle_gps_position_s* gps_position,
 		struct vehicle_local_position_s* local_position_data,
 		float dt,
@@ -714,12 +743,12 @@ void navFlowUkfGpsPosUpate(
     float posDelta[3];
     static bool positionInitialized = false;
     int histIndex;
-    if (dt < FLT_MIN) return;
+    if (dt < FLT_MIN) return false;
     if (gps_position->eph_m >= 4.0f || fabsf(gps_position->tDop) <= FLT_MIN ||
     	(control_mode->flag_armed && !positionInitialized)) {
     	// no or not good enough signal quality
     	// or already armed and not yet initialized
-    	return;
+    	return false;
     	/*
 		y[0] = 0.0f;
 		y[1] = 0.0f;
@@ -741,7 +770,6 @@ void navFlowUkfGpsPosUpate(
     }
     else {
     	//convert to local position
-
 		if (! positionInitialized) {
 			positionInitialized = true;
 			navFlowUkfData.holdLat = gps_position->lat;
@@ -756,6 +784,7 @@ void navFlowUkfGpsPosUpate(
 			double lat_home = (float)local_position_data->ref_lat * 1e-7f;
 			double lon_home = (float)local_position_data->ref_lon * 1e-7f;
 			map_projection_init(lat_home, lon_home);
+			return false;
 		}
 		else {
 			map_projection_project(gps_position->lat,gps_position->lon,&y[0], &y[1]);
@@ -790,24 +819,25 @@ void navFlowUkfGpsPosUpate(
 			UKF_FLOW_POSX += posDelta[0];
 			UKF_FLOW_POSY += posDelta[1];
 			UKF_FLOW_POSD += posDelta[2];
+			return true;
 		}
     }
 }
 
-void navFlowUkfGpsVelUpate(
+bool navFlowUkfGpsVelUpate(
 		const struct vehicle_gps_position_s* gps_position,
 		float dt,
 		const struct vehicle_control_mode_s *control_mode,
 		const struct quat_position_control_UKF_params* params) {
 	// Don't do anything for invalid dt
-	if(dt < FLT_MIN) return;
+	if(dt < FLT_MIN) return false;
     float y[3];
     float noise[3];
     float velDelta[3];
     int histIndex;
     if (gps_position->sAcc >= 2.0f || fabsf(gps_position->tDop) <= FLT_MIN) {
     	// no or not good enough signal quality
-    	return;
+    	return false;
     }
     else {
 		y[0] = gps_position->vel_n_m_s;
@@ -842,6 +872,7 @@ void navFlowUkfGpsVelUpate(
 		UKF_FLOW_VELX += velDelta[0];
 		UKF_FLOW_VELY += velDelta[1];
 		UKF_FLOW_VELD += velDelta[2];
+		return true;
     }
 }
 
