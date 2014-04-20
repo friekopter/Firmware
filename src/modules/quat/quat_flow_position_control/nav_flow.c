@@ -109,7 +109,7 @@ void navFlowNavigate(
 		const struct vehicle_control_mode_s *control_mode,
 		const struct vehicle_status_s *vstatus,
 		const struct quat_position_control_NAV_params* params,
-		const struct manual_control_setpoint_s* manual_control,
+		const float manual_control_ned[3],
 		const struct vehicle_local_position_s* local_position_data,
 		const struct position_setpoint_s *position_setpoint,
 		struct vehicle_attitude_s* att,
@@ -163,7 +163,7 @@ void navFlowNavigate(
 			if(navFlowData.mode < NAV_STATUS_ALTHOLD) {
 				// set integral to current RC throttle setting
 				// there is a minus because the pidUpdate also has a minus
-				pidZeroIntegral(navFlowData.altSpeedPID, -position_data->vz, manual_control->throttle);
+				pidZeroIntegral(navFlowData.altSpeedPID, -position_data->vz, manual_control_ned[2]);
 				pidZeroIntegral(navFlowData.altPosPID, measured_altitude, 0.0f);
 				navFlowData.holdSpeedAlt = -position_data->vz;
 			}
@@ -178,15 +178,15 @@ void navFlowNavigate(
 		}
 		// DVH
 		else if (navFlowData.mode != NAV_STATUS_DVH &&
-			(fabsf(manual_control->pitch) > CTRL_DEAD_BAND ||
-			 fabsf(manual_control->roll) > CTRL_DEAD_BAND)) {
+			(fabsf(manual_control_ned[1]) > CTRL_DEAD_BAND ||
+			 fabsf(manual_control_ned[0]) > CTRL_DEAD_BAND)) {
 				navFlowData.mode = NAV_STATUS_DVH;
 				navPublishSystemInfo();
 				//printf("[quat_flow_pos_control]: DVH activated\n");
 		}
 		else if (navFlowData.mode == NAV_STATUS_DVH &&
-				fabsf(manual_control->pitch) < CTRL_DEAD_BAND &&
-				fabsf(manual_control->roll) < CTRL_DEAD_BAND) {
+				fabsf(manual_control_ned[1]) < CTRL_DEAD_BAND &&
+				fabsf(manual_control_ned[0]) < CTRL_DEAD_BAND) {
 			// allow speed to drop before holding position (or if RTH engaged)
 			//if (
 			//	   (UKF_VELN < +0.1f &&
@@ -211,7 +211,7 @@ void navFlowNavigate(
 		if(navFlowData.mode < NAV_STATUS_ALTHOLD) {
 			// set integral to current RC throttle setting
 			// there is a minus because the pidUpdate also has a minus
-			pidZeroIntegral(navFlowData.altSpeedPID, -position_data->vz, manual_control->throttle);
+			pidZeroIntegral(navFlowData.altSpeedPID, -position_data->vz, manual_control_ned[2]);
 			pidZeroIntegral(navFlowData.altPosPID, measured_altitude, 0.0f);
 			navFlowData.holdSpeedAlt = -position_data->vz;
 		}
@@ -236,8 +236,8 @@ void navFlowNavigate(
 						params,
     					position_setpoint,
     					position_data,
-						manual_control->roll,
-						manual_control->pitch,
+    					manual_control_ned[0],
+    					manual_control_ned[1],
     					navFlowData.mode,
     					&navFlowData);
 
@@ -247,7 +247,7 @@ void navFlowNavigate(
     					position_setpoint,
     					measured_altitude,
     					local_position_data->vz,
-    					manual_control->throttle,
+    					manual_control_ned[2],
     					navFlowData.mode,
     					preciseAltitude,
     					&navFlowData);

@@ -91,7 +91,7 @@ extern void navFlowNavigate(
 		const struct vehicle_control_mode_s *control_mode,
 		const struct vehicle_status_s *vstatus,
 		const struct quat_position_control_NAV_params* params,
-		const struct manual_control_setpoint_s* manual_control,
+		const float manual_control_ned[3],
 		const struct vehicle_local_position_s* local_position_data,
 		const struct position_setpoint_s *position_setpoint,
 		struct vehicle_attitude_s* att,
