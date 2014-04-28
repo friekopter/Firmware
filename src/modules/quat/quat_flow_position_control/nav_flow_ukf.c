@@ -372,9 +372,9 @@ void navFlowDoMagUpdate(float magX, float magY, float magZ,
     y[1] = magY * norm;
     y[2] = magZ * norm;
 
-    //srcdkfMeasurementUpdate(navFlowUkfData.kf, 0, y, 3, 3, noise, navFlowUkfMagUpdate);
+    srcdkfMeasurementUpdate(navFlowUkfData.kf, 0, y, 3, 3, noise, navFlowUkfMagUpdate);
 
-
+/*
     float est[3];
 	// rotate mags to body frame of reference
 	utilRotateVectorByRevQuat(est,navFlowUkfData.v0m,&UKF_FLOW_Q1);
@@ -384,14 +384,13 @@ void navFlowDoMagUpdate(float magX, float magY, float magZ,
 	rotError[0] = -(y[2] * est[1] - est[2] * y[1]) * params->ukf_mag_n;
 	rotError[1] = -(y[0] * est[2] - est[0] * y[2]) * params->ukf_mag_n;
 	rotError[2] = -(y[1] * est[0] - est[1] * y[0]) * params->ukf_mag_n;
-	/* Calculate data time difference in seconds */
 	float dt = 0;
 	uint64_t currentTime = hrt_absolute_time();
 	static uint64_t lastUpdate = 0;
 	if(lastUpdate != 0) {
 		dt = ((float)(currentTime - lastUpdate)) / 1e6f;
 	}
-    utilRotateQuat(&UKF_FLOW_Q1, &UKF_FLOW_Q1, rotError, dt);
+    utilRotateQuat(&UKF_FLOW_Q1, &UKF_FLOW_Q1, rotError, dt);*/
 /*
     static int printcounter = 0;
     if (!(printcounter % 20)){
@@ -781,9 +780,10 @@ bool navFlowUkfGpsPosUpate(
 			local_position_data->ref_lat = gps_position->lat;
 			local_position_data->ref_lon = gps_position->lon;
 			//reinit map projection
-			double lat_home = (float)local_position_data->ref_lat * 1e-7f;
-			double lon_home = (float)local_position_data->ref_lon * 1e-7f;
+			double lat_home = ((float)local_position_data->ref_lat) * 1e-7f;
+			double lon_home = ((float)local_position_data->ref_lon) * 1e-7f;
 			map_projection_init(lat_home, lon_home);
+			navFlowPublishHome(lat_home,lon_home,UKF_FLOW_VELD);
 			return false;
 		}
 		else {

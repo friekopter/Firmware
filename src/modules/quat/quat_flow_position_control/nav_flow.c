@@ -31,10 +31,13 @@
 #include <uORB/topics/manual_control_setpoint.h>
 #include <uORB/topics/position_setpoint_triplet.h>
 #include <uORB/topics/subsystem_info.h>
+#include <uORB/topics/home_position.h>
+#include <mavlink/mavlink_log.h>
 
 #define CTRL_DEAD_BAND (60.0f/1000.0f)
 
 static orb_advert_t subsystem_info_pub = -1;
+static orb_advert_t home_position_pub = -1;
 navFlowStruct_t navFlowData __attribute__((section(".ccm")));
 
 void navFlowSetHoldAlt(float alt, uint8_t relative);
@@ -43,7 +46,7 @@ void navFlowResetHoldPosition(void);
 void navCalculateTilt(	const struct vehicle_control_mode_s *control_mode,
 						const failsafe_state_t failsafeState,
 						const struct quat_position_control_NAV_params* params,
-						const struct position_setpoint_s *position_setpoint,
+						const struct position_setpoint_triplet_s *position_setpoint_triplet_s,
 						const struct vehicle_local_position_s* position_data,
 						const float manualRoll,
 						const float manualPitch,
@@ -52,7 +55,7 @@ void navCalculateTilt(	const struct vehicle_control_mode_s *control_mode,
 void navCalculateThrust (	const struct vehicle_control_mode_s *control_mode,
 							const failsafe_state_t failsafeState,
 							const struct quat_position_control_NAV_params* params,
-							const struct position_setpoint_s *position_setpoint,
+							const struct position_setpoint_triplet_s *position_setpoint_triplet_s,
 							const float measuredAltitude,
 							const float measuredVerticalVelocityNED,
 							const float manualThrottle,
@@ -60,6 +63,11 @@ void navCalculateThrust (	const struct vehicle_control_mode_s *control_mode,
 							const bool preciseAltitude,
 							navFlowStruct_t *navDataResult);
 float navCalculateTakeoffThrust(const uint64_t timestamp, const float takeoffThrust);
+
+void navAudioState( const uint8_t navigationMode,
+					const enum SETPOINT_TYPE position_setpoint_triplet,
+					const failsafe_state_t failsafeState,
+					const int mavlink_fd );
 
 struct subsystem_info_s altitude_control_info = {
 	true,
@@ -73,6 +81,7 @@ struct subsystem_info_s position_control_info = {
 	false,
 	SUBSYSTEM_TYPE_POSITIONCONTROL
 };
+struct home_position_s	home_position;
 
 void navFlowResetHoldAlt(float delta) {
     navFlowData.holdAlt += delta;
@@ -105,16 +114,95 @@ void navFlowSetHoldHeading(float targetHeading) {
 	navFlowData.holdHeading = targetHeading;
 }
 
+void navAudioState( const uint8_t navigationMode,
+					const enum SETPOINT_TYPE position_setpoint_type,
+					const failsafe_state_t failsafeState,
+					const int mavlink_fd ) {
+
+	static uint8_t currentNavMode = NAV_STATUS_MANUAL;
+	static enum SETPOINT_TYPE currentSetpointType = SETPOINT_TYPE_NORMAL;
+	static failsafe_state_t currentFailsafeState = FAILSAFE_STATE_NORMAL;
+	static uint8_t count = 0;
+	if((count++ % 10)) {
+		return;
+	}
+	if(navigationMode != currentNavMode) {
+		currentNavMode = navigationMode;
+		switch (currentNavMode) {
+				case NAV_STATUS_MISSION:
+					mavlink_log_info(mavlink_fd,"#audio: Mission Mission");
+				break;
+				case NAV_STATUS_MANUAL:
+					mavlink_log_info(mavlink_fd,"#audio: Manual Manual");
+				break;
+				case NAV_STATUS_ALTHOLD:
+					mavlink_log_info(mavlink_fd,"#audio: Althold Althold");
+				break;
+				case NAV_STATUS_POSHOLD:
+					mavlink_log_info(mavlink_fd,"#audio: Poshold Poshold");
+				break;
+				case NAV_STATUS_DVH:
+					mavlink_log_info(mavlink_fd,"#audio: Vector Vector");
+				break;
+				default:
+				break;
+		}
+	}
+	if(navigationMode == NAV_STATUS_MISSION  &&
+			position_setpoint_type != currentSetpointType) {
+		currentSetpointType = position_setpoint_type;
+		switch (currentSetpointType) {
+				case SETPOINT_TYPE_NORMAL:
+					mavlink_log_info(mavlink_fd,"#audio: set set");
+				break;
+				case SETPOINT_TYPE_LOITER:
+					mavlink_log_info(mavlink_fd,"#audio: Loiter Loiter");
+				break;
+				case SETPOINT_TYPE_TAKEOFF:
+					mavlink_log_info(mavlink_fd,"#audio: Takeoff Takeoff");
+				break;
+				case SETPOINT_TYPE_LAND:
+					mavlink_log_info(mavlink_fd,"#audio: Land Land");
+				break;
+				case SETPOINT_TYPE_IDLE:
+					mavlink_log_info(mavlink_fd,"#audio: Idle Idle");
+				break;
+				default:
+				break;
+		}
+	}
+	if(failsafeState != currentFailsafeState) {
+		currentFailsafeState = failsafeState;
+		switch (currentFailsafeState) {
+				case FAILSAFE_STATE_RTL:
+					mavlink_log_info(mavlink_fd,"#audio: fail RTL");
+				break;
+				case FAILSAFE_STATE_LAND:
+					mavlink_log_info(mavlink_fd,"#audio: fail Land");
+				break;
+				case FAILSAFE_STATE_TERMINATION:
+					mavlink_log_info(mavlink_fd,"#audio: fail Term");
+				break;
+				case FAILSAFE_STATE_MAX:
+					mavlink_log_info(mavlink_fd,"#audio: fail Max");
+				break;
+				default:
+				break;
+		}
+	}
+}
+
 void navFlowNavigate(
 		const struct vehicle_control_mode_s *control_mode,
 		const struct vehicle_status_s *vstatus,
 		const struct quat_position_control_NAV_params* params,
 		const float manual_control_ned[3],
 		const struct vehicle_local_position_s* local_position_data,
-		const struct position_setpoint_s *position_setpoint,
+		const struct position_setpoint_triplet_s *position_setpoint_triplet,
 		struct vehicle_attitude_s* att,
 		const bool preciseAltitude,
-		uint64_t imu_timestamp
+		const uint64_t imu_timestamp,
+		const int mavlink_fd
 		) {
     uint64_t currentTime = imu_timestamp;
     const float measured_altitude = local_position_data->z;//-UKF_FLOW_PRES_ALT;//local_position->z;//=UKF_FLOW_PRES_ALT
@@ -234,7 +322,7 @@ void navFlowNavigate(
 	navCalculateTilt( 	control_mode,
 						vstatus->failsafe_state,
 						params,
-    					position_setpoint,
+    					position_setpoint_triplet,
     					position_data,
     					manual_control_ned[0],
     					manual_control_ned[1],
@@ -244,7 +332,7 @@ void navFlowNavigate(
     navCalculateThrust(	control_mode,
 						vstatus->failsafe_state,
     					params,
-    					position_setpoint,
+    					position_setpoint_triplet,
     					measured_altitude,
     					local_position_data->vz,
     					manual_control_ned[2],
@@ -253,37 +341,43 @@ void navFlowNavigate(
     					&navFlowData);
 
     navFlowData.lastUpdate = currentTime;
+
+    navAudioState(navFlowData.mode,position_setpoint_triplet->current.type,
+    				vstatus->failsafe_state,
+    				mavlink_fd);
 }
+
 
 void navCalculateTilt(	const struct vehicle_control_mode_s *control_mode,
 						const failsafe_state_t failsafeState,
 						const struct quat_position_control_NAV_params* params,
-						const struct position_setpoint_s *position_setpoint,
+						const struct position_setpoint_triplet_s *position_setpoint_triplet,
 						const struct vehicle_local_position_s* position_data,
 						const float manualRoll,
 						const float manualPitch,
 						const uint8_t navigationMode,
 						navFlowStruct_t *navDataResult) {
+	const struct position_setpoint_s* current_setpoint = &position_setpoint_triplet->current;
 	if (failsafeState > FAILSAFE_STATE_NORMAL) {
 		navDataResult->holdSpeedX = 0.0f;
 		navDataResult->holdSpeedY = 0.0f;
 	}
 	else if (navigationMode == NAV_STATUS_MISSION) {
-    	if (position_setpoint->type == SETPOINT_TYPE_NORMAL) {
+    	if (current_setpoint->type == SETPOINT_TYPE_NORMAL) {
 			//navDataResult->holdSpeedX = pidUpdate(navDataResult->distanceXPID, local_position_setpoint->x, position_data->x);
 			//navDataResult->holdSpeedY = pidUpdate(navDataResult->distanceYPID, local_position_setpoint->y, position_data->y);
     		navDataResult->holdSpeedX = pidUpdate(navDataResult->distanceXPID, navDataResult->holdPositionX, position_data->x);
     		navDataResult->holdSpeedY = pidUpdate(navDataResult->distanceYPID, navDataResult->holdPositionY, position_data->y);
-    	} else if (position_setpoint->type == SETPOINT_TYPE_LOITER) {
+    	} else if (current_setpoint->type == SETPOINT_TYPE_LOITER) {
     		navDataResult->holdSpeedX = pidUpdate(navDataResult->distanceXPID, navDataResult->holdPositionX, position_data->x);
     		navDataResult->holdSpeedY = pidUpdate(navDataResult->distanceYPID, navDataResult->holdPositionY, position_data->y);
-    	} else if (position_setpoint->type == SETPOINT_TYPE_TAKEOFF) {
+    	} else if (current_setpoint->type == SETPOINT_TYPE_TAKEOFF) {
 			navDataResult->holdSpeedX = 0.0f;
 			navDataResult->holdSpeedY = 0.0f;
-    	} else if (position_setpoint->type == SETPOINT_TYPE_LAND) {
+    	} else if (current_setpoint->type == SETPOINT_TYPE_LAND) {
 			navDataResult->holdSpeedX = 0.0f;
 			navDataResult->holdSpeedY = 0.0f;
-    	} else if (position_setpoint->type == SETPOINT_TYPE_IDLE) {
+    	} else if (current_setpoint->type == SETPOINT_TYPE_IDLE) {
 			navDataResult->holdSpeedX = 0.0f;
 			navDataResult->holdSpeedY = 0.0f;
     	}
@@ -329,13 +423,14 @@ void navCalculateTilt(	const struct vehicle_control_mode_s *control_mode,
 void navCalculateThrust(	const struct vehicle_control_mode_s *control_mode,
 							const failsafe_state_t failsafeState,
 							const struct quat_position_control_NAV_params* params,
-							const struct position_setpoint_s *position_setpoint,
+							const struct position_setpoint_triplet_s *position_setpoint_triplet,
 							const float measuredAltitude,
 							const float measuredVerticalVelocityNED,
 							const float manualThrottle,
 							const uint8_t navigationMode,
 							const bool preciseAltitude,
 							navFlowStruct_t *navDataResult) {
+	const struct position_setpoint_s* current_setpoint = &position_setpoint_triplet->current;
     // Calculate thrust
     // Reset result
     navDataResult->autoThrust = 0.0f;
@@ -345,20 +440,20 @@ void navCalculateThrust(	const struct vehicle_control_mode_s *control_mode,
 		navDataResult->targetHoldSpeedAlt = +0.5f;
 	}
 	else if (navigationMode == NAV_STATUS_MISSION) {
-    	if (position_setpoint->type == SETPOINT_TYPE_NORMAL) {
+    	if (current_setpoint->type == SETPOINT_TYPE_NORMAL) {
 			//navDataResult->targetHoldSpeedAlt = pidUpdate(navDataResult->altPosPID, local_position_setpoint->z, measuredAltitude);
 			navDataResult->targetHoldSpeedAlt = pidUpdate(navDataResult->altPosPID, navDataResult->holdAlt, measuredAltitude);
-    	} else if (position_setpoint->type == SETPOINT_TYPE_LOITER) {
+    	} else if (current_setpoint->type == SETPOINT_TYPE_LOITER) {
 			navDataResult->targetHoldSpeedAlt = pidUpdate(navDataResult->altPosPID, navDataResult->holdAlt, measuredAltitude);
-    	} else if (position_setpoint->type == SETPOINT_TYPE_TAKEOFF) {
+    	} else if (current_setpoint->type == SETPOINT_TYPE_TAKEOFF) {
 			// set thrust hard coded
 			navDataResult->autoThrust = navCalculateTakeoffThrust(navDataResult->lastUpdate,params->nav_takeoff_thrust);
 			pidZeroIntegral(navFlowData.altSpeedPID, -measuredVerticalVelocityNED, navDataResult->autoThrust);
 			pidZeroIntegral(navFlowData.altPosPID, measuredAltitude, 0.0f);
 			navFlowSetHoldAlt(measuredAltitude, 0);
-    	} else if (position_setpoint->type == SETPOINT_TYPE_LAND) {
+    	} else if (current_setpoint->type == SETPOINT_TYPE_LAND) {
     		navDataResult->targetHoldSpeedAlt = +0.5f;
-    	} else if (position_setpoint->type == SETPOINT_TYPE_IDLE) {
+    	} else if (current_setpoint->type == SETPOINT_TYPE_IDLE) {
 			navDataResult->targetHoldSpeedAlt = pidUpdate(navDataResult->altPosPID, navDataResult->holdAlt, measuredAltitude);
     	}
     	// constrain horizontal velocity
@@ -483,6 +578,18 @@ void navPublishSystemInfo(void) {
 	}
 }
 
+void navFlowPublishHome(double lat, double lon, float alt) {
+	home_position.alt = alt;
+	home_position.lat = lat;
+	home_position.alt = alt;
+	orb_publish(ORB_ID(home_position), home_position_pub, &home_position);
+}
+
+void navFlowPublishHomeAlt(float alt) {
+	home_position.alt = alt;
+	orb_publish(ORB_ID(home_position), home_position_pub, &home_position);
+}
+
 void navFlowInit(const struct quat_position_control_NAV_params* params,
 				float holdYaw,
 				float holdAlt) {
@@ -503,4 +610,6 @@ void navFlowInit(const struct quat_position_control_NAV_params* params,
 	/* notify about state change */
     subsystem_info_pub = orb_advertise(ORB_ID(subsystem_info), &altitude_control_info);
     subsystem_info_pub = orb_advertise(ORB_ID(subsystem_info), &position_control_info);
+    memset((void *)&home_position, 0, sizeof(home_position));
+    home_position_pub = orb_advertise(ORB_ID(home_position), &home_position);
 }

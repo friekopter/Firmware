@@ -93,13 +93,16 @@ extern void navFlowNavigate(
 		const struct quat_position_control_NAV_params* params,
 		const float manual_control_ned[3],
 		const struct vehicle_local_position_s* local_position_data,
-		const struct position_setpoint_s *position_setpoint,
+		const struct position_setpoint_triplet_s *position_setpoint_triplet,
 		struct vehicle_attitude_s* att,
 		const bool preciseAltitude,
-		uint64_t imu_timestamp
+		const uint64_t imu_timestamp,
+		const int mavlink_fd
 		);
 extern void navFlowResetHoldAlt(float delta);
 extern void navFlowSetHoldHeading(float targetHeading);
 extern void navPublishSystemInfo(void);
+extern void navFlowPublishHome(double lat, double lon, float alt);
+extern void navFlowPublishHomeAlt(float alt);
 
 #endif

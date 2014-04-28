@@ -812,7 +812,6 @@ Navigator::task_main()
 		/* global position updated */
 		if (fds[1].revents & POLLIN) {
 			global_position_update();
-
 			/* publish position setpoint triplet on each position update if navigator active */
 			if (_control_mode.flag_armed && _control_mode.flag_control_auto_enabled) {
 				_pos_sp_triplet_updated = true;
@@ -859,7 +858,6 @@ Navigator::task_main()
 			mavlink_log_info(_mavlink_fd, "#audio: navigation state: %s", nav_states_str[myState]);
 			prevState = myState;
 		}
-
 		perf_end(_loop_perf);
 	}
 

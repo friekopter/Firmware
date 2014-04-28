@@ -639,9 +639,9 @@ quat_pos_control_thread_main(int argc, char *argv[])
 				global_position.alt = UKF_ALTITUDE;
 				global_position.lat = UKF_POSN;
 				global_position.lon = UKF_POSE;
-				global_position.vx = UKF_VELN * navUkfData.yawCos - UKF_VELE * navUkfData.yawSin;
-				global_position.vy = UKF_VELE * navUkfData.yawCos + UKF_VELN * navUkfData.yawSin;
-				global_position.vz = UKF_VELD;
+				global_position.vel_n = UKF_VELN;
+				global_position.vel_e = UKF_VELE;
+				global_position.vel_d = UKF_VELD;
 				global_position.timestamp = hrt_absolute_time();
 				global_position.yaw = navUkfData.yaw;
 				orb_publish(ORB_ID(vehicle_global_position), global_position_pub, &global_position);

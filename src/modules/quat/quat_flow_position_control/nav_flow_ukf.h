@@ -13,7 +13,7 @@
 #include <uORB/topics/filtered_bottom_flow.h>
 #include <quat/utils/quat_pos_control_params.h>
 
-#define UKF_HIST		40
+#define UKF_HIST		20
 
 typedef struct {
     srcdkf_t *kf;

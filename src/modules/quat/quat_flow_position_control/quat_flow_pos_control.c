@@ -45,14 +45,14 @@
 #include "nav_flow_ukf.h"
 #include <quat/utils/quat_constants.h>
 #include <quat/utils/util.h>
+#include <mavlink/mavlink_log.h>
 
 #include "quat_flow_pos_control.h"
-
 runStruct_t runData __attribute__((section(".ccm")));
 // Struct for data output. Defined here to reduce stack frame size
 static struct vehicle_attitude_setpoint_s att_sp __attribute__((section(".ccm")));
 static struct vehicle_local_position_setpoint_s local_position_sp __attribute__((section(".ccm")));
-static struct position_setpoint_s position_sp __attribute__((section(".ccm")));
+static struct position_setpoint_triplet_s position_sp_triplet __attribute__((section(".ccm")));
 static struct vehicle_attitude_s att __attribute__((section(".ccm")));
 static struct manual_control_setpoint_s manual;
 static struct vehicle_control_mode_s control_mode;
@@ -232,6 +232,10 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 	float acc_noise = 0.0f;
 	bool sonarValid = false;
 	bool gpsValid = false;
+	int		mavlink_fd;
+
+	mavlink_fd = open(MAVLINK_LOG_DEVICE, 0);
+
 
 	// Output
 	// Calculation result is the attitude setpoint
@@ -312,14 +316,14 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 
 	// Position setpoint
 	int pos_sp_sub = orb_subscribe(ORB_ID(position_setpoint_triplet));
-	memset(&position_sp, 0, sizeof(position_sp));
-	position_sp.type = SETPOINT_TYPE_LOITER;
+	memset(&position_sp_triplet, 0, sizeof(position_sp_triplet));
+	/* rate-limit updates to 1Hz */
+	orb_set_interval(pos_sp_sub, 1000);
+	position_sp_triplet.current.type = SETPOINT_TYPE_LOITER;
 
 	// Vehicle Status
 	int vehicle_status_sub = orb_subscribe(ORB_ID(vehicle_status));
 	memset(&vstatus, 0, sizeof(vstatus));
-	/* rate-limit updates to 1Hz */
-	orb_set_interval(sub_params, 1000);
 
 	sleep(2);
 	/* register the perf counter */
@@ -332,10 +336,10 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 	struct pollfd fds[8] = {
 		{ .fd = sub_raw,   .events = POLLIN },
 		{ .fd = filtered_bottom_flow_sub, .events = POLLIN },
+		{ .fd = gps_sub, .events = POLLIN },
 		{ .fd = manual_sub,   .events = POLLIN },
 		{ .fd = sub_params, .events = POLLIN },
 		{ .fd = control_mode_sub, .events = POLLIN },
-		{ .fd = gps_sub, .events = POLLIN },
 		{ .fd = pos_sp_sub, .events = POLLIN },
 		{ .fd = vehicle_status_sub, .events = POLLIN }
 	};
@@ -525,16 +529,17 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 	// Init local to global transformation
 	local_position_data.ref_lat = 481292910;
 	local_position_data.ref_lon = 117061650;
-	double lat_home = (float)local_position_data.ref_lat * 1e-7f;
-	double lon_home = (float)local_position_data.ref_lon * 1e-7f;
+	double lat_home = ((float)local_position_data.ref_lat) * 1e-7f;
+	double lon_home = ((float)local_position_data.ref_lon) * 1e-7f;
 	map_projection_init(lat_home, lon_home);
+	navFlowPublishHome(lat_home,lon_home,UKF_FLOW_VELD);
 
 	///////////////////////////////////////////
 	// Start main loop
 	///////////////////////////////////////////
 	printf("[quat flow pos control] States: %u\n", (uint8_t)ukf_params.ukf_states);
 	while (!thread_should_exit) {
-		int ret = poll(fds, 2, 1000);
+		int ret = poll(fds, 3, 1000);
 		if (ret < 0)
 		{
 			/* XXX this is seriously bad - should be an emergency */
@@ -549,12 +554,12 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 			static float dt = 0;
 			perf_begin(quat_flow_pos_loop_perf);
 			bool updated = false;
-			orb_check(fds[4].fd, &updated);
+			orb_check(control_mode_sub, &updated);
 			if (updated) {
 				orb_copy(ORB_ID(vehicle_control_mode), control_mode_sub, &control_mode);
 			}
 			/* only update parameters if they changed */
-			orb_check(fds[3].fd, &updated);
+			orb_check(sub_params, &updated);
 			if (updated)
 			{
 				/* read from param to clear updated flag */
@@ -565,12 +570,12 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 				orb_set_interval(sub_raw, (unsigned)ukf_params.ukf_raw_intv);
 				setRunSensorHistNumber(ukf_params.ukf_sens_hist);
 			}
-			orb_check(fds[2].fd, &updated);
+			orb_check(manual_sub, &updated);
 			if (updated)
 			{
 				orb_copy(ORB_ID(manual_control_setpoint), manual_sub, &manual);
 			}
-			orb_check(fds[7].fd, &updated);
+			orb_check(vehicle_status_sub, &updated);
 			if (updated)
 			{
 				orb_copy(ORB_ID(vehicle_status), vehicle_status_sub, &vstatus);
@@ -726,6 +731,7 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 						navFlowUkfFlowUpdate(&filtered_bottom_flow_data,dt,&control_mode,gpsValid,&ukf_params);
 					} else {
 						sonarValid = navFlowUkfSonarUpdate(&filtered_bottom_flow_data,dt,raw.baro_alt_meter,&control_mode,&ukf_params);
+						navFlowPublishHomeAlt(UKF_FLOW_VELD);
 					}
 				}
 				else if(filtered_bottom_flow_data.ned_xy_valid > 0) {
@@ -737,7 +743,7 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 				////navFlowUkfFlowVelUpate(&filtered_bottom_flow_data,&control_mode,&ukf_params);
 				perf_end(quat_flow_position_perf);
 			}
-			else if (fds[5].revents & POLLIN)
+			else if (fds[2].revents & POLLIN)
 			{
 				static uint64_t timestamp_velocity = 0;
 				static uint64_t timestamp_position = 0;
@@ -751,12 +757,16 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 				}
 			}
 
-			if (fds[6].revents & POLLIN)
+			orb_check(pos_sp_sub, &updated);
+			if (updated)
 			{
-				// only in case of auto we listen for the setpoint, otherwise we self calculate it
-				orb_copy(ORB_ID(position_setpoint_triplet), pos_sp_sub, &position_sp);
-				printf("[quat flow pos control] position setpoint %d, %8.4f, %8.4f, %8.4f, %8.4f",position_sp.type,
-						position_sp.alt, position_sp.lat, position_sp.lon, position_sp.yaw);
+				orb_copy(ORB_ID(position_setpoint_triplet), pos_sp_sub, &position_sp_triplet);
+				printf("[quat flow pos control] ps %d, %8.4f, %8.4f, %8.4f, %8.4f\n",position_sp_triplet.previous.type,
+					position_sp_triplet.previous.alt, position_sp_triplet.previous.lat, position_sp_triplet.previous.lon, position_sp_triplet.previous.yaw),
+				printf("[quat flow pos control] cs %d, %8.4f, %8.4f, %8.4f, %8.4f\n",position_sp_triplet.current.type,
+									position_sp_triplet.current.alt, position_sp_triplet.current.lat, position_sp_triplet.current.lon, position_sp_triplet.current.yaw);
+				printf("[quat flow pos control] ns %d, %8.4f, %8.4f, %8.4f, %8.4f\n",position_sp_triplet.next.type,
+									position_sp_triplet.next.alt, position_sp_triplet.next.lat, position_sp_triplet.next.lon, position_sp_triplet.next.yaw);
 			}
 
 			if (!(loopcounter % 100) && !control_mode.flag_armed ) {
@@ -822,10 +832,11 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 							&nav_params,
 							manual_control_ned,
 							&local_position_data,
-							&position_sp,
+							&position_sp_triplet,
 							&att,
 							sonarValid,
-							raw.timestamp);
+							raw.timestamp,
+							mavlink_fd);
 			perf_end(quat_flow_pos_nav_perf);
 			// rotate nav's NE frame of reference to our craft's local frame of reference
 			// Tilt north means for yaw=0 nose up. If yaw=90 degrees it means left wing up that is positive roll
@@ -892,6 +903,13 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 				global_position_data.lon = (int32_t) (lon * (double)1e7f);
 				//global_position_data.relative_alt = local_position_data.z;
 				global_position_data.alt = UKF_FLOW_POSD;
+				global_position_data.vel_n = UKF_FLOW_VELX;
+				global_position_data.vel_e = UKF_FLOW_VELY;
+				global_position_data.vel_d = UKF_FLOW_VELD;
+				global_position_data.baro_alt = UKF_FLOW_PRES_ALT;
+				global_position_data.baro_valid = true;
+				global_position_data.yaw = navFlowUkfData.yaw;
+				global_position_data.time_gps_usec = gps_data.timestamp_time;
 				global_position_data.timestamp = hrt_absolute_time();
 				global_position_data.global_valid = true;
 				orb_publish(ORB_ID(vehicle_global_position), global_pos_pub, &global_position_data);
