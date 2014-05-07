@@ -62,7 +62,7 @@ MODULES		+= systemcmds/dumpfile
 # General system control
 #
 MODULES		+= modules/commander
-#MODULES		+= modules/navigator
+MODULES		+= modules/navigator
 MODULES		+= modules/mavlink
 MODULES		+= modules/gpio_led
 

@@ -48,12 +48,12 @@
 #include <mavlink/mavlink_log.h>
 
 #include "quat_flow_pos_control.h"
-runStruct_t runData __attribute__((section(".ccm")));
+runStruct_t runData;// __attribute__((section(".ccm")));
 // Struct for data output. Defined here to reduce stack frame size
-static struct vehicle_attitude_setpoint_s att_sp __attribute__((section(".ccm")));
-static struct vehicle_local_position_setpoint_s local_position_sp __attribute__((section(".ccm")));
-static struct position_setpoint_triplet_s position_sp_triplet __attribute__((section(".ccm")));
-static struct vehicle_attitude_s att __attribute__((section(".ccm")));
+static struct vehicle_attitude_setpoint_s att_sp;// __attribute__((section(".ccm")));
+static struct vehicle_local_position_setpoint_s local_position_sp;// __attribute__((section(".ccm")));
+static struct position_setpoint_triplet_s position_sp_triplet;// __attribute__((section(".ccm")));
+static struct vehicle_attitude_s att;// __attribute__((section(".ccm")));
 static struct manual_control_setpoint_s manual;
 static struct vehicle_control_mode_s control_mode;
 static struct vehicle_status_s vstatus;
@@ -529,8 +529,8 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 	// Init local to global transformation
 	local_position_data.ref_lat = 481292910;
 	local_position_data.ref_lon = 117061650;
-	double lat_home = ((float)local_position_data.ref_lat) * 1e-7f;
-	double lon_home = ((float)local_position_data.ref_lon) * 1e-7f;
+	double lat_home = ((double)local_position_data.ref_lat) * 1e-7f;
+	double lon_home = ((double)local_position_data.ref_lon) * 1e-7f;
 	map_projection_init(lat_home, lon_home);
 	navFlowPublishHome(lat_home,lon_home,UKF_FLOW_VELD);
 
@@ -899,8 +899,8 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 				double lon = 0.0f;
 				map_projection_reproject(local_position_data.x,local_position_data.y,
 						&lat,&lon);
-				global_position_data.lat = (int32_t) (lat * (double)1e7f);
-				global_position_data.lon = (int32_t) (lon * (double)1e7f);
+				global_position_data.lat = lat;
+				global_position_data.lon = lon;
 				//global_position_data.relative_alt = local_position_data.z;
 				global_position_data.alt = UKF_FLOW_POSD;
 				global_position_data.vel_n = UKF_FLOW_VELX;

@@ -780,8 +780,8 @@ bool navFlowUkfGpsPosUpate(
 			local_position_data->ref_lat = gps_position->lat;
 			local_position_data->ref_lon = gps_position->lon;
 			//reinit map projection
-			double lat_home = ((float)local_position_data->ref_lat) * 1e-7f;
-			double lon_home = ((float)local_position_data->ref_lon) * 1e-7f;
+			double lat_home = ((double)local_position_data->ref_lat) * 1e-7f;
+			double lon_home = ((double)local_position_data->ref_lon) * 1e-7f;
 			map_projection_init(lat_home, lon_home);
 			navFlowPublishHome(lat_home,lon_home,UKF_FLOW_VELD);
 			return false;

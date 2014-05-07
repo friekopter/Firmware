@@ -231,11 +231,6 @@ void navFlowNavigate(
 		if (navFlowData.mode != NAV_STATUS_POSHOLD &&
 			navFlowData.mode != NAV_STATUS_DVH) {
 
-			// record this position as hold position
-			navFlowSetHoldPosition(position_data->x, position_data->y);
-			// record this altitude as the hold altitude
-			navFlowSetHoldAlt(measured_altitude, 0);
-
 			// only zero bias if coming from lower mode
 			if (navFlowData.mode < NAV_STATUS_POSHOLD) {
 				navFlowData.holdTiltX = 0.0f;
@@ -255,6 +250,11 @@ void navFlowNavigate(
 				pidZeroIntegral(navFlowData.altPosPID, measured_altitude, 0.0f);
 				navFlowData.holdSpeedAlt = -position_data->vz;
 			}
+
+			// record this position as hold position
+			navFlowSetHoldPosition(position_data->x, position_data->y);
+			// record this altitude as the hold altitude
+			navFlowSetHoldAlt(measured_altitude, 0);
 
 			navFlowData.holdMaxHorizSpeed = params->nav_max_speed;
 			navFlowData.holdMaxVertSpeed = params->nav_alt_pos_om;
