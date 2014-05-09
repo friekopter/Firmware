@@ -72,6 +72,7 @@
 #include <uORB/topics/navigation_capabilities.h>
 #include <drivers/drv_rc_input.h>
 #include <drivers/drv_pwm_output.h>
+#include <drivers/drv_range_finder.h>
 
 #include "mavlink_messages.h"
 
@@ -123,13 +124,13 @@ void get_mavlink_mode_state(struct vehicle_status_s *status, struct position_set
 			*mavlink_base_mode |= MAV_MODE_FLAG_MANUAL_INPUT_ENABLED | (status->is_rotary_wing ? MAV_MODE_FLAG_STABILIZE_ENABLED : 0);
 			custom_mode.main_mode = PX4_CUSTOM_MAIN_MODE_MANUAL;
 
-		} else if (status->main_state == MAIN_STATE_SEATBELT) {
+		} else if (status->main_state == MAIN_STATE_ALTCTRL) {
 			*mavlink_base_mode |= MAV_MODE_FLAG_MANUAL_INPUT_ENABLED | MAV_MODE_FLAG_STABILIZE_ENABLED;
-			custom_mode.main_mode = PX4_CUSTOM_MAIN_MODE_SEATBELT;
+			custom_mode.main_mode = PX4_CUSTOM_MAIN_MODE_ALTCTRL;
 
-		} else if (status->main_state == MAIN_STATE_EASY) {
+		} else if (status->main_state == MAIN_STATE_POSCTRL) {
 			*mavlink_base_mode |= MAV_MODE_FLAG_MANUAL_INPUT_ENABLED | MAV_MODE_FLAG_STABILIZE_ENABLED | MAV_MODE_FLAG_GUIDED_ENABLED;
-			custom_mode.main_mode = PX4_CUSTOM_MAIN_MODE_EASY;
+			custom_mode.main_mode = PX4_CUSTOM_MAIN_MODE_POSCTRL;
 
 		} else if (status->main_state == MAIN_STATE_AUTO) {
 			*mavlink_base_mode |= MAV_MODE_FLAG_AUTO_ENABLED | MAV_MODE_FLAG_STABILIZE_ENABLED | MAV_MODE_FLAG_GUIDED_ENABLED;
@@ -818,11 +819,11 @@ protected:
 
 	void send(const hrt_abstime t)
 	{
-		bool updated = status_sub->update(t);
-		updated |= pos_sp_triplet_sub->update(t);
-		updated |= act_sub->update(t);
+		bool updated = act_sub->update(t);
+		(void)pos_sp_triplet_sub->update(t);
+		(void)status_sub->update(t);
 
-		if (updated) {
+		if (updated && (status->arming_state == ARMING_STATE_ARMED)) {
 			/* translate the current syste state to mavlink state and mode */
 			uint8_t mavlink_state;
 			uint8_t mavlink_base_mode;
@@ -1312,6 +1313,52 @@ protected:
 	}
 };
 
+class MavlinkStreamDistanceSensor : public MavlinkStream
+{
+public:
+	const char *get_name()
+	{
+		return "DISTANCE_SENSOR";
+	}
+
+	MavlinkStream *new_instance()
+	{
+		return new MavlinkStreamDistanceSensor();
+	}
+
+private:
+	MavlinkOrbSubscription *range_sub;
+	struct range_finder_report *range;
+
+protected:
+	void subscribe(Mavlink *mavlink)
+	{
+		range_sub = mavlink->add_orb_subscription(ORB_ID(sensor_range_finder));
+		range = (struct range_finder_report *)range_sub->get_data();
+	}
+
+	void send(const hrt_abstime t)
+	{
+		if (range_sub->update(t)) {
+
+			uint8_t type;
+
+			switch (range->type) {
+				case RANGE_FINDER_TYPE_LASER:
+				type = MAV_DISTANCE_SENSOR_LASER;
+				break;
+			}
+
+			uint8_t id = 0;
+			uint8_t orientation = 0;
+			uint8_t covariance = 20;
+
+			mavlink_msg_distance_sensor_send(_channel, range->timestamp / 1000, type, id, orientation,
+				range->minimum_distance*100, range->maximum_distance*100, range->distance*100, covariance);
+		}
+	}
+};
+
 MavlinkStream *streams_list[] = {
 	new MavlinkStreamHeartbeat(),
 	new MavlinkStreamSysStatus(),
@@ -1338,6 +1385,7 @@ MavlinkStream *streams_list[] = {
 	new MavlinkStreamAttitudeControls(),
 	new MavlinkStreamNamedValueFloat(),
 	new MavlinkStreamCameraCapture(),
+	new MavlinkStreamDistanceSensor(),
 	new MavlinkStreamViconPositionEstimate(),
 	nullptr
 };
