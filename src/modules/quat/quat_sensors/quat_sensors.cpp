@@ -619,23 +619,16 @@ Quat_Sensors::Quat_Sensors() :
 	_parameter_handles.rc_map_aux3 = param_find("RC_MAP_AUX3");
 	_parameter_handles.rc_map_aux4 = param_find("RC_MAP_AUX4");
 	_parameter_handles.rc_map_aux5 = param_find("RC_MAP_AUX5");
-	param_get(_parameter_handles.rc_fails_thr, &(_parameters.rc_fails_thr));
-	param_get(_parameter_handles.rc_assist_th, &(_parameters.rc_assist_th));
-	_parameters.rc_assist_inv = (_parameters.rc_assist_th<0);
-	_parameters.rc_assist_th = fabs(_parameters.rc_assist_th);
-	param_get(_parameter_handles.rc_auto_th, &(_parameters.rc_auto_th));
-	_parameters.rc_auto_inv = (_parameters.rc_auto_th<0);
-	_parameters.rc_auto_th = fabs(_parameters.rc_auto_th);
-	param_get(_parameter_handles.rc_posctrl_th, &(_parameters.rc_posctrl_th));
-	_parameters.rc_posctrl_inv = (_parameters.rc_posctrl_th<0);
-	_parameters.rc_posctrl_th = fabs(_parameters.rc_posctrl_th);
-	param_get(_parameter_handles.rc_return_th, &(_parameters.rc_return_th));
-	_parameters.rc_return_inv = (_parameters.rc_return_th<0);
-	_parameters.rc_return_th = fabs(_parameters.rc_return_th);
-	param_get(_parameter_handles.rc_loiter_th, &(_parameters.rc_loiter_th));
-	_parameters.rc_loiter_inv = (_parameters.rc_loiter_th<0);
-	_parameters.rc_loiter_th = fabs(_parameters.rc_loiter_th);
 
+	/* RC thresholds */
+	_parameter_handles.rc_fails_thr = param_find("RC_FAILS_THR");
+	_parameter_handles.rc_assist_th = param_find("RC_ASSIST_TH");
+	_parameter_handles.rc_auto_th = param_find("RC_AUTO_TH");
+	_parameter_handles.rc_posctrl_th = param_find("RC_POSCTRL_TH");
+	_parameter_handles.rc_return_th = param_find("RC_RETURN_TH");
+	_parameter_handles.rc_loiter_th = param_find("RC_LOITER_TH");
+
+	// Scalings
 	_parameter_handles.rc_scale_roll = param_find("RC_SCALE_ROLL");
 	_parameter_handles.rc_scale_pitch = param_find("RC_SCALE_PITCH");
 	_parameter_handles.rc_scale_yaw = param_find("RC_SCALE_YAW");
@@ -747,8 +740,10 @@ Quat_Sensors::Quat_Sensors() :
 
 	/* Differential pressure offset */
 	_parameter_handles.diff_pres_offset_pa = param_find("SENS_DPRES_OFF");
+	_parameter_handles.diff_pres_analog_enabled = param_find("SENS_DPRES_ANA");
 
 	_parameter_handles.battery_voltage_scaling = param_find("BAT_V_SCALING");
+	_parameter_handles.battery_current_scaling = param_find("BAT_C_SCALING");
 
 	/* fetch initial parameter values */
 	parameters_update();
