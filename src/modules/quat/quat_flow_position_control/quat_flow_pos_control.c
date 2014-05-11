@@ -65,6 +65,8 @@ static struct ukf_state_vector_s ukf_state;
 struct vehicle_gps_position_s 	gps_data;
 
 
+struct map_projection_reference_s gps_map_ref;	/**< local projection reference */
+
 static bool thread_should_exit = false;		/**< Deamon exit flag */
 static bool thread_running = false;		/**< Deamon status flag */
 static int deamon_task;				/**< Handle of deamon task / thread */
@@ -236,6 +238,7 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 
 	mavlink_fd = open(MAVLINK_LOG_DEVICE, 0);
 
+	memset(&gps_map_ref, 0, sizeof(gps_map_ref));
 
 	// Output
 	// Calculation result is the attitude setpoint
@@ -531,7 +534,7 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 	local_position_data.ref_lon = 117061650;
 	double lat_home = ((double)local_position_data.ref_lat) * 1e-7f;
 	double lon_home = ((double)local_position_data.ref_lon) * 1e-7f;
-	map_projection_init(lat_home, lon_home);
+	map_projection_init(&gps_map_ref,lat_home, lon_home);
 	navFlowPublishHome(lat_home,lon_home,UKF_FLOW_VELD);
 
 	///////////////////////////////////////////
@@ -750,7 +753,7 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 				orb_copy(ORB_ID(vehicle_gps_position), gps_sub, &gps_data);
 				if(gps_data.timestamp_position > timestamp_position) {
 					timestamp_position = gps_data.timestamp_position;
-					//gpsValid = navFlowUkfGpsPosUpate(&gps_data,&local_position_data,dt,&control_mode,&ukf_params);
+					//gpsValid = navFlowUkfGpsPosUpate(&gps_data,&local_position_data,dt,&control_mode,&ukf_params,&gps_map_ref);
 				} else if(gps_data.timestamp_velocity > timestamp_velocity) {
 					timestamp_velocity = gps_data.timestamp_velocity;
 					//gpsValid = navFlowUkfGpsVelUpate(&gps_data,dt,&control_mode,&ukf_params);
@@ -897,7 +900,7 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 			} else if(!((printcounter + 15) % 20)) {
 				double lat = 0.0f;
 				double lon = 0.0f;
-				map_projection_reproject(local_position_data.x,local_position_data.y,
+				map_projection_reproject(&gps_map_ref,local_position_data.x,local_position_data.y,
 						&lat,&lon);
 				global_position_data.lat = lat;
 				global_position_data.lon = lon;
@@ -906,12 +909,9 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 				global_position_data.vel_n = UKF_FLOW_VELX;
 				global_position_data.vel_e = UKF_FLOW_VELY;
 				global_position_data.vel_d = UKF_FLOW_VELD;
-				global_position_data.baro_alt = UKF_FLOW_PRES_ALT;
-				global_position_data.baro_valid = true;
 				global_position_data.yaw = navFlowUkfData.yaw;
 				global_position_data.time_gps_usec = gps_data.timestamp_time;
 				global_position_data.timestamp = hrt_absolute_time();
-				global_position_data.global_valid = true;
 				orb_publish(ORB_ID(vehicle_global_position), global_pos_pub, &global_position_data);
 			} else if(!control_mode.flag_control_auto_enabled && !((printcounter + 18) % 20)) {
 				local_position_sp.x = navFlowData.holdPositionX;

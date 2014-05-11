@@ -137,7 +137,7 @@ MODULES		+= lib/conversion
 
 # Quat Apps
 MODULES			+= modules/quat/attitude_estimator_quat
-MODULES			+= modules/quat/hil_test_quat
+#MODULES			+= modules/quat/hil_test_quat
 MODULES			+= modules/quat/quat_att_control
 MODULES			+= modules/quat/quat_interface
 MODULES			+= modules/quat/quat_log

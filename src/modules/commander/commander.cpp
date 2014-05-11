@@ -220,10 +220,7 @@ void print_reject_arm(const char *msg);
 
 void print_status();
 
-transition_result_t check_navigation_state_machine(struct vehicle_status_s *status,
-													struct vehicle_control_mode_s *control_mode,
-													struct vehicle_local_position_s *local_pos,
-													struct actuator_armed_s *actuator_armed);
+transition_result_t check_navigation_state_machine(struct vehicle_status_s *status, struct vehicle_control_mode_s *control_mode, struct vehicle_local_position_s *local_pos);
 
 transition_result_t arm_disarm(bool arm, const int mavlink_fd, const char* armedBy);
 
@@ -1906,7 +1903,6 @@ void *commander_low_prio_loop(void *arg)
 		if (cmd.command == VEHICLE_CMD_DO_SET_MODE ||
 		    cmd.command == VEHICLE_CMD_COMPONENT_ARM_DISARM ||
 		    cmd.command == VEHICLE_CMD_NAV_TAKEOFF ||
-		    cmd.command == VEHICLE_CMD_NAV_LAND ||
 		    cmd.command == VEHICLE_CMD_DO_SET_SERVO)
 			continue;
 

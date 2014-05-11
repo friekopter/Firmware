@@ -779,6 +779,9 @@ Sensors::parameters_update()
 	param_get(_parameter_handles.board_rotation, &(_parameters.board_rotation));
 	param_get(_parameter_handles.external_mag_rotation, &(_parameters.external_mag_rotation));
 
+	get_rot_matrix((enum Rotation)_parameters.board_rotation, &_board_rotation);
+	get_rot_matrix((enum Rotation)_parameters.external_mag_rotation, &_external_mag_rotation);
+
 	return OK;
 }
 

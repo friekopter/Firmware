@@ -50,5 +50,3 @@ endif
 CONFIGURED_APPS += examples/cdcacm
 #endif
 #endif
-
-

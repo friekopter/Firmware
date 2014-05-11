@@ -175,7 +175,7 @@ usage(const char *reason)
 {
 	if (reason)
 		fprintf(stderr, "%s\n", reason);
-	fprintf(stderr, commandline_usage);
+	fprintf(stderr, "%s\n", commandline_usage);
 	exit(1);
 }
 
