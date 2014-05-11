@@ -68,7 +68,6 @@
 #include <uORB/topics/airspeed.h>
 #include <uORB/topics/battery_status.h>
 
-
 class Mavlink;
 
 class MavlinkReceiver

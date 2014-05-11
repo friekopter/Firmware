@@ -45,7 +45,6 @@
 #include <string.h>
 #include "mavlink_bridge_header.h"
 #include <systemlib/param/param.h>
-#include <uORB/topics/subsystem_info.h>
 
 /* define MAVLink specific parameters */
 /**
