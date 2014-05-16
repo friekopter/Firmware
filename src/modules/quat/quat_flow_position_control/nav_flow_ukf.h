@@ -12,8 +12,9 @@
 #include <uORB/topics/sensor_combined.h>
 #include <uORB/topics/filtered_bottom_flow.h>
 #include <quat/utils/quat_pos_control_params.h>
+#include <lib/geo/geo.h>
 
-#define UKF_HIST		20
+#define UKF_HIST		40
 
 typedef struct {
     srcdkf_t *kf;
@@ -112,7 +113,8 @@ extern bool navFlowUkfGpsPosUpate(
 		struct vehicle_local_position_s* local_position_data,
 		float dt,
 		const struct vehicle_control_mode_s *control_mode,
-		const struct quat_position_control_UKF_params* params);
+		const struct quat_position_control_UKF_params* params,
+		struct map_projection_reference_s* gps_map_ref);
 extern bool navFlowUkfGpsVelUpate(
 		const struct vehicle_gps_position_s* gps_position,
 		float dt,

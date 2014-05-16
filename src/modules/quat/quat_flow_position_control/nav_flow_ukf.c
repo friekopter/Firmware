@@ -610,6 +610,7 @@ void navFlowUkfFlowUpdate(
 		const struct vehicle_control_mode_s *control_mode,
 		const bool gpsValid,
 		const struct quat_position_control_UKF_params* params) {
+	bool doMeasurementUpdate = false;
     float y[4];
     float noise[4];
     float posDelta[3];
@@ -625,7 +626,7 @@ void navFlowUkfFlowUpdate(
 	static bool flowValid = false;
 	if(!UKF_FLOW_CALCULATES_POSITION){
 		return;
-	}/*
+	}
 	if(bottom_flow->ned_xy_valid > 0 && control_mode->flag_armed) {
 		// determine how far back this flow position update came from
 		int histIndexPos = (hrt_absolute_time() - (bottom_flow->timestamp + params->ukf_flow_pos_delay)) / (int)(1e6f * dt);
@@ -640,21 +641,26 @@ void navFlowUkfFlowUpdate(
 		// calculate delta from current position
 		posDelta[0] = UKF_FLOW_POSX - navFlowUkfData.posX[histIndexPos];
 		posDelta[1] = UKF_FLOW_POSY - navFlowUkfData.posY[histIndexPos];
-		posDelta[2] = UKF_FLOW_POSD - navFlowUkfData.posD[histIndexPos];
+		//posDelta[2] = UKF_FLOW_POSD - navFlowUkfData.posD[histIndexPos];
 		// calculate delta from current velocity
 		velDelta[0] = UKF_FLOW_VELX - navFlowUkfData.velX[histIndexVel];
 		velDelta[1] = UKF_FLOW_VELY - navFlowUkfData.velY[histIndexVel];
-		velDelta[2] = UKF_FLOW_VELD - navFlowUkfData.velD[histIndexVel];
+		//velDelta[2] = UKF_FLOW_VELD - navFlowUkfData.velD[histIndexVel];
 
 		// set current position state to historic data
 		UKF_FLOW_POSX = navFlowUkfData.posX[histIndexPos];
 		UKF_FLOW_POSY = navFlowUkfData.posY[histIndexPos];
-		UKF_FLOW_POSD = navFlowUkfData.posD[histIndexPos];
+		//UKF_FLOW_POSD = navFlowUkfData.posD[histIndexPos];
 		// set current velocity state to historic data
 		UKF_FLOW_VELX = navFlowUkfData.velX[histIndexVel];
 		UKF_FLOW_VELY = navFlowUkfData.velY[histIndexVel];
-		UKF_FLOW_VELD = navFlowUkfData.velD[histIndexVel];
-	}*/
+		//UKF_FLOW_VELD = navFlowUkfData.velD[histIndexVel];
+
+		static uint8_t printcounter = 0;
+		if (!((printcounter++) % 10)) {
+						printf("ip: %d iv: %d hi: %d\n",histIndexPos,histIndexVel,navFlowUkfData.navHistIndex);
+		}
+	}
 
 	if (control_mode->flag_armed) {
 		y[0] = bottom_flow->ned_vx;
@@ -678,6 +684,7 @@ void navFlowUkfFlowUpdate(
 	    	noise[1] = noise[0];
 			noise[2] = noise[0];
 			noise[3] = noise[0];
+			doMeasurementUpdate = true;
 	    }
 	    else if(gpsValid) {
 	    	// no flow but gps valid: no measurement update
@@ -685,7 +692,7 @@ void navFlowUkfFlowUpdate(
 	    		flowValid = false;
 	    		printf("-Flow Valid but GPS! %d", hrt_absolute_time());
 	    	}
-	    	return;
+	    	doMeasurementUpdate = false;
 	    }
 	    else {
 	    	// no flow and no gps: measurement update with current position to stabilize
@@ -703,10 +710,11 @@ void navFlowUkfFlowUpdate(
 			noise[3] = noise[0];
 			zeroPositionX = bottom_flow->ned_x - UKF_FLOW_POSX;
 			zeroPositionY = bottom_flow->ned_y - UKF_FLOW_POSY;
+			doMeasurementUpdate = true;
 	    }
 	} else if (gpsValid){
 		// not armed and GPS valid: no measurement update
-		return;
+		doMeasurementUpdate = false;
 	}
 	else {
 		// not armed and no gps: measurement update with current position to stabilize
@@ -720,15 +728,19 @@ void navFlowUkfFlowUpdate(
 		noise[3] = noise[2];
 		zeroPositionX = bottom_flow->ned_x - UKF_FLOW_POSX;
 		zeroPositionY = bottom_flow->ned_y - UKF_FLOW_POSY;
+		doMeasurementUpdate = true;
 	}
-	srcdkfMeasurementUpdate(navFlowUkfData.kf, 0, y, 4, 4, noise, navFlowUkfVelocityPositionUpdate);
+	if(doMeasurementUpdate) {
+		srcdkfMeasurementUpdate(navFlowUkfData.kf, 0, y, 4, 4, noise, navFlowUkfVelocityPositionUpdate);
+	}
+
     // add the historic  delta back to the current state
-	/*UKF_FLOW_POSX += posDelta[0];
+	UKF_FLOW_POSX += posDelta[0];
 	UKF_FLOW_POSY += posDelta[1];
-	UKF_FLOW_POSD += posDelta[2];
+	//UKF_FLOW_POSD += posDelta[2];
 	UKF_FLOW_VELX += velDelta[0];
 	UKF_FLOW_VELY += velDelta[1];
-	UKF_FLOW_VELD += velDelta[2];*/
+	//UKF_FLOW_VELD += velDelta[2];
 }
 
 bool navFlowUkfGpsPosUpate(
@@ -736,7 +748,8 @@ bool navFlowUkfGpsPosUpate(
 		struct vehicle_local_position_s* local_position_data,
 		float dt,
 		const struct vehicle_control_mode_s *control_mode,
-		const struct quat_position_control_UKF_params* params) {
+		const struct quat_position_control_UKF_params* params,
+		struct map_projection_reference_s* gps_map_ref) {
     float y[3];
     float noise[3];
     float posDelta[3];
@@ -782,12 +795,12 @@ bool navFlowUkfGpsPosUpate(
 			//reinit map projection
 			double lat_home = ((double)local_position_data->ref_lat) * 1e-7f;
 			double lon_home = ((double)local_position_data->ref_lon) * 1e-7f;
-			map_projection_init(lat_home, lon_home);
+			map_projection_init(gps_map_ref,lat_home, lon_home);
 			navFlowPublishHome(lat_home,lon_home,UKF_FLOW_VELD);
 			return false;
 		}
 		else {
-			map_projection_project(gps_position->lat,gps_position->lon,&y[0], &y[1]);
+			map_projection_project(gps_map_ref, gps_position->lat,gps_position->lon,&y[0], &y[1]);
 			//navFlowUkfCalcDistance(gps_position->lat, gps_position->lon, &y[0], &y[1]);
 			y[2] = gps_position->alt;
 
