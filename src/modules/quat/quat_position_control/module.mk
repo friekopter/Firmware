@@ -4,7 +4,7 @@
 
 MODULE_COMMAND		 = quat_pos_control
 MODULE_PRIORITY	 = SCHED_PRIORITY_MAX-25
-MODULE_STACKSIZE	 = 2048
+#MODULE_STACKSIZE	 = 2048
 
 SRCS				= nav_ukf.c \
 						nav.c \

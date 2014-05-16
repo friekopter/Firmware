@@ -37,6 +37,7 @@
 
 MODULE_COMMAND	= quat_sensors
 MODULE_PRIORITY	= "SCHED_PRIORITY_MAX-5"
+MODULE_STACKSIZE	 = 1024
 
 SRCS		= quat_sensors.cpp \
 		  quat_sensor_params.c
