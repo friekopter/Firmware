@@ -67,6 +67,7 @@
 #include <uORB/topics/subsystem_info.h>
 #include <quat/utils/util.h>
 #include <systemlib/perf_counter.h>
+#include <systemlib/systemlib.h>
 #include <poll.h>
 
 #include "flow_position_estimator_params.h"
@@ -139,9 +140,9 @@ int flow_position_estimator_main(int argc, char *argv[])
 
 		thread_should_exit = false;
 		daemon_task = task_spawn_cmd("flow_position_estimator",
-					 SCHED_RR,
+					 SCHED_DEFAULT,
 					 SCHED_PRIORITY_MAX - 5,
-					 4096,
+					 4000,
 					 flow_position_estimator_thread_main,
 					 (argv) ? (const char **)&argv[2] : (const char **)NULL);
 		exit(0);
