@@ -160,6 +160,7 @@ private:
 	double		_loiter_hold_lat;
 	double		_loiter_hold_lon;
 	float		_loiter_hold_alt;
+	float		_hold_alt;
 	bool		_loiter_hold;
 
 	double		_launch_lat;
@@ -435,7 +436,8 @@ FixedwingPositionControl::FixedwingPositionControl() :
 	_global_pos(),
 	_pos_sp_triplet(),
 	_sensor_combined(),
-	_range_finder()
+	_range_finder(),
+	_hold_alt(0.0f)
 {
 	_nav_capabilities.turn_distance = 0.0f;
 
@@ -835,6 +837,9 @@ FixedwingPositionControl::control_position(const math::Vector<2> &current_positi
 	// else integrators should be constantly reset.
 	if (_control_mode.flag_control_position_enabled) {
 
+		/* reset hold altitude */
+		_hold_alt = _global_pos.alt;
+
 		/* get circle mode */
 		bool was_circle_mode = _l1_control.circle_mode();
 
@@ -1105,9 +1110,49 @@ FixedwingPositionControl::control_position(const math::Vector<2> &current_positi
 			_att_sp.roll_reset_integral = true;
 		}
 
+	} else if (_control_mode.flag_control_velocity_enabled) {
+		float altctrl_airspeed = _parameters.airspeed_min +
+					  (_parameters.airspeed_max - _parameters.airspeed_min) *
+					  _manual.z;
+		const float deadBand = (60.0f/1000.0f);
+		const float factor = 1.0f - deadBand;
+		// assuming 50 Hz update
+		const float dt = 1.0f/50.0f;
+		float pitch = 0.0f;
+		if (_manual.x > deadBand) {
+			pitch = (_manual.x - deadBand) / factor;
+		} else if (_manual.x < -deadBand) {
+			pitch = (_manual.x + deadBand) / factor;
+		}
+
+		if(pitch > 0.0f) {
+			_hold_alt += (_parameters.max_climb_rate * dt) * pitch;
+		} else if (pitch < 0.0f) {
+			_hold_alt -= -(_parameters.max_sink_rate * dt) * pitch;
+		} else {
+			_hold_alt = _global_pos.alt;
+		}
+		_tecs.update_pitch_throttle(_R_nb,//Attitude rotation matrix
+									_att.pitch,//current pitch
+									_global_pos.alt,//current altitude
+									_hold_alt,//demanded altitude
+									altctrl_airspeed,//demanded airspeed
+									_airspeed.indicated_airspeed_m_s, //indicated speed
+									eas2tas,//indicated to true airspeed conversion factor
+									false, //climb out flag
+									_parameters.pitch_limit_min,
+									_parameters.throttle_min,
+									_parameters.throttle_max,
+									_parameters.throttle_cruise,
+									_parameters.pitch_limit_min,
+									_parameters.pitch_limit_max);
+
 	} else if (0/* posctrl mode enabled */) {
 
 		/** POSCTRL FLIGHT **/
+
+		/* reset hold altitude */
+		_hold_alt = _global_pos.alt;
 
 		if (0/* switched from another mode to posctrl */) {
 			_altctrl_hold_heading = _att.yaw;
@@ -1147,6 +1192,9 @@ FixedwingPositionControl::control_position(const math::Vector<2> &current_positi
 	} else if (0/* altctrl mode enabled */) {
 
 		/** ALTCTRL FLIGHT **/
+
+		/* reset hold altitude */
+		_hold_alt = _global_pos.alt;
 
 		if (0/* switched from another mode to altctrl */) {
 			_altctrl_hold_heading = _att.yaw;
@@ -1191,6 +1239,9 @@ FixedwingPositionControl::control_position(const math::Vector<2> &current_positi
 	} else {
 
 		/** MANUAL FLIGHT **/
+
+		/* reset hold altitude */
+		_hold_alt = _global_pos.alt;
 
 		/* no flight mode applies, do not publish an attitude setpoint */
 		setpoint = false;

@@ -694,8 +694,19 @@ FixedwingAttitudeControl::task_main()
 				float pitch_sp = _parameters.pitchsp_offset_rad;
 				float throttle_sp = 0.0f;
 
-				if (_vcontrol_mode.flag_control_velocity_enabled || _vcontrol_mode.flag_control_position_enabled) {
+				if (_vcontrol_mode.flag_control_auto_enabled) {
 					roll_sp = _att_sp.roll_body + _parameters.rollsp_offset_rad;
+					pitch_sp = _att_sp.pitch_body + _parameters.pitchsp_offset_rad;
+					throttle_sp = _att_sp.thrust;
+
+					/* reset integrals where needed */
+					if (_att_sp.roll_reset_integral)
+						_roll_ctrl.reset_integrator();
+				}
+				else if (_vcontrol_mode.flag_control_velocity_enabled) {
+
+					roll_sp = (_manual.y * _parameters.man_roll_max - _parameters.trim_roll)
+											+ _parameters.rollsp_offset_rad;
 					pitch_sp = _att_sp.pitch_body + _parameters.pitchsp_offset_rad;
 					throttle_sp = _att_sp.thrust;
 
