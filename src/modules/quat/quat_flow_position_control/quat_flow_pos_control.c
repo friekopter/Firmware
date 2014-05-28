@@ -826,10 +826,10 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 			// Do navigation, calculate setpoints
 			perf_begin(quat_flow_pos_nav_perf);
 			float manual_control_ned[3] = { 0.0f, 0.0f, 0.0f };
-			float manual_control_body[3] = { manual.roll, manual.pitch, 0.0f };
+			float manual_control_body[3] = { manual.y, manual.x, 0.0f };
 			// rotage body manual control to ned frame
 			utilRotateVecByMatrix2(manual_control_ned,manual_control_body,att.R);
-			manual_control_ned[2] = manual.throttle;
+			manual_control_ned[2] = manual.z;
 			navFlowNavigate(&control_mode,
 							&vstatus,
 							&nav_params,

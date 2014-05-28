@@ -889,7 +889,7 @@ Quat_Sensors::parameters_update()
 
 	_rc.function[MODE] = _parameters.rc_map_mode_sw - 1;
 	_rc.function[RETURN] = _parameters.rc_map_return_sw - 1;
-	_rc.function[POSCTRL] = _parameters.rc_map_posctrl_sw - 1;
+	_rc.function[POSCTL] = _parameters.rc_map_posctrl_sw - 1;
 	_rc.function[LOITER] = _parameters.rc_map_loiter_sw - 1;
 
 	_rc.function[FLAPS] = _parameters.rc_map_flaps - 1;
@@ -1692,10 +1692,10 @@ Quat_Sensors::rc_poll()
 			manual.timestamp = rc_input.timestamp_last_signal;
 
 			/* limit controls */
-			manual.roll = get_rc_value(ROLL, -1.0, 1.0);
-			manual.pitch = get_rc_value(PITCH, -1.0, 1.0);
-			manual.yaw = get_rc_value(YAW, -1.0, 1.0);
-			manual.throttle = get_rc_value(THROTTLE, 0.0, 1.0);
+			manual.y = get_rc_value(ROLL, -1.0, 1.0);
+			manual.x = get_rc_value(PITCH, -1.0, 1.0);
+			manual.r = get_rc_value(YAW, -1.0, 1.0);
+			manual.z = get_rc_value(THROTTLE, 0.0, 1.0);
 			manual.flaps = get_rc_value(FLAPS, -1.0, 1.0);
 			manual.aux1 = get_rc_value(AUX_1, -1.0, 1.0);
 			manual.aux2 = get_rc_value(AUX_2, -1.0, 1.0);
@@ -1705,7 +1705,7 @@ Quat_Sensors::rc_poll()
 
 			/* mode switches */
 			manual.mode_switch = get_rc_sw3pos_position(MODE, _parameters.rc_auto_th, _parameters.rc_auto_inv, _parameters.rc_assist_th, _parameters.rc_assist_inv);
-			manual.posctrl_switch = get_rc_sw2pos_position(POSCTRL, _parameters.rc_posctrl_th, _parameters.rc_posctrl_inv);
+			manual.posctl_switch = get_rc_sw2pos_position(POSCTL, _parameters.rc_posctrl_th, _parameters.rc_posctrl_inv);
 			manual.return_switch = get_rc_sw2pos_position(RETURN, _parameters.rc_return_th, _parameters.rc_return_inv);
 			manual.loiter_switch = get_rc_sw2pos_position(LOITER, _parameters.rc_loiter_th, _parameters.rc_loiter_inv);
 
@@ -1723,10 +1723,10 @@ Quat_Sensors::rc_poll()
 
 			actuator_group_3.timestamp = rc_input.timestamp_last_signal;
 
-			actuator_group_3.control[0] = manual.roll;
-			actuator_group_3.control[1] = manual.pitch;
-			actuator_group_3.control[2] = manual.yaw;
-			actuator_group_3.control[3] = manual.throttle;
+			actuator_group_3.control[0] = manual.y;
+			actuator_group_3.control[1] = manual.x;
+			actuator_group_3.control[2] = manual.r;
+			actuator_group_3.control[3] = manual.z;
 			actuator_group_3.control[4] = manual.flaps;
 			actuator_group_3.control[5] = manual.aux1;
 			actuator_group_3.control[6] = manual.aux2;

@@ -270,14 +270,14 @@ quat_att_control_thread_main(int argc, char *argv[])
 			/* manual inputs, from RC control or joystick */
 			if (control_mode.flag_control_attitude_enabled) {
 				// Always control attitude no rates
-				att_sp.roll_body = manual.roll * control.controlRollF;
-				att_sp.pitch_body = manual.pitch * control.controlPitchF;
+				att_sp.roll_body = manual.y * control.controlRollF;
+				att_sp.pitch_body = manual.x * control.controlPitchF;
 				att_sp.yaw_body = control_quadrotor_get_yaw();
 				att_sp.timestamp = hrt_absolute_time();
 				/* set yaw rate */
-				if (manual.yaw < -control.controlDeadBand || manual.yaw > control.controlDeadBand)
+				if (manual.r < -control.controlDeadBand || manual.r > control.controlDeadBand)
 				{
-					rates_sp.yaw = manual.yaw * control.controlYawF;
+					rates_sp.yaw = manual.r * control.controlYawF;
 				}
 				else
 				{
@@ -285,7 +285,7 @@ quat_att_control_thread_main(int argc, char *argv[])
 				}
 				if ( !control_mode.flag_control_altitude_enabled ) {
 					// enable manual altitude control
-					att_sp.thrust = manual.throttle * control.controlThrottleF;
+					att_sp.thrust = manual.z * control.controlThrottleF;
 				}
 				else {
 					// altitude is controlled by software (hopefully!)
@@ -300,9 +300,9 @@ quat_att_control_thread_main(int argc, char *argv[])
 			} else {
 				/* manual rate inputs (ACRO), from RC control or joystick */
 				if (control_mode.flag_control_rates_enabled) {
-					rates_sp.roll = manual.roll;
-					rates_sp.pitch = manual.pitch;
-					rates_sp.yaw = manual.yaw;
+					rates_sp.roll = manual.y;
+					rates_sp.pitch = manual.x;
+					rates_sp.yaw = manual.r;
 					rates_sp.timestamp = hrt_absolute_time();
 				}
 			}
@@ -310,9 +310,9 @@ quat_att_control_thread_main(int argc, char *argv[])
 		else if ( control_mode.flag_control_manual_enabled &&
 				  control_mode.flag_control_velocity_enabled ) {
 			/* set yaw rate */
-			if (manual.yaw < -control.controlDeadBand || manual.yaw > control.controlDeadBand)
+			if (manual.r < -control.controlDeadBand || manual.r > control.controlDeadBand)
 			{
-				rates_sp.yaw = manual.yaw * control.controlYawF;
+				rates_sp.yaw = manual.r * control.controlYawF;
 			}
 			else
 			{
