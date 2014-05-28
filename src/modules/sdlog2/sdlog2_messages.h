@@ -415,7 +415,10 @@ static const struct log_format_s log_formats[] = {
 	LOG_FORMAT(ESTM, "ffffffffffBBBB",	"s0,s1,s2,s3,s4,s5,s6,s7,s8,s9,nStat,statNaN,covNaN,kGainNaN"),
 	LOG_FORMAT(PWR, "fffBBBBB",		"Periph5V,Servo5V,RSSI,UsbOk,BrickOk,ServoOk,PeriphOC,HipwrOC"),
 	LOG_FORMAT(VICN, "ffffff",		"X,Y,Z,Roll,Pitch,Yaw"),
-(??)
+	LOG_FORMAT(UKFS, "fffffffffffff", "vn,ve,vd,pn,pe,pd,abx,aby,abz,gbx,gby,gbz,pa"),
+	LOG_FORMAT(FFLO, "IbBBBBffffff","sc,land,xyv,zv,vxyv,vzv,x,y,z,vx,vy,vz"),
+	LOG_FORMAT(GSN0, "BBBBBBBBBBBBBBBB",	"s0,s1,s2,s3,s4,s5,s6,s7,s8,s9,s10,s11,s12,s13,s14,s15"),
+	LOG_FORMAT(GSN1, "BBBBBBBBBBBBBBBB",	"s0,s1,s2,s3,s4,s5,s6,s7,s8,s9,s10,s11,s12,s13,s14,s15"),
 
 	/* system-level messages, ID >= 0x80 */
 	/* FMT: don't write format of format message, it's useless */
