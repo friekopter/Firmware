@@ -1,6 +1,6 @@
 /****************************************************************************
  *
- *   Copyright (c) 2013 PX4 Development Team. All rights reserved.
+ *   Copyright (c) 2014 PX4 Development Team. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -32,24 +32,40 @@
  ****************************************************************************/
 
 /**
- * @file navigator_state.h
+ * @file drv_io_expander.h
  *
- * Navigator state
- *
- * @author Anton Babushkin <anton.babushkin@me.com>
+ * IO expander device API
  */
 
-#ifndef NAVIGATOR_STATE_H_
-#define NAVIGATOR_STATE_H_
+#pragma once
 
-typedef enum {
-	NAV_STATE_NONE = 0,
-	NAV_STATE_READY,
-	NAV_STATE_LOITER,
-	NAV_STATE_MISSION,
-	NAV_STATE_RTL,
-	NAV_STATE_LAND,
-	NAV_STATE_MAX
-} nav_state_t;
+#include <stdint.h>
+#include <sys/ioctl.h>
 
-#endif /* NAVIGATOR_STATE_H_ */
+/*
+ * ioctl() definitions
+ */
+
+#define _IOXIOCBASE		(0x2800)
+#define _IOXIOC(_n)		(_IOC(_IOXIOCBASE, _n))
+
+/** set a bitmask (non-blocking) */
+#define IOX_SET_MASK		_IOXIOC(1)
+
+/** get a bitmask (blocking) */
+#define IOX_GET_MASK		_IOXIOC(2)
+
+/** set device mode (non-blocking) */
+#define IOX_SET_MODE		_IOXIOC(3)
+
+/** set constant values (non-blocking) */
+#define IOX_SET_VALUE		_IOXIOC(4)
+
+/* ... to IOX_SET_VALUE + 8 */
+
+/* enum passed to RGBLED_SET_MODE ioctl()*/
+enum IOX_MODE {
+	IOX_MODE_OFF,
+	IOX_MODE_ON,
+	IOX_MODE_TEST_OUT
+};

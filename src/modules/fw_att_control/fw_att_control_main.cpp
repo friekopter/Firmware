@@ -631,7 +631,7 @@ FixedwingAttitudeControl::task_main()
 		if (fds[1].revents & POLLIN) {
 
 
-			static uint64_t last_run = 0;
+		static uint64_t last_run = 0;
 			float deltaT = (hrt_absolute_time() - last_run) / 1000000.0f;
 			last_run = hrt_absolute_time();
 
@@ -677,7 +677,7 @@ FixedwingAttitudeControl::task_main()
 
 			if (_vcontrol_mode.flag_control_attitude_enabled) {
 
-				/* scale around tuning airspeed */
+			/* scale around tuning airspeed */
 
 				float airspeed;
 
@@ -707,13 +707,21 @@ FixedwingAttitudeControl::task_main()
 				float throttle_sp = 0.0f;
 
 				if (_vcontrol_mode.flag_control_auto_enabled) {
+					/* read in attitude setpoint from attitude setpoint uorb topic */
 					roll_sp = _att_sp.roll_body + _parameters.rollsp_offset_rad;
 					pitch_sp = _att_sp.pitch_body + _parameters.pitchsp_offset_rad;
 					throttle_sp = _att_sp.thrust;
 
 					/* reset integrals where needed */
-					if (_att_sp.roll_reset_integral)
+					if (_att_sp.roll_reset_integral) {
 						_roll_ctrl.reset_integrator();
+					}
+					if (_att_sp.pitch_reset_integral) {
+						_pitch_ctrl.reset_integrator();
+					}
+					if (_att_sp.yaw_reset_integral) {
+						_yaw_ctrl.reset_integrator();
+					}
 				}
 				else if (_vcontrol_mode.flag_control_velocity_enabled) {
 
@@ -723,9 +731,15 @@ FixedwingAttitudeControl::task_main()
 					throttle_sp = _att_sp.thrust;
 
 					/* reset integrals where needed */
-					if (_att_sp.roll_reset_integral)
+					if (_att_sp.roll_reset_integral) {
 						_roll_ctrl.reset_integrator();
-
+					}
+					if (_att_sp.pitch_reset_integral) {
+						_pitch_ctrl.reset_integrator();
+					}
+					if (_att_sp.yaw_reset_integral) {
+						_yaw_ctrl.reset_integrator();
+					}
 				} else {
 					/*
 					 * Scale down roll and pitch as the setpoints are radians
