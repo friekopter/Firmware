@@ -44,7 +44,7 @@ void navFlowSetHoldAlt(float alt, uint8_t relative);
 void navFlowSetHoldPosition(const float ned_x, const float ned_y);
 void navFlowResetHoldPosition(void);
 void navCalculateTilt(	const struct vehicle_control_mode_s *control_mode,
-						const failsafe_state_t failsafeState,
+						const bool failsafe,
 						const struct quat_position_control_NAV_params* params,
 						const struct position_setpoint_triplet_s *position_setpoint_triplet_s,
 						const struct vehicle_local_position_s* position_data,
@@ -53,7 +53,7 @@ void navCalculateTilt(	const struct vehicle_control_mode_s *control_mode,
 						const uint8_t navigationMode,
 						navFlowStruct_t *navDataResult);
 void navCalculateThrust (	const struct vehicle_control_mode_s *control_mode,
-							const failsafe_state_t failsafeState,
+							const bool failsafe,
 							const struct quat_position_control_NAV_params* params,
 							const struct position_setpoint_triplet_s *position_setpoint_triplet_s,
 							const float measuredAltitude,
@@ -66,7 +66,7 @@ float navCalculateTakeoffThrust(const uint64_t timestamp, const float takeoffThr
 
 void navAudioState( const uint8_t navigationMode,
 					const enum SETPOINT_TYPE position_setpoint_triplet,
-					const failsafe_state_t failsafeState,
+					const bool failsafe,
 					const int mavlink_fd );
 
 struct subsystem_info_s altitude_control_info = {
@@ -116,12 +116,12 @@ void navFlowSetHoldHeading(float targetHeading) {
 
 void navAudioState( const uint8_t navigationMode,
 					const enum SETPOINT_TYPE position_setpoint_type,
-					const failsafe_state_t failsafeState,
+					const bool failsafe,
 					const int mavlink_fd ) {
 
-	static uint8_t currentNavMode = NAV_STATUS_MANUAL;
-	static enum SETPOINT_TYPE currentSetpointType = SETPOINT_TYPE_NORMAL;
-	static failsafe_state_t currentFailsafeState = FAILSAFE_STATE_NORMAL;
+	uint8_t currentNavMode = NAV_STATUS_MANUAL;
+	enum SETPOINT_TYPE currentSetpointType = SETPOINT_TYPE_IDLE;
+	bool currentFailsafe = false;
 	static uint8_t count = 0;
 	if((count++ % 10)) {
 		return;
@@ -152,8 +152,11 @@ void navAudioState( const uint8_t navigationMode,
 			position_setpoint_type != currentSetpointType) {
 		currentSetpointType = position_setpoint_type;
 		switch (currentSetpointType) {
-				case SETPOINT_TYPE_NORMAL:
-					mavlink_log_info(mavlink_fd,"#audio: set set");
+				case SETPOINT_TYPE_POSITION:
+					mavlink_log_info(mavlink_fd,"#audio: Position Position");
+				break;
+				case SETPOINT_TYPE_VELOCITY:
+					mavlink_log_info(mavlink_fd,"#audio: Velocity Velocity");
 				break;
 				case SETPOINT_TYPE_LOITER:
 					mavlink_log_info(mavlink_fd,"#audio: Loiter Loiter");
@@ -171,24 +174,9 @@ void navAudioState( const uint8_t navigationMode,
 				break;
 		}
 	}
-	if(failsafeState != currentFailsafeState) {
-		currentFailsafeState = failsafeState;
-		switch (currentFailsafeState) {
-				case FAILSAFE_STATE_RTL:
-					mavlink_log_info(mavlink_fd,"#audio: fail RTL");
-				break;
-				case FAILSAFE_STATE_LAND:
-					mavlink_log_info(mavlink_fd,"#audio: fail Land");
-				break;
-				case FAILSAFE_STATE_TERMINATION:
-					mavlink_log_info(mavlink_fd,"#audio: fail Term");
-				break;
-				case FAILSAFE_STATE_MAX:
-					mavlink_log_info(mavlink_fd,"#audio: fail Max");
-				break;
-				default:
-				break;
-		}
+	if(failsafe) {
+		currentFailsafe = failsafe;
+		mavlink_log_info(mavlink_fd,"#audio: failsafe");
 	}
 }
 
@@ -320,7 +308,7 @@ void navFlowNavigate(
 
     // 2. Do navigation
 	navCalculateTilt( 	control_mode,
-						vstatus->failsafe_state,
+						vstatus->failsafe,
 						params,
     					position_setpoint_triplet,
     					position_data,
@@ -330,7 +318,7 @@ void navFlowNavigate(
     					&navFlowData);
 
     navCalculateThrust(	control_mode,
-						vstatus->failsafe_state,
+						vstatus->failsafe,
     					params,
     					position_setpoint_triplet,
     					measured_altitude,
@@ -343,13 +331,13 @@ void navFlowNavigate(
     navFlowData.lastUpdate = currentTime;
 
     navAudioState(navFlowData.mode,position_setpoint_triplet->current.type,
-    				vstatus->failsafe_state,
+    				vstatus->failsafe,
     				mavlink_fd);
 }
 
 
 void navCalculateTilt(	const struct vehicle_control_mode_s *control_mode,
-						const failsafe_state_t failsafeState,
+						const bool failsafe,
 						const struct quat_position_control_NAV_params* params,
 						const struct position_setpoint_triplet_s *position_setpoint_triplet,
 						const struct vehicle_local_position_s* position_data,
@@ -358,12 +346,12 @@ void navCalculateTilt(	const struct vehicle_control_mode_s *control_mode,
 						const uint8_t navigationMode,
 						navFlowStruct_t *navDataResult) {
 	const struct position_setpoint_s* current_setpoint = &position_setpoint_triplet->current;
-	if (failsafeState > FAILSAFE_STATE_NORMAL) {
+	if (failsafe) {
 		navDataResult->holdSpeedX = 0.0f;
 		navDataResult->holdSpeedY = 0.0f;
 	}
 	else if (navigationMode == NAV_STATUS_MISSION) {
-    	if (current_setpoint->type == SETPOINT_TYPE_NORMAL) {
+    	if (current_setpoint->type == SETPOINT_TYPE_POSITION) {
 			//navDataResult->holdSpeedX = pidUpdate(navDataResult->distanceXPID, local_position_setpoint->x, position_data->x);
 			//navDataResult->holdSpeedY = pidUpdate(navDataResult->distanceYPID, local_position_setpoint->y, position_data->y);
     		navDataResult->holdSpeedX = pidUpdate(navDataResult->distanceXPID, navDataResult->holdPositionX, position_data->x);
@@ -421,7 +409,7 @@ void navCalculateTilt(	const struct vehicle_control_mode_s *control_mode,
 }
 
 void navCalculateThrust(	const struct vehicle_control_mode_s *control_mode,
-							const failsafe_state_t failsafeState,
+							const bool failsafe,
 							const struct quat_position_control_NAV_params* params,
 							const struct position_setpoint_triplet_s *position_setpoint_triplet,
 							const float measuredAltitude,
@@ -436,11 +424,11 @@ void navCalculateThrust(	const struct vehicle_control_mode_s *control_mode,
     navDataResult->autoThrust = 0.0f;
     static float throttle_middle_position = 1.0f;
 
-	if (failsafeState > FAILSAFE_STATE_NORMAL) {
+	if (failsafe) {
 		navDataResult->targetHoldSpeedAlt = +0.5f;
 	}
 	else if (navigationMode == NAV_STATUS_MISSION) {
-    	if (current_setpoint->type == SETPOINT_TYPE_NORMAL) {
+    	if (current_setpoint->type == SETPOINT_TYPE_POSITION) {
 			//navDataResult->targetHoldSpeedAlt = pidUpdate(navDataResult->altPosPID, local_position_setpoint->z, measuredAltitude);
 			navDataResult->targetHoldSpeedAlt = pidUpdate(navDataResult->altPosPID, navDataResult->holdAlt, measuredAltitude);
     	} else if (current_setpoint->type == SETPOINT_TYPE_LOITER) {

@@ -248,8 +248,6 @@ private:
 		int diff_pres_offset_pa;
 		float diff_pres_analog_enabled;
 
-		int rc_type;
-
 		int rc_map_roll;
 		int rc_map_pitch;
 		int rc_map_yaw;
@@ -258,8 +256,9 @@ private:
 
 		int rc_map_mode_sw;
 		int rc_map_return_sw;
-		int rc_map_posctrl_sw;
+		int rc_map_posctl_sw;
 		int rc_map_loiter_sw;
+		int rc_map_acro_sw;
 
 		int rc_map_flaps;
 
@@ -277,14 +276,16 @@ private:
 		int32_t rc_fails_thr;
 		float rc_assist_th;
 		float rc_auto_th;
-		float rc_posctrl_th;
+		float rc_posctl_th;
 		float rc_return_th;
 		float rc_loiter_th;
+		float rc_acro_th;
 		bool rc_assist_inv;
 		bool rc_auto_inv;
-		bool rc_posctrl_inv;
+		bool rc_posctl_inv;
 		bool rc_return_inv;
 		bool rc_loiter_inv;
+		bool rc_acro_inv;
 
 		float battery_voltage_scaling;
 		float battery_current_scaling;
@@ -296,10 +297,6 @@ private:
 		param_t max[_rc_max_chan_count];
 		param_t rev[_rc_max_chan_count];
 		param_t dz[_rc_max_chan_count];
-		// param_t ex[_rc_max_chan_count];
-		param_t rc_type;
-
-		param_t rc_demix;
 
 		param_t gyro_bias[3];
 		param_t gyro_bias1[3];
@@ -371,8 +368,9 @@ private:
 
 		param_t rc_map_mode_sw;
 		param_t rc_map_return_sw;
-		param_t rc_map_posctrl_sw;
+		param_t rc_map_posctl_sw;
 		param_t rc_map_loiter_sw;
+		param_t rc_map_acro_sw;
 
 		param_t rc_map_flaps;
 
@@ -385,17 +383,18 @@ private:
 		param_t rc_fails_thr;
 		param_t rc_assist_th;
 		param_t rc_auto_th;
-		param_t rc_posctrl_th;
+		param_t rc_posctl_th;
 		param_t rc_return_th;
 		param_t rc_loiter_th;
+		param_t rc_acro_th;
 
 		param_t battery_voltage_scaling;
 		param_t battery_current_scaling;
 
-		param_t rc_scale_roll;
-		param_t rc_scale_pitch;
-		param_t rc_scale_yaw;
-		param_t rc_scale_flaps;
+		param_t board_rotation;
+		param_t external_mag_rotation;
+
+		param_t board_offset[3];
 	}		_parameter_handles;		/**< handles for interesting parameters */
 
 
@@ -596,13 +595,12 @@ Quat_Sensors::Quat_Sensors() :
 
 	}
 
-	_parameter_handles.rc_type = param_find("RC_TYPE");
-
 	/* mandatory input switched, mapped to channels 1-4 per default */
 	_parameter_handles.rc_map_roll 	= param_find("RC_MAP_ROLL");
 	_parameter_handles.rc_map_pitch = param_find("RC_MAP_PITCH");
 	_parameter_handles.rc_map_yaw 	= param_find("RC_MAP_YAW");
 	_parameter_handles.rc_map_throttle = param_find("RC_MAP_THROTTLE");
+	_parameter_handles.rc_map_failsafe = param_find("RC_MAP_FAILSAFE");
 
 	/* mandatory mode switches, mapped to channel 5 and 6 per default */
 	_parameter_handles.rc_map_mode_sw = param_find("RC_MAP_MODE_SW");
@@ -611,8 +609,9 @@ Quat_Sensors::Quat_Sensors() :
 	_parameter_handles.rc_map_flaps = param_find("RC_MAP_FLAPS");
 
 	/* optional mode switches, not mapped per default */
-	_parameter_handles.rc_map_posctrl_sw = param_find("RC_MAP_POSCTL_SW");
+	_parameter_handles.rc_map_posctl_sw = param_find("RC_MAP_POSCTL_SW");
 	_parameter_handles.rc_map_loiter_sw = param_find("RC_MAP_LOITER_SW");
+	_parameter_handles.rc_map_acro_sw = param_find("RC_MAP_ACRO_SW");
 
 	_parameter_handles.rc_map_aux1 = param_find("RC_MAP_AUX1");
 	_parameter_handles.rc_map_aux2 = param_find("RC_MAP_AUX2");
@@ -624,15 +623,10 @@ Quat_Sensors::Quat_Sensors() :
 	_parameter_handles.rc_fails_thr = param_find("RC_FAILS_THR");
 	_parameter_handles.rc_assist_th = param_find("RC_ASSIST_TH");
 	_parameter_handles.rc_auto_th = param_find("RC_AUTO_TH");
-	_parameter_handles.rc_posctrl_th = param_find("RC_POSCTRL_TH");
+	_parameter_handles.rc_posctl_th = param_find("RC_POSCTL_TH");
 	_parameter_handles.rc_return_th = param_find("RC_RETURN_TH");
 	_parameter_handles.rc_loiter_th = param_find("RC_LOITER_TH");
-
-	// Scalings
-	_parameter_handles.rc_scale_roll = param_find("RC_SCALE_ROLL");
-	_parameter_handles.rc_scale_pitch = param_find("RC_SCALE_PITCH");
-	_parameter_handles.rc_scale_yaw = param_find("RC_SCALE_YAW");
-	_parameter_handles.rc_scale_flaps = param_find("RC_SCALE_FLAPS");
+	_parameter_handles.rc_acro_th = param_find("RC_ACRO_TH");
 
 	/* gyro offsets */
 	_parameter_handles.gyro_scale[0] = param_find("IMU_GYO_SCAL_X");
@@ -778,8 +772,8 @@ int
 Quat_Sensors::parameters_update()
 {
 	bool rc_valid = true;
-    float tmpScaleFactor = 0.0f;
-    float tmpRevFactor = 0.0f;
+	float tmpScaleFactor = 0.0f;
+	float tmpRevFactor = 0.0f;
 
 	/* rc values */
 	for (unsigned int i = 0; i < _rc_max_chan_count; i++) {
@@ -796,21 +790,21 @@ Quat_Sensors::parameters_update()
 		/* handle blowup in the scaling factor calculation */
 		if (!isfinite(tmpScaleFactor) ||
 		    (tmpRevFactor < 0.000001f) ||
-		    (tmpRevFactor > 0.2f) ) {
-			warnx("RC chan %u not sane, scaling: %8.6f, rev: %d", i, tmpScaleFactor, (int)(_parameters.rev[i]));
+		    (tmpRevFactor > 0.2f)) {
+			warnx("RC chan %u not sane, scaling: %8.6f, rev: %d", i, (double)tmpScaleFactor, (int)(_parameters.rev[i]));
 			/* scaling factors do not make sense, lock them down */
 			_parameters.scaling_factor[i] = 0.0f;
 			rc_valid = false;
+
+		} else {
+			_parameters.scaling_factor[i] = tmpScaleFactor;
 		}
-        else {
-            _parameters.scaling_factor[i] = tmpScaleFactor;
-        }
 	}
 
-
 	/* handle wrong values */
-	if (!rc_valid)
+	if (!rc_valid) {
 		warnx("WARNING     WARNING     WARNING\n\nRC CALIBRATION NOT SANE!\n\n");
+	}
 
 	const char *paramerr = "FAIL PARM LOAD";
 
@@ -831,6 +825,10 @@ Quat_Sensors::parameters_update()
 		warnx("%s", paramerr);
 	}
 
+	if (param_get(_parameter_handles.rc_map_failsafe, &(_parameters.rc_map_failsafe)) != OK) {
+		warnx("%s", paramerr);
+	}
+
 	if (param_get(_parameter_handles.rc_map_mode_sw, &(_parameters.rc_map_mode_sw)) != OK) {
 		warnx("%s", paramerr);
 	}
@@ -839,7 +837,7 @@ Quat_Sensors::parameters_update()
 		warnx("%s", paramerr);
 	}
 
-	if (param_get(_parameter_handles.rc_map_posctrl_sw, &(_parameters.rc_map_posctrl_sw)) != OK) {
+	if (param_get(_parameter_handles.rc_map_posctl_sw, &(_parameters.rc_map_posctl_sw)) != OK) {
 		warnx("%s", paramerr);
 	}
 
@@ -847,39 +845,38 @@ Quat_Sensors::parameters_update()
 		warnx("%s", paramerr);
 	}
 
-	if (param_get(_parameter_handles.rc_map_flaps, &(_parameters.rc_map_flaps)) != OK) {
+	if (param_get(_parameter_handles.rc_map_acro_sw, &(_parameters.rc_map_acro_sw)) != OK) {
 		warnx("%s", paramerr);
 	}
 
-//	if (param_get(_parameter_handles.rc_map_offboard_ctrl_mode_sw, &(_parameters.rc_map_offboard_ctrl_mode_sw)) != OK) {
-//		warnx("Failed getting offboard control mode sw chan index");
-//	}
+	if (param_get(_parameter_handles.rc_map_flaps, &(_parameters.rc_map_flaps)) != OK) {
+		warnx("%s", paramerr);
+	}
 
 	param_get(_parameter_handles.rc_map_aux1, &(_parameters.rc_map_aux1));
 	param_get(_parameter_handles.rc_map_aux2, &(_parameters.rc_map_aux2));
 	param_get(_parameter_handles.rc_map_aux3, &(_parameters.rc_map_aux3));
 	param_get(_parameter_handles.rc_map_aux4, &(_parameters.rc_map_aux4));
 	param_get(_parameter_handles.rc_map_aux5, &(_parameters.rc_map_aux5));
-	param_get(_parameter_handles.rc_scale_roll, &(_parameters.rc_scale_roll));
-	param_get(_parameter_handles.rc_scale_pitch, &(_parameters.rc_scale_pitch));
-	param_get(_parameter_handles.rc_scale_yaw, &(_parameters.rc_scale_yaw));
-	param_get(_parameter_handles.rc_scale_flaps, &(_parameters.rc_scale_flaps));
 	param_get(_parameter_handles.rc_fails_thr, &(_parameters.rc_fails_thr));
 	param_get(_parameter_handles.rc_assist_th, &(_parameters.rc_assist_th));
-	_parameters.rc_assist_inv = (_parameters.rc_assist_th<0);
+	_parameters.rc_assist_inv = (_parameters.rc_assist_th < 0);
 	_parameters.rc_assist_th = fabs(_parameters.rc_assist_th);
 	param_get(_parameter_handles.rc_auto_th, &(_parameters.rc_auto_th));
-	_parameters.rc_auto_inv = (_parameters.rc_auto_th<0);
+	_parameters.rc_auto_inv = (_parameters.rc_auto_th < 0);
 	_parameters.rc_auto_th = fabs(_parameters.rc_auto_th);
-	param_get(_parameter_handles.rc_posctrl_th, &(_parameters.rc_posctrl_th));
-	_parameters.rc_posctrl_inv = (_parameters.rc_posctrl_th<0);
-	_parameters.rc_posctrl_th = fabs(_parameters.rc_posctrl_th);
+	param_get(_parameter_handles.rc_posctl_th, &(_parameters.rc_posctl_th));
+	_parameters.rc_posctl_inv = (_parameters.rc_posctl_th < 0);
+	_parameters.rc_posctl_th = fabs(_parameters.rc_posctl_th);
 	param_get(_parameter_handles.rc_return_th, &(_parameters.rc_return_th));
-	_parameters.rc_return_inv = (_parameters.rc_return_th<0);
+	_parameters.rc_return_inv = (_parameters.rc_return_th < 0);
 	_parameters.rc_return_th = fabs(_parameters.rc_return_th);
 	param_get(_parameter_handles.rc_loiter_th, &(_parameters.rc_loiter_th));
-	_parameters.rc_loiter_inv = (_parameters.rc_loiter_th<0);
+	_parameters.rc_loiter_inv = (_parameters.rc_loiter_th < 0);
 	_parameters.rc_loiter_th = fabs(_parameters.rc_loiter_th);
+	param_get(_parameter_handles.rc_acro_th, &(_parameters.rc_acro_th));
+	_parameters.rc_acro_inv = (_parameters.rc_acro_th < 0);
+	_parameters.rc_acro_th = fabs(_parameters.rc_acro_th);
 
 	/* update RC function mappings */
 	_rc.function[THROTTLE] = _parameters.rc_map_throttle - 1;
@@ -889,12 +886,11 @@ Quat_Sensors::parameters_update()
 
 	_rc.function[MODE] = _parameters.rc_map_mode_sw - 1;
 	_rc.function[RETURN] = _parameters.rc_map_return_sw - 1;
-	_rc.function[POSCTL] = _parameters.rc_map_posctrl_sw - 1;
+	_rc.function[POSCTL] = _parameters.rc_map_posctl_sw - 1;
 	_rc.function[LOITER] = _parameters.rc_map_loiter_sw - 1;
+	_rc.function[ACRO] = _parameters.rc_map_acro_sw - 1;
 
 	_rc.function[FLAPS] = _parameters.rc_map_flaps - 1;
-
-//	_rc.function[OFFBOARD_MODE] = _parameters.rc_map_offboard_ctrl_mode_sw - 1;
 
 	_rc.function[AUX_1] = _parameters.rc_map_aux1 - 1;
 	_rc.function[AUX_2] = _parameters.rc_map_aux2 - 1;
@@ -902,13 +898,9 @@ Quat_Sensors::parameters_update()
 	_rc.function[AUX_4] = _parameters.rc_map_aux4 - 1;
 	_rc.function[AUX_5] = _parameters.rc_map_aux5 - 1;
 
-	/* Airspeed offset */
-	param_get(_parameter_handles.diff_pres_offset_pa, &(_parameters.diff_pres_offset_pa));
-	param_get(_parameter_handles.diff_pres_analog_enabled, &(_parameters.diff_pres_analog_enabled));
-
 	/* scaling of ADC ticks to battery voltage */
 	if (param_get(_parameter_handles.battery_voltage_scaling, &(_parameters.battery_voltage_scaling)) != OK) {
-		warnx("Failed updating voltage scaling param");
+		warnx("%s", paramerr);
 	}
 
 	/* scaling of ADC ticks to battery current */
@@ -1529,7 +1521,8 @@ float
 Quat_Sensors::get_rc_value(enum RC_CHANNELS_FUNCTION func, float min_value, float max_value)
 {
 	if (_rc.function[func] >= 0) {
-		float value = _rc.chan[_rc.function[func]].scaled;
+		float value = _rc.channels[_rc.function[func]];
+
 		if (value < min_value) {
 			return min_value;
 
@@ -1539,6 +1532,7 @@ Quat_Sensors::get_rc_value(enum RC_CHANNELS_FUNCTION func, float min_value, floa
 		} else {
 			return value;
 		}
+
 	} else {
 		return 0.0f;
 	}
@@ -1548,7 +1542,8 @@ switch_pos_t
 Quat_Sensors::get_rc_sw3pos_position(enum RC_CHANNELS_FUNCTION func, float on_th, bool on_inv, float mid_th, bool mid_inv)
 {
 	if (_rc.function[func] >= 0) {
-		float value = 0.5f * _rc.chan[_rc.function[func]].scaled + 0.5f;
+		float value = 0.5f * _rc.channels[_rc.function[func]] + 0.5f;
+
 		if (on_inv ? value < on_th : value > on_th) {
 			return SWITCH_POS_ON;
 
@@ -1568,7 +1563,8 @@ switch_pos_t
 Quat_Sensors::get_rc_sw2pos_position(enum RC_CHANNELS_FUNCTION func, float on_th, bool on_inv)
 {
 	if (_rc.function[func] >= 0) {
-		float value = 0.5f * _rc.chan[_rc.function[func]].scaled + 0.5f;
+		float value = 0.5f * _rc.channels[_rc.function[func]] + 0.5f;
+
 		if (on_inv ? value < on_th : value > on_th) {
 			return SWITCH_POS_ON;
 
@@ -1607,13 +1603,15 @@ Quat_Sensors::rc_poll()
 
 			/* check failsafe */
 			int8_t fs_ch = _rc.function[_parameters.rc_map_failsafe]; // get channel mapped to throttle
-			if (_parameters.rc_map_failsafe>0){ // if not 0, use channel number instead of rc.function mapping
+
+			if (_parameters.rc_map_failsafe > 0) { // if not 0, use channel number instead of rc.function mapping
 				fs_ch = _parameters.rc_map_failsafe - 1;
 			}
+
 			if (_parameters.rc_fails_thr > 0 && fs_ch >= 0) {
 				/* failsafe configured */
 				if ((_parameters.rc_fails_thr < _parameters.min[fs_ch] && rc_input.values[fs_ch] < _parameters.rc_fails_thr) ||
-					(_parameters.rc_fails_thr > _parameters.max[fs_ch] && rc_input.values[fs_ch] > _parameters.rc_fails_thr)) {
+				    (_parameters.rc_fails_thr > _parameters.max[fs_ch] && rc_input.values[fs_ch] > _parameters.rc_fails_thr)) {
 					/* failsafe triggered, signal is lost by receiver */
 					signal_lost = true;
 				}
@@ -1622,8 +1620,9 @@ Quat_Sensors::rc_poll()
 
 		unsigned channel_limit = rc_input.channel_count;
 
-		if (channel_limit > _rc_max_chan_count)
+		if (channel_limit > _rc_max_chan_count) {
 			channel_limit = _rc_max_chan_count;
+		}
 
 		/* read out and scale values from raw message even if signal is invalid */
 		for (unsigned int i = 0; i < channel_limit; i++) {
@@ -1631,11 +1630,13 @@ Quat_Sensors::rc_poll()
 			/*
 			 * 1) Constrain to min/max values, as later processing depends on bounds.
 			 */
-			if (rc_input.values[i] < _parameters.min[i])
+			if (rc_input.values[i] < _parameters.min[i]) {
 				rc_input.values[i] = _parameters.min[i];
+			}
 
-			if (rc_input.values[i] > _parameters.max[i])
+			if (rc_input.values[i] > _parameters.max[i]) {
 				rc_input.values[i] = _parameters.max[i];
+			}
 
 			/*
 			 * 2) Scale around the mid point differently for lower and upper range.
@@ -1654,24 +1655,25 @@ Quat_Sensors::rc_poll()
 			 * DO NOT REMOVE OR ALTER STEP 1!
 			 */
 			if (rc_input.values[i] > (_parameters.trim[i] + _parameters.dz[i])) {
-				_rc.chan[i].scaled = (rc_input.values[i] - _parameters.trim[i] - _parameters.dz[i]) / (float)(_parameters.max[i] - _parameters.trim[i] - _parameters.dz[i]);
+				_rc.channels[i] = (rc_input.values[i] - _parameters.trim[i] - _parameters.dz[i]) / (float)(_parameters.max[i] - _parameters.trim[i] - _parameters.dz[i]);
 
 			} else if (rc_input.values[i] < (_parameters.trim[i] - _parameters.dz[i])) {
-				_rc.chan[i].scaled = (rc_input.values[i] - _parameters.trim[i] + _parameters.dz[i]) / (float)(_parameters.trim[i] - _parameters.min[i] - _parameters.dz[i]);
+				_rc.channels[i] = (rc_input.values[i] - _parameters.trim[i] + _parameters.dz[i]) / (float)(_parameters.trim[i] - _parameters.min[i] - _parameters.dz[i]);
 
 			} else {
 				/* in the configured dead zone, output zero */
-				_rc.chan[i].scaled = 0.0f;
+				_rc.channels[i] = 0.0f;
 			}
 
-			_rc.chan[i].scaled *= _parameters.rev[i];
+			_rc.channels[i] *= _parameters.rev[i];
 
 			/* handle any parameter-induced blowups */
-			if (!isfinite(_rc.chan[i].scaled))
-				_rc.chan[i].scaled = 0.0f;
+			if (!isfinite(_rc.channels[i])) {
+				_rc.channels[i] = 0.0f;
+			}
 		}
 
-		_rc.chan_count = rc_input.channel_count;
+		_rc.channel_count = rc_input.channel_count;
 		_rc.rssi = rc_input.rssi;
 		_rc.signal_lost = signal_lost;
 		_rc.timestamp = rc_input.timestamp_last_signal;
@@ -1705,9 +1707,10 @@ Quat_Sensors::rc_poll()
 
 			/* mode switches */
 			manual.mode_switch = get_rc_sw3pos_position(MODE, _parameters.rc_auto_th, _parameters.rc_auto_inv, _parameters.rc_assist_th, _parameters.rc_assist_inv);
-			manual.posctl_switch = get_rc_sw2pos_position(POSCTL, _parameters.rc_posctrl_th, _parameters.rc_posctrl_inv);
+			manual.posctl_switch = get_rc_sw2pos_position(POSCTL, _parameters.rc_posctl_th, _parameters.rc_posctl_inv);
 			manual.return_switch = get_rc_sw2pos_position(RETURN, _parameters.rc_return_th, _parameters.rc_return_inv);
 			manual.loiter_switch = get_rc_sw2pos_position(LOITER, _parameters.rc_loiter_th, _parameters.rc_loiter_inv);
+			manual.acro_switch = get_rc_sw2pos_position(ACRO, _parameters.rc_acro_th, _parameters.rc_acro_inv);
 
 			/* publish manual_control_setpoint topic */
 			if (_manual_control_pub > 0) {

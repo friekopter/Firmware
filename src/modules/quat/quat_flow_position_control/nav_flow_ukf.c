@@ -756,7 +756,7 @@ bool navFlowUkfGpsPosUpate(
     static bool positionInitialized = false;
     int histIndex;
     if (dt < FLT_MIN) return false;
-    if (gps_position->eph_m >= 4.0f || fabsf(gps_position->tDop) <= FLT_MIN ||
+    if (gps_position->eph >= 4.0f || fabsf(gps_position->tDop) <= FLT_MIN ||
     	(control_mode->flag_armed && !positionInitialized)) {
     	// no or not good enough signal quality
     	// or already armed and not yet initialized
@@ -822,9 +822,9 @@ bool navFlowUkfGpsPosUpate(
 			UKF_FLOW_POSY = navFlowUkfData.posY[histIndex];
 			UKF_FLOW_POSD = navFlowUkfData.posD[histIndex];
 
-			noise[0] = params->ukf_gps_pos_n + gps_position->eph_m * aq_sqrtf(gps_position->tDop*gps_position->tDop + gps_position->nDop*gps_position->nDop) * params->ukf_gps_pos_m_n;
-			noise[1] = params->ukf_gps_pos_n + gps_position->eph_m * aq_sqrtf(gps_position->tDop*gps_position->tDop + gps_position->eDop*gps_position->eDop) * params->ukf_gps_pos_m_n;
-			noise[2] = params->ukf_gps_alt_n + gps_position->epv_m * aq_sqrtf(gps_position->tDop*gps_position->tDop + gps_position->vDop*gps_position->vDop) * params->ukf_gps_alt_m_n;
+			noise[0] = params->ukf_gps_pos_n + gps_position->eph * aq_sqrtf(gps_position->tDop*gps_position->tDop + gps_position->nDop*gps_position->nDop) * params->ukf_gps_pos_m_n;
+			noise[1] = params->ukf_gps_pos_n + gps_position->eph * aq_sqrtf(gps_position->tDop*gps_position->tDop + gps_position->eDop*gps_position->eDop) * params->ukf_gps_pos_m_n;
+			noise[2] = params->ukf_gps_alt_n + gps_position->epv * aq_sqrtf(gps_position->tDop*gps_position->tDop + gps_position->vDop*gps_position->vDop) * params->ukf_gps_alt_m_n;
 
 			srcdkfMeasurementUpdate(navFlowUkfData.kf, 0, y, 3, 3, noise, navFlowUkfPosAltUpdate);
 
