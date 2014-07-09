@@ -226,6 +226,12 @@ UBX::configure(unsigned &baudrate)
 		return 1;
 	}
 
+	configure_message_rate(UBX_MSG_NAV_DOP, 5);
+
+	if (wait_for_ack(UBX_MSG_CFG_MSG, UBX_CONFIG_TIMEOUT, true) < 0) {
+		return 1;
+	}
+
 	/* request module version information by sending an empty MON-VER message */
 	send_message(UBX_MSG_MON_VER, nullptr, 0);
 
@@ -514,6 +520,13 @@ UBX::payload_rx_init()
 			_rx_state = UBX_RXMSG_ERROR_LENGTH;
 		else if (_configured)
 			_rx_state = UBX_RXMSG_IGNORE;	// ignore if _configured
+		break;
+
+	case UBX_MSG_NAV_DOP:
+		if (_rx_payload_length != sizeof(ubx_payload_rx_nav_dop_t))
+			_rx_state = UBX_RXMSG_ERROR_LENGTH;
+		else if (!_configured)
+			_rx_state = UBX_RXMSG_IGNORE;	// ignore if not _configured
 		break;
 
 	default:
@@ -812,6 +825,18 @@ UBX::payload_rx_done(void)
 		if ((_ack_state == UBX_ACK_WAITING) && (_buf.payload_rx_ack_ack.msg == _ack_waiting_msg)) {
 			_ack_state = UBX_ACK_GOT_NAK;
 		}
+
+		ret = 1;
+		break;
+
+	case UBX_MSG_NAV_DOP:
+		UBX_TRACE_RXMSG("Rx NAV-DOP\n");
+		_gps_position->pDop	= (float)_buf.payload_rx_nav_dop.pDOP * 0.01f;
+		_gps_position->hDop	= (float)_buf.payload_rx_nav_dop.hDOP * 0.01f;
+		_gps_position->vDop	= (float)_buf.payload_rx_nav_dop.vDOP * 0.01f;
+		_gps_position->tDop	= (float)_buf.payload_rx_nav_dop.tDOP * 0.01f;
+		_gps_position->eDop	= (float)_buf.payload_rx_nav_dop.eDOP * 0.01f;
+		_gps_position->nDop	= (float)_buf.payload_rx_nav_dop.nDOP * 0.01f;
 
 		ret = 1;
 		break;

@@ -62,6 +62,7 @@
 
 /* Message IDs */
 #define UBX_ID_NAV_POSLLH	0x02
+#define UBX_ID_NAV_DOP 		0x04
 #define UBX_ID_NAV_SOL		0x06
 #define UBX_ID_NAV_PVT		0x07
 #define UBX_ID_NAV_VELNED	0x12
@@ -83,6 +84,7 @@
 #define UBX_MSG_NAV_VELNED	((UBX_CLASS_NAV) | UBX_ID_NAV_VELNED << 8)
 #define UBX_MSG_NAV_TIMEUTC	((UBX_CLASS_NAV) | UBX_ID_NAV_TIMEUTC << 8)
 #define UBX_MSG_NAV_SVINFO	((UBX_CLASS_NAV) | UBX_ID_NAV_SVINFO << 8)
+#define UBX_MSG_NAV_DOP		((UBX_CLASS_NAV) | UBX_ID_NAV_DOP << 8)
 #define UBX_MSG_ACK_NAK		((UBX_CLASS_ACK) | UBX_ID_ACK_NAK << 8)
 #define UBX_MSG_ACK_ACK		((UBX_CLASS_ACK) | UBX_ID_ACK_ACK << 8)
 #define UBX_MSG_CFG_PRT		((UBX_CLASS_CFG) | UBX_ID_CFG_PRT << 8)
@@ -386,6 +388,19 @@ typedef struct {
 	uint8_t rate;
 } ubx_payload_tx_cfg_msg_t;
 
+typedef struct {
+	uint32_t time_milliseconds; 	/**<  GPS Millisecond Time of Week */
+	uint16_t gDOP; 					/**< Geometric DOP (scaling 0.01) */
+	uint16_t pDOP; 					/**< Position DOP (scaling 0.01) */
+	uint16_t tDOP; 					/**< Time DOP (scaling 0.01) */
+	uint16_t vDOP; 					/**< Vertical DOP (scaling 0.01) */
+	uint16_t hDOP; 					/**< Horizontal DOP (scaling 0.01) */
+	uint16_t nDOP; 					/**< Northing DOP (scaling 0.01) */
+	uint16_t eDOP; 					/**< Easting DOP (scaling 0.01) */
+	uint8_t ck_a;
+	uint8_t ck_b;
+} ubx_payload_rx_nav_dop_t;
+
 /* General message and payload buffer union */
 typedef union {
 	ubx_payload_rx_nav_posllh_t		payload_rx_nav_posllh;
@@ -404,6 +419,7 @@ typedef union {
 	ubx_payload_tx_cfg_rate_t		payload_tx_cfg_rate;
 	ubx_payload_tx_cfg_nav5_t		payload_tx_cfg_nav5;
 	ubx_payload_tx_cfg_msg_t		payload_tx_cfg_msg;
+	ubx_payload_rx_nav_dop_t		payload_rx_nav_dop;
 	uint8_t					raw[];
 } ubx_buf_t;
 

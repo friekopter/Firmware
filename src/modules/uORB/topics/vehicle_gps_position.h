@@ -71,6 +71,14 @@ struct vehicle_gps_position_s {
 	unsigned noise_per_ms;				/**< */
 	unsigned jamming_indicator;			/**< */
 
+	uint64_t timestamp_posdilution;
+	float pDop;							/**< GPS pDop in m */
+	float hDop;							/**< GPS hDop in m */
+	float vDop;							/**< GPS vDop in m */
+	float tDop;							/**< GPS tDop in m */
+	float eDop;							/**< GPS eDop in m */
+	float nDop;							/**< GPS nDop in m */
+
 	uint64_t timestamp_velocity;			/**< Timestamp for velocity informations */
 	float vel_m_s;					/**< GPS ground speed (m/s) */
 	float vel_n_m_s;				/**< GPS ground speed in m/s */
@@ -78,6 +86,9 @@ struct vehicle_gps_position_s {
 	float vel_d_m_s;				/**< GPS ground speed in m/s */
 	float cog_rad;					/**< Course over ground (NOT heading, but direction of movement) in rad, -PI..PI */
 	bool vel_ned_valid;				/**< Flag to indicate if NED speed is valid */
+
+	float sAcc;
+	float cAcc;
 
 	uint64_t timestamp_time;			/**< Timestamp for time information */
 	uint64_t time_gps_usec;				/**< Timestamp (microseconds in GPS format), this is the timestamp which comes from the gps module   */
