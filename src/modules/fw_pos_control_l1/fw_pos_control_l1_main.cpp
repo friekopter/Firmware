@@ -1162,21 +1162,18 @@ FixedwingPositionControl::control_position(const math::Vector<2> &current_positi
 		} else {
 			_hold_alt = _global_pos.alt;
 		}
-		_tecs.update_pitch_throttle(_R_nb,//Attitude rotation matrix
-									_att.pitch,//current pitch
-									_global_pos.alt,//current altitude
-									_hold_alt,//demanded altitude
-									altctrl_airspeed,//demanded airspeed
-									_airspeed.indicated_airspeed_m_s, //indicated speed
-									eas2tas,//indicated to true airspeed conversion factor
-									false, //climb out flag
-									_parameters.pitch_limit_min,
+		tecs_update_pitch_throttle(_hold_alt,
+									altctrl_airspeed,
+									eas2tas,
+									math::radians(_parameters.pitch_limit_min),
+									math::radians(_parameters.pitch_limit_max),
 									_parameters.throttle_min,
 									_parameters.throttle_max,
 									_parameters.throttle_cruise,
-									_parameters.pitch_limit_min,
-									_parameters.pitch_limit_max);
-
+									false,
+									math::radians(_parameters.pitch_limit_min),
+									_global_pos.alt,
+									ground_speed);
 	} else if (0/* posctrl mode enabled */) {
 
 		_was_pos_control_mode = false;
