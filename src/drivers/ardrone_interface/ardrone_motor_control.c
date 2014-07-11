@@ -212,8 +212,6 @@ int ar_init_motors(int ardrone_uart, int gpios)
 	uint8_t initbuf[] = {0xE0, 0x91, 0xA1, 0x00, 0x40};
 	uint8_t multicastbuf[] = {0xA0, 0xA0, 0xA0, 0xA0, 0xA0, 0xA0};
 
-	uint8_t status[2];
-
 	/* deselect all motors */
 	ar_deselect_motor(gpios, 0);
 

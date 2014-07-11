@@ -117,11 +117,11 @@ void utilQuasiStatic(int n, float acc_x, float acc_y, float acc_z) {
 void utilMatrixExtractEuler(float *m, float *yaw, float *pitch, float *roll) {
     if (m[1*3+0] > 0.998f) { // singularity at north pole
 		*pitch = atan2f(m[0*3+2], m[2*3+2]);
-		*yaw = M_PI/2.0f;
+		*yaw = (float)M_PI/2.0f;
 		*roll = 0.0f;
     } else if (m[1*3+0] < -0.998f) { // singularity at south pole
 		*pitch = atan2f(m[0*3+2] ,m[2*3+2]);
-		*yaw = -M_PI/2.0f;
+		*yaw = -(float)M_PI/2.0f;
 		*roll = 0.0f;
     }
     else {
@@ -257,18 +257,18 @@ void utilQuatToMatrix(float *m, float *q, int normalize) {
 
     tmp1 = q[1]*q[2];
     tmp2 = q[3]*q[0];
-    m[1*3 + 0] = 2.0 * (tmp1 + tmp2) * invs;
-    m[0*3 + 1] = 2.0 * (tmp1 - tmp2) * invs;
+    m[1*3 + 0] = 2.0f * (tmp1 + tmp2) * invs;
+    m[0*3 + 1] = 2.0f * (tmp1 - tmp2) * invs;
 
     tmp1 = q[1]*q[3];
     tmp2 = q[2]*q[0];
-    m[2*3 + 0] = 2.0 * (tmp1 - tmp2) * invs;
-    m[0*3 + 2] = 2.0 * (tmp1 + tmp2) * invs;
+    m[2*3 + 0] = 2.0f * (tmp1 - tmp2) * invs;
+    m[0*3 + 2] = 2.0f * (tmp1 + tmp2) * invs;
 
     tmp1 = q[2]*q[3];
     tmp2 = q[1]*q[0];
-    m[2*3 + 1] = 2.0 * (tmp1 + tmp2) * invs;
-    m[1*3 + 2] = 2.0 * (tmp1 - tmp2) * invs;
+    m[2*3 + 1] = 2.0f * (tmp1 + tmp2) * invs;
+    m[1*3 + 2] = 2.0f * (tmp1 - tmp2) * invs;
 }
 
 void utilQuatToMatrix2(float m[3][3], float *q, int normalize) {
@@ -292,18 +292,18 @@ void utilQuatToMatrix2(float m[3][3], float *q, int normalize) {
 
     tmp1 = q[1]*q[2];
     tmp2 = q[3]*q[0];
-    m[1][0] = 2.0 * (tmp1 + tmp2) * invs;
-    m[0][1] = 2.0 * (tmp1 - tmp2) * invs;
+    m[1][0] = 2.0f * (tmp1 + tmp2) * invs;
+    m[0][1] = 2.0f * (tmp1 - tmp2) * invs;
 
     tmp1 = q[1]*q[3];
     tmp2 = q[2]*q[0];
-    m[2][0] = 2.0 * (tmp1 - tmp2) * invs;
-    m[0][2] = 2.0 * (tmp1 + tmp2) * invs;
+    m[2][0] = 2.0f * (tmp1 - tmp2) * invs;
+    m[0][2] = 2.0f * (tmp1 + tmp2) * invs;
 
     tmp1 = q[2]*q[3];
     tmp2 = q[1]*q[0];
-    m[2][1] = 2.0 * (tmp1 + tmp2) * invs;
-    m[1][2] = 2.0 * (tmp1 - tmp2) * invs;
+    m[2][1] = 2.0f * (tmp1 + tmp2) * invs;
+    m[1][2] = 2.0f * (tmp1 - tmp2) * invs;
 }
 
 void utilNormalizeVec3(float *vr, float *v) {
@@ -345,9 +345,9 @@ void utilRotateVectorByQuat(float *vr, float *v, float *q) {
     y = q[2];
     z = q[3];
 
-    vr[0] = w*w*v[0] + 2.0*y*w*v[2] - 2.0*z*w*v[1] + x*x*v[0] + 2.0*y*x*v[1] + 2.0*z*x*v[2] - z*z*v[0] - y*y*v[0];
-    vr[1] = 2.0*x*y*v[0] + y*y*v[1] + 2.0*z*y*v[2] + 2.0*w*z*v[0] - z*z*v[1] + w*w*v[1] - 2.0*x*w*v[2] - x*x*v[1];
-    vr[2] = 2.0*x*z*v[0] + 2.0*y*z*v[1] + z*z*v[2] - 2.0*w*y*v[0] - y*y*v[2] + 2.0*w*x*v[1] - x*x*v[2] + w*w*v[2];
+    vr[0] = w*w*v[0] + 2.0f*y*w*v[2] - 2.0f*z*w*v[1] + x*x*v[0] + 2.0f*y*x*v[1] + 2.0f*z*x*v[2] - z*z*v[0] - y*y*v[0];
+    vr[1] = 2.0f*x*y*v[0] + y*y*v[1] + 2.0f*z*y*v[2] + 2.0f*w*z*v[0] - z*z*v[1] + w*w*v[1] - 2.0f*x*w*v[2] - x*x*v[1];
+    vr[2] = 2.0f*x*z*v[0] + 2.0f*y*z*v[1] + z*z*v[2] - 2.0f*w*y*v[0] - y*y*v[2] + 2.0f*w*x*v[1] - x*x*v[2] + w*w*v[2];
 }
 
 

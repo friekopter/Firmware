@@ -474,7 +474,7 @@ int quat_log_thread_main(int argc, char *argv[])
 					float mebibytes = (float)bytes / 1024.0f / 1024.0f;
 					if(mebibytes > 250.0f) thread_should_exit = true;
 					printf("[quat log] %8.4fms\t written: %dbytes\ttotal: %8.4fMegabytes\ttemp: %8.4fC\n",
-							diff, writtenBytes, mebibytes, buf.gyro_report.temperature);
+							(double)diff, writtenBytes, (double)mebibytes, (double)buf.gyro_report.temperature);
 					lastTime = currentTime;
 				}
 			}

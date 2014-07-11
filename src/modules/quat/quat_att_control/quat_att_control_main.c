@@ -123,7 +123,6 @@ quat_att_control_thread_main(int argc, char *argv[])
 	 */
 	int att_setpoint_sub = orb_subscribe(ORB_ID(vehicle_attitude_setpoint));
 	int manual_sub = orb_subscribe(ORB_ID(manual_control_setpoint));
-	int sensor_sub = orb_subscribe(ORB_ID(sensor_combined));
 	int params_sub = orb_subscribe(ORB_ID(parameter_update));
 	int control_mode_sub = orb_subscribe(ORB_ID(vehicle_control_mode));
 	int status_sub = orb_subscribe(ORB_ID(vehicle_status));

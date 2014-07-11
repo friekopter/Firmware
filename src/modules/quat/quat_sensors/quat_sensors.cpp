@@ -1976,7 +1976,7 @@ Quat_Sensors::gyro_calibrate()
 		rateBiasZ,
 		1.0f,
 	};
-	printf("[Quat Sensors]: Set gyro bias: %8.4f\t %8.4f\t %8.4f\n",rateBiasX,rateBiasY,rateBiasZ);
+	printf("[Quat Sensors]: Set gyro bias: %8.4f\t %8.4f\t %8.4f\n",(double)rateBiasX,(double)rateBiasY,(double)rateBiasZ);
 
 	if (OK != ioctl(fd, GYROIOCSSCALE, (long unsigned int)&gscale)) {
 		warn("WARNING: failed to set scale / offsets for gyro");

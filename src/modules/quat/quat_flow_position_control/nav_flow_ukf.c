@@ -56,7 +56,7 @@ void navFlowUkfSetPressAltOffset(const float baroAltitude, const float altitude,
 void navFlowUkfCalcEarthRadius(double lat) {
     float sinLat2;
 
-    sinLat2 = __aq_sinf(lat * DEG_TO_RAD);
+    sinLat2 = __aq_sinf(lat * (double)DEG_TO_RAD);
     sinLat2 = sinLat2 * sinLat2;
 
     navFlowUkfData.r1 = NAV_EQUATORIAL_RADIUS * DEG_TO_RAD * (1.0f - NAV_E_2) / powf(1.0f - (NAV_E_2 * sinLat2), (3.0f / 2.0f));
@@ -64,8 +64,8 @@ void navFlowUkfCalcEarthRadius(double lat) {
 }
 
 void navFlowUkfCalcDistance(double lat, double lon, float *posNorth, float *posEast) {
-    *posNorth = (lat - navFlowUkfData.holdLat) * navFlowUkfData.r1;
-    *posEast = (lon - navFlowUkfData.holdLon) * __aq_cosf(lat * DEG_TO_RAD) * navFlowUkfData.r2;
+    *posNorth = (float)(lat - navFlowUkfData.holdLat) * navFlowUkfData.r1;
+    *posEast = (float)(lon - navFlowUkfData.holdLon) * __aq_cosf(lat * (double)DEG_TO_RAD) * navFlowUkfData.r2;
 }
 
 void navFlowUkfResetPosition(float deltaN, float deltaE, float deltaD) {
@@ -793,8 +793,8 @@ bool navFlowUkfGpsPosUpate(
 			local_position_data->ref_lat = gps_position->lat;
 			local_position_data->ref_lon = gps_position->lon;
 			//reinit map projection
-			double lat_home = ((double)local_position_data->ref_lat) * 1e-7f;
-			double lon_home = ((double)local_position_data->ref_lon) * 1e-7f;
+			double lat_home = ((double)local_position_data->ref_lat) * (double)1e-7f;
+			double lon_home = ((double)local_position_data->ref_lon) * (double)1e-7f;
 			map_projection_init(gps_map_ref,lat_home, lon_home);
 			navFlowPublishHome(lat_home,lon_home,UKF_FLOW_VELD);
 			return false;
@@ -931,15 +931,15 @@ void navFlowLogVariance(void) {
 		Q[i] = Sx[i*navFlowUkfData.numberOfStates + i]*Sx[i*navFlowUkfData.numberOfStates + i];
 	}
 	printf("Q:1:%15.1f\t2:%15.1f\t3:%15.1f\t4:%15.1f\t5:%15.1f\t6:%15.1f\t7:%15.1f\t8:%15.1f\t9:%15.1f\t10:%15.1f\t11:%15.1f\t12:%15.1f\t13:%15.1f\t14:%15.1f\n",
-			Q[0],Q[1],Q[2],Q[3],Q[4],Q[5],Q[6],Q[7],Q[8],Q[9],Q[10],Q[11],Q[12],Q[13]);
+			(double)Q[0],(double)Q[1],(double)Q[2],(double)Q[3],(double)Q[4],(double)Q[5],(double)Q[6],(double)Q[7],(double)Q[8],(double)Q[9],(double)Q[10],(double)Q[11],(double)Q[12],(double)Q[13]);
 
 	float V[navFlowUkfData.numberOfProcessNoiseVariables];
 	float32_t *Sv = navFlowUkfData.kf->Sv.pData;
 	for (int i = 0; i < navFlowUkfData.numberOfProcessNoiseVariables; i++) {
 		V[i] = Sv[i*navFlowUkfData.numberOfProcessNoiseVariables + i]*Sv[i*navFlowUkfData.numberOfProcessNoiseVariables + i];
 	}
-	printf("V:1:%15.1f\t2:%15.1f\t3:%15.1f\t4:%15.1f\t5:%15.1f\t6:%15.1f\t7:%15.1f\t8:%15.1f\t9:%15.1f\t10:%15.1f\t11:%15.1f\t12:%15.1f\t15:%15.1f\n",
-			V[0],V[1],V[2],V[3],V[4],V[5],V[6],V[7],V[8],V[9],V[10],V[11],V[12]);
+	printf("V:1:%15.1f\t2:%15.1f\t3:%15.1f\t4:%15.1f\t5:%15.1f\t6:%15.1f\t7:%15.1f\t8:%15.1f\t9:%15.1f\t10:%15.1f\t11:%15.1f\t12:%15.1f\t15:%15.1f\n",(double)
+			V[0],(double)V[1],(double)V[2],(double)V[3],(double)V[4],(double)V[5],(double)V[6],(double)V[7],(double)V[8],(double)V[9],(double)V[10],(double)V[11],(double)V[12]);
 }
 
 void navFlowUkfInit(const struct quat_position_control_UKF_params* params,

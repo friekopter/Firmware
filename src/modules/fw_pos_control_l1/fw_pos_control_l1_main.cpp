@@ -446,8 +446,7 @@ FixedwingPositionControl::FixedwingPositionControl() :
 	_groundspeed_undershoot(0.0f),
 	_global_pos_valid(false),
 	_mTecs(),
-	_was_pos_control_mode(false),
-	_hold_alt(0.0f)
+	_was_pos_control_mode(false)
 {
 	_nav_capabilities.turn_distance = 0.0f;
 

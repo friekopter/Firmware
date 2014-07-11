@@ -38,7 +38,7 @@ static double dummyDouble = 0.0f;
 static uint32_t dummyUint32 = 0;
 static int16_t dummyint16 = 0;
 static uint16_t dummyUint16 = 0;
-static int8_t dummyint8 = 0;
+//static int8_t dummyint8 = 0;
 static int8_t dummyint8_Value1 = 1;
 
 logFields_t logFields[] = {

@@ -197,8 +197,7 @@ void quatCode(void *p) {
 void quatInit(void) {
     //unsigned long lastUpdate; //TODO FL uncommented
     float x, y, z;
-    float rateSum[3];
-    unsigned int i,j;
+    unsigned int i;
 
 	//sleep 1000 ms
 	usleep(1000 * 1000);
@@ -242,10 +241,6 @@ void quatInit(void) {
 
     normalizeVector4(quatData.q);
 
-    // set the current bias to the readings we see now
-    rateSum[0] = 0.0f;
-    rateSum[1] = 0.0f;
-    rateSum[2] = 0.0f;
 /*
 	const int reads = 100;
 	const int results = 26;

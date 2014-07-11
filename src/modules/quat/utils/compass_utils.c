@@ -4,9 +4,9 @@
 
 float compassNormalizeRad(float heading) {
     if (heading < 0.0f)
-	heading += M_TWOPI;
-    if (heading >= M_TWOPI)
-	heading -= M_TWOPI;
+	heading += (float)M_TWOPI;
+    if (heading >= (float)M_TWOPI)
+	heading -= (float)M_TWOPI;
 
     return heading;
 }
@@ -36,10 +36,10 @@ float compassDifference(float a, float b) {
 float compassDifferenceRad(float a, float b) {
     float diff = b - a;
 
-    if (diff > M_PI)
-	diff -= M_TWOPI;
-    if (diff <= -M_PI)
-	diff += M_TWOPI;
+    if (diff > (float)M_PI)
+	diff -= (float)M_TWOPI;
+    if (diff <= -(float)M_PI)
+	diff += (float)M_TWOPI;
 
     return diff;
 }

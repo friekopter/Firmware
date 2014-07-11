@@ -119,9 +119,9 @@ void navAudioState( const uint8_t navigationMode,
 					const bool failsafe,
 					const int mavlink_fd ) {
 
-	uint8_t currentNavMode = NAV_STATUS_MANUAL;
-	enum SETPOINT_TYPE currentSetpointType = SETPOINT_TYPE_IDLE;
-	bool currentFailsafe = false;
+	static uint8_t currentNavMode = NAV_STATUS_MANUAL;
+	static enum SETPOINT_TYPE currentSetpointType = SETPOINT_TYPE_IDLE;
+	static bool currentFailsafe = false;
 	static uint8_t count = 0;
 	if((count++ % 10)) {
 		return;
@@ -174,9 +174,12 @@ void navAudioState( const uint8_t navigationMode,
 				break;
 		}
 	}
-	if(failsafe) {
+	if(failsafe && !currentFailsafe) {
 		currentFailsafe = failsafe;
 		mavlink_log_info(mavlink_fd,"#audio: failsafe");
+	}
+	if(!failsafe){
+		currentFailsafe = failsafe;
 	}
 }
 
@@ -395,7 +398,8 @@ void navCalculateTilt(	const struct vehicle_control_mode_s *control_mode,
     	navDataResult->holdSpeedY = pidUpdate(navDataResult->distanceYPID, navDataResult->holdPositionY, position_data->y);
     }
 
-    if (fabs(navDataResult->holdSpeedX) > FLT_MIN || fabs(navDataResult->holdSpeedY) > FLT_MIN) {
+    if ((float)fabs(navDataResult->holdSpeedX) > (float)FLT_MIN ||
+    		(float)fabs(navDataResult->holdSpeedY) > (float)FLT_MIN) {
         // normalize N/E speed requests to fit below max nav speed
         float speedValue = aq_sqrtf(navDataResult->holdSpeedX*navDataResult->holdSpeedX + navDataResult->holdSpeedY*navDataResult->holdSpeedY);
         if (speedValue > navDataResult->holdMaxHorizSpeed) {

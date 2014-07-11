@@ -219,28 +219,6 @@ uint8_t flow_calculate_flow(
 		flow_accuracy = (uint8_t)(255.0f * (expected_max_flow - max_flow) / max_flow);
 	}
 
-	float flow_ang[3];
-	float speed[3];
-	flow_ang[0] = (float)flow->flow_raw_x * params->flow_k;
-	flow_ang[1] = (float)flow->flow_raw_y * params->flow_k;
-	flow_ang[2] = 0.0f;
-
-	/* flow measurements vector */
-	float flow_m[3];
-	flow_m[0] = -flow_ang[0] * flow_dist;
-	flow_m[1] = -flow_ang[1] * flow_dist;
-	flow_m[2] = body_v_est[2];
-
-	/* convert to bodyframe velocity */
-	float flow_mb[3];
-	for(uint8_t i = 0; i < 3; i++) {
-		float sum = 0.0f;
-		for(uint8_t j = 0; j < 3; j++) {
-			sum = sum + flow_m[j] * rotM_flow_sensor[j][i];
-		}
-		flow_mb[i] = sum;
-	}
-
 	/* velocity in NED */
 	float flow_v[3] = { 0.0f, 0.0f, 0.0f };
 
@@ -330,7 +308,7 @@ void flow_calculate_altitude(bool vehicle_liftoff,
 		// Only calculate if last measurement was valid
 		float time_since_last_sonar = ((float)(filtered_flow->timestamp - sonar_last_timestamp))/1000000.0f;
 		float ned_z_lp = -sonar_lp * att->R[2][2];
-		if(debug) printf("..m:%8.4f\tv:%8.4f\n", filtered_flow->ned_z, time_since_last_sonar);
+		if(debug) printf("..m:%8.4f\tv:%8.4f\n", (double)filtered_flow->ned_z, (double)time_since_last_sonar);
 
 		if(time_since_last_sonar > 0.09f &&
 				(sonar_last_measurement != ned_z_lp || time_since_last_sonar > 0.11f)) {
@@ -342,14 +320,14 @@ void flow_calculate_altitude(bool vehicle_liftoff,
 				// smooth
 				filtered_flow->ned_vz += (sonar_speed - filtered_flow->ned_vz) * 1.0f;
 				if(debug) printf("m:%8.4f\tl:%8.4f\td:%8.4f\tt:%8.4f\tv:%8.4f\n",
-						filtered_flow->ned_z, sonar_last_measurement, distance,
-						time_since_last_sonar, filtered_flow->ned_vz);
+						(double)filtered_flow->ned_z, (double)sonar_last_measurement, (double)distance,
+						(double)time_since_last_sonar, (double)filtered_flow->ned_vz);
 				filtered_flow->ned_v_z_valid = 255;
 			} else {
 				filtered_flow->ned_vz = 0.0f;
 				filtered_flow->ned_v_z_valid = 0;
 				if(debug) printf("v:%d\tt:%8.4f\n",filtered_flow->ned_z_valid,
-						time_since_last_sonar);
+						(double)time_since_last_sonar);
 			}
 			filtered_flow->sonar_counter++;
 			sonar_last_timestamp = filtered_flow->timestamp;

@@ -310,8 +310,8 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 	memset(&gps_data, 0, sizeof(gps_data));
 	orb_set_interval(gps_sub, 200);	/* 5Hz updates */
 
-	// Local position setpoint
-	int local_pos_sp_sub = orb_subscribe(ORB_ID(vehicle_local_position_setpoint));
+	/*// Local position setpoint
+	int local_pos_sp_sub = orb_subscribe(ORB_ID(vehicle_local_position_setpoint));*/
 	memset(&local_position_sp, 0, sizeof(local_position_sp));
 	local_position_sp.nav_cmd = NAV_CMD_LOITER_UNLIMITED;
 	// Sometimes also publish
@@ -378,7 +378,7 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 	printf("[quat flow pos control] Init position control\n");
 	quat_flow_pos_runInit(&raw);
 	printf("[quat flow pos control] Init ukf with states:%d\n",ukf_params.ukf_states);
-	printf("[quat flow pos control] Inclination:%8.4f\n",raw.magnetometer_inclination);
+	printf("[quat flow pos control] Inclination:%8.4f\n",(double)raw.magnetometer_inclination);
 	navFlowUkfInit(&ukf_params,
 			&raw,
 			raw.magnetometer_inclination);
@@ -430,7 +430,6 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 			    // imu static
 				float rotError[3];
 				float acc[3], mag[3], estAcc[3], estMag[3];
-				float m[3*3];
 				static int k = 0;
 				static int l = 0;
 			    static float gyX[UKF_GYO_AVG_NUM];
@@ -495,7 +494,7 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 				    arm_mean_f32(gyY, UKF_GYO_AVG_NUM, &UKF_FLOW_GYO_BIAS_Y);
 				    arm_mean_f32(gyZ, UKF_GYO_AVG_NUM, &UKF_FLOW_GYO_BIAS_Z);
 			    	printf("[quat flow pos control] Init finished. Gyo Bias: x: %8.4f\ty: %8.4f\tz:%8.4f\n", (double)UKF_FLOW_GYO_BIAS_X, (double)UKF_FLOW_GYO_BIAS_Y, (double)UKF_FLOW_GYO_BIAS_Z);
-			    	printf("[quat flow pos control] Q1:%8.4f\tQ2:%8.4f\tQ3:%8.4f\tQ4:%8.4f\n", UKF_FLOW_Q1, UKF_FLOW_Q2, UKF_FLOW_Q3, UKF_FLOW_Q4);
+			    	printf("[quat flow pos control] Q1:%8.4f\tQ2:%8.4f\tQ3:%8.4f\tQ4:%8.4f\n", (double)UKF_FLOW_Q1, (double)UKF_FLOW_Q2, (double)UKF_FLOW_Q3, (double)UKF_FLOW_Q4);
 					navFlowUkfFinish();
 					// Publish attitude
 					att.R_valid = false;
@@ -509,9 +508,9 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 					printf("roll: %8.4f\tpitch: %8.4f\tyaw:%8.4f\n", (double)att.roll, (double)att.pitch, (double)att.yaw);
 					orb_publish(ORB_ID(vehicle_attitude), pub_att, &att);
 					printf("1:%8.4f\t2:%8.4f\t3:%8.4f\t4:%8.4f\t5:%8.4f\t6:%8.4f\t7:%8.4f\t8:%8.4f\t9:%8.4f\t10:%8.4f\t11:%8.4f\t12:%8.4f\t13:%8.4f\t14:%8.4f\n",
-							navFlowUkfData.x[0],navFlowUkfData.x[1],navFlowUkfData.x[2],navFlowUkfData.x[3],navFlowUkfData.x[4],
-							navFlowUkfData.x[5],navFlowUkfData.x[6],navFlowUkfData.x[7],navFlowUkfData.x[8],navFlowUkfData.x[9],
-							navFlowUkfData.x[10],navFlowUkfData.x[11],navFlowUkfData.x[12],navFlowUkfData.x[13]);
+							(double)navFlowUkfData.x[0],(double)navFlowUkfData.x[1],(double)navFlowUkfData.x[2],(double)navFlowUkfData.x[3],(double)navFlowUkfData.x[4],(double)
+							(double)navFlowUkfData.x[5],(double)navFlowUkfData.x[6],(double)navFlowUkfData.x[7],(double)navFlowUkfData.x[8],(double)navFlowUkfData.x[9],
+							(double)navFlowUkfData.x[10],(double)navFlowUkfData.x[11],(double)navFlowUkfData.x[12],(double)navFlowUkfData.x[13]);
 
 			    }
 				//usleep(1000);
@@ -519,10 +518,10 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 		}
 	}
 	printf("[quat flow pos control] Init nav\n");
-	printf("Ground level altitude: %8.4f meters\n",raw.baro_alt_meter);
+	printf("Ground level altitude: %8.4f meters\n",(double)raw.baro_alt_meter);
 	navFlowInit(&nav_params,raw.baro_alt_meter,navFlowUkfData.yaw);
 	navFlowUkfSetSonarOffset(0.0f,raw.baro_alt_meter,1.0f);
-	printf("Ground level offset: %8.4f meters\n",navFlowUkfData.sonarAltOffset);
+	printf("Ground level offset: %8.4f meters\n",(double)navFlowUkfData.sonarAltOffset);
 	printf("[quat flow pos control] Starting loop\n");
 
 	ioctl(buzzer, TONE_SET_ALARM, TONE_NOTIFY_POSITIVE_TUNE);
@@ -532,8 +531,8 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 	// Init local to global transformation
 	local_position_data.ref_lat = 481292910;
 	local_position_data.ref_lon = 117061650;
-	double lat_home = ((double)local_position_data.ref_lat) * 1e-7f;
-	double lon_home = ((double)local_position_data.ref_lon) * 1e-7f;
+	double lat_home = ((double)local_position_data.ref_lat) * (double)1e-7F;
+	double lon_home = ((double)local_position_data.ref_lon) * (double)1e-7F;
 	map_projection_init(&gps_map_ref,lat_home, lon_home);
 	navFlowPublishHome(lat_home,lon_home,UKF_FLOW_VELD);
 
@@ -765,11 +764,11 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 			{
 				orb_copy(ORB_ID(position_setpoint_triplet), pos_sp_sub, &position_sp_triplet);
 				printf("[quat flow pos control] ps %d, %8.4f, %8.4f, %8.4f, %8.4f\n",position_sp_triplet.previous.type,
-					position_sp_triplet.previous.alt, position_sp_triplet.previous.lat, position_sp_triplet.previous.lon, position_sp_triplet.previous.yaw),
+						(double)position_sp_triplet.previous.alt, (double)position_sp_triplet.previous.lat, (double)position_sp_triplet.previous.lon, (double)position_sp_triplet.previous.yaw),
 				printf("[quat flow pos control] cs %d, %8.4f, %8.4f, %8.4f, %8.4f\n",position_sp_triplet.current.type,
-									position_sp_triplet.current.alt, position_sp_triplet.current.lat, position_sp_triplet.current.lon, position_sp_triplet.current.yaw);
+						(double)position_sp_triplet.current.alt, (double)position_sp_triplet.current.lat, (double)position_sp_triplet.current.lon, (double)position_sp_triplet.current.yaw);
 				printf("[quat flow pos control] ns %d, %8.4f, %8.4f, %8.4f, %8.4f\n",position_sp_triplet.next.type,
-									position_sp_triplet.next.alt, position_sp_triplet.next.lat, position_sp_triplet.next.lon, position_sp_triplet.next.yaw);
+						(double)position_sp_triplet.next.alt, (double)position_sp_triplet.next.lat, (double)position_sp_triplet.next.lon, (double)position_sp_triplet.next.yaw);
 			}
 
 			if (!(loopcounter % 100) && !control_mode.flag_armed ) {
@@ -927,19 +926,19 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 				printf("[qfpc] vxy valid %d,filtered_bottom_flow_data.ned_xy_valid);
 			}*/
 			if (debug == true && !((printcounter+10) % 101)) {
-				printf("local z: %8.4fm hold alt: %8.4f\n",local_position_data.z,navFlowData.holdAlt);
-				printf("local vz: %8.4fm hold speed: %8.4f\n",navFlowData.holdSpeedAlt, local_position_data.vz);
-				printf("Pressure alt offset: %8.4fm Pressure alt: %8.4fm\tBaro alt: %8.4fm\n",navFlowUkfData.pressAltOffset,UKF_FLOW_PRES_ALT,raw.baro_alt_meter);
-				printf("Sonar offset: %8.4f meters\tSonar measured: %8.4f meters\tposd alt: %8.4fm\n",navFlowUkfData.sonarAltOffset,filtered_bottom_flow_data.ned_z, UKF_FLOW_POSD);
+				printf("local z: %8.4fm hold alt: %8.4f\n",(double)local_position_data.z,(double)navFlowData.holdAlt);
+				printf("local vz: %8.4fm hold speed: %8.4f\n",(double)navFlowData.holdSpeedAlt, (double)local_position_data.vz);
+				printf("Pressure alt offset: %8.4fm Pressure alt: %8.4fm\tBaro alt: %8.4fm\n",(double)navFlowUkfData.pressAltOffset,(double)UKF_FLOW_PRES_ALT,(double)raw.baro_alt_meter);
+				printf("Sonar offset: %8.4f meters\tSonar measured: %8.4f meters\tposd alt: %8.4fm\n",(double)navFlowUkfData.sonarAltOffset,(double)filtered_bottom_flow_data.ned_z, (double)UKF_FLOW_POSD);
 			}
 			// print debug information every 1000th time
 			if (debug == true && !(printcounter % 101))
 			{
-				printf("sonar alt:%8.4f\n",local_position_data.z);
+				printf("sonar alt:%8.4f\n",(double)local_position_data.z);
 				printf("measured alt:%8.4f\thold alt:%8.4f\ttarget hold speed:%8.4f\n",
-						-UKF_FLOW_PRES_ALT,navFlowData.holdAlt,navFlowData.targetHoldSpeedAlt);
+						(double)-UKF_FLOW_PRES_ALT,(double)navFlowData.holdAlt,(double)navFlowData.targetHoldSpeedAlt);
 				printf("alt speed:%8.4f\thold speed:%8.4f\ttthrust:%8.4f\n",
-						-UKF_FLOW_VELD,navFlowData.holdSpeedAlt,att_sp.thrust);
+						(double)-UKF_FLOW_VELD,(double)navFlowData.holdSpeedAlt,(double)att_sp.thrust);
 
 			}
 			else if (debug == true && !(printcounter % 1000))

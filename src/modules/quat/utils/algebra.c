@@ -57,45 +57,45 @@ float __aq_atanf(float x)
 
 float __aq_atan2f(float y, float x)
 {
-  if (y == 0.0)
+  if (y == 0.0f)
     {
-      if (x >= 0.0)
+      if (x >= 0.0f)
         {
-          return 0.0;
+          return 0.0f;
         }
       else
         {
           return M_PI;
         }
     }
-  else if (y > 0.0)
+  else if (y > 0.0f)
     {
-      if (x == 0.0)
+      if (x == 0.0f)
         {
           return M_PI_2;
         }
-      else if (x > 0.0)
+      else if (x > 0.0f)
         {
           return __aq_atanf(y / x);
         }
       else
         {
-          return M_PI - __aq_atanf(y / x);
+          return (float)M_PI - __aq_atanf(y / x);
         }
     }
   else
     {
-      if (x == 0.0)
+      if (x == 0.0f)
         {
           return M_PI + M_PI_2;
         }
-      else if (x > 0.0)
+      else if (x > 0.0f)
         {
-          return 2 * M_PI - __aq_atanf(y / x);
+          return 2.0f * (float)M_PI - __aq_atanf(y / x);
         }
       else
         {
-          return M_PI + __aq_atanf(y / x);
+          return (float)M_PI + __aq_atanf(y / x);
         }
     }
 }
@@ -138,7 +138,7 @@ void matrixDump(char *name, arm_matrix_instance_f32 *m) {
     printf("%s  = [\n", name);
     for (i = 0; i < m->numRows; i++) {
 		for (j = 0; j < m->numCols; j++) {
-			p += sprintf(p, "%+.5e ", m->pData[i*m->numCols + j]);
+			p += sprintf(p, "%+.5e ", (double)m->pData[i*m->numCols + j]);
 		}
 		p += sprintf(p, ";\n");
 		printf(matBuf);
