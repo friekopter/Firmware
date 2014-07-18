@@ -246,7 +246,7 @@ private:
 		int32_t gyo_dlpf_freq;
 
 		int diff_pres_offset_pa;
-		float diff_pres_analog_enabled;
+		float diff_pres_analog_scale;
 
 		int rc_map_roll;
 		int rc_map_pitch;
@@ -358,7 +358,7 @@ private:
 		param_t gyo_dlpf_freq;
 
 		param_t diff_pres_offset_pa;
-		param_t diff_pres_analog_enabled;
+		param_t diff_pres_analog_scale;
 
 		param_t rc_map_roll;
 		param_t rc_map_pitch;
@@ -734,7 +734,7 @@ Quat_Sensors::Quat_Sensors() :
 
 	/* Differential pressure offset */
 	_parameter_handles.diff_pres_offset_pa = param_find("SENS_DPRES_OFF");
-	_parameter_handles.diff_pres_analog_enabled = param_find("SENS_DPRES_ANA");
+	_parameter_handles.diff_pres_analog_scale = param_find("SENS_DPRES_ANSC");
 
 	_parameter_handles.battery_voltage_scaling = param_find("BAT_V_SCALING");
 	_parameter_handles.battery_current_scaling = param_find("BAT_C_SCALING");
@@ -897,6 +897,10 @@ Quat_Sensors::parameters_update()
 	_rc.function[AUX_3] = _parameters.rc_map_aux3 - 1;
 	_rc.function[AUX_4] = _parameters.rc_map_aux4 - 1;
 	_rc.function[AUX_5] = _parameters.rc_map_aux5 - 1;
+
+	/* Airspeed offset */
+	param_get(_parameter_handles.diff_pres_offset_pa, &(_parameters.diff_pres_offset_pa));
+	param_get(_parameter_handles.diff_pres_analog_scale, &(_parameters.diff_pres_analog_scale));
 
 	/* scaling of ADC ticks to battery voltage */
 	if (param_get(_parameter_handles.battery_voltage_scaling, &(_parameters.battery_voltage_scaling)) != OK) {
@@ -1412,10 +1416,12 @@ void
 Quat_Sensors::adc_poll(struct sensor_combined_s &raw)
 {
 	/* only read if publishing */
-	if (!_publishing)
+	if (!_publishing) {
 		return;
+	}
 
 	hrt_abstime t = hrt_absolute_time();
+
 	/* rate limit to 100 Hz */
 	if (t - _last_adc >= 10000) {
 		/* make space for a maximum of twelve channels (to ensure reading all channels at once) */
@@ -1440,6 +1446,7 @@ Quat_Sensors::adc_poll(struct sensor_combined_s &raw)
 
 					if (voltage > BATT_V_IGNORE_THRESHOLD) {
 						_battery_status.voltage_v = voltage;
+
 						/* one-time initialization of low-pass value to avoid long init delays */
 						if (_battery_status.voltage_filtered_v < BATT_V_IGNORE_THRESHOLD) {
 							_battery_status.voltage_filtered_v = voltage;
@@ -1458,40 +1465,46 @@ Quat_Sensors::adc_poll(struct sensor_combined_s &raw)
 					/* handle current only if voltage is valid */
 					if (_battery_status.voltage_v > 0.0f) {
 						float current = (buf_adc[i].am_data * _parameters.battery_current_scaling);
+
 						/* check measured current value */
 						if (current >= 0.0f) {
 							_battery_status.timestamp = t;
 							_battery_status.current_a = current;
+
 							if (_battery_current_timestamp != 0) {
 								/* initialize discharged value */
-								if (_battery_status.discharged_mah < 0.0f)
+								if (_battery_status.discharged_mah < 0.0f) {
 									_battery_status.discharged_mah = 0.0f;
+								}
+
 								_battery_discharged += current * (t - _battery_current_timestamp);
 								_battery_status.discharged_mah = ((float) _battery_discharged) / 3600000.0f;
 							}
 						}
 					}
+
 					_battery_current_timestamp = t;
 
 				} else if (ADC_AIRSPEED_VOLTAGE_CHANNEL == buf_adc[i].am_channel) {
 
 					/* calculate airspeed, raw is the difference from */
-					float voltage = (float)(buf_adc[i].am_data) * 3.3f / 4096.0f * 2.0f;  //V_ref/4096 * (voltage divider factor)
+					float voltage = (float)(buf_adc[i].am_data) * 3.3f / 4096.0f * 2.0f;  // V_ref/4096 * (voltage divider factor)
 
 					/**
 					 * The voltage divider pulls the signal down, only act on
 					 * a valid voltage from a connected sensor. Also assume a non-
 					 * zero offset from the sensor if its connected.
 					 */
-					if (voltage > 0.4f && _parameters.diff_pres_analog_enabled) {
+					if (voltage > 0.4f && (_parameters.diff_pres_analog_scale > 0.0f)) {
 
-						float diff_pres_pa = voltage * 1000.0f - _parameters.diff_pres_offset_pa; //for MPXV7002DP sensor
+						float diff_pres_pa_raw = voltage * _parameters.diff_pres_analog_scale - _parameters.diff_pres_offset_pa;
+						float diff_pres_pa = (diff_pres_pa_raw > 0.0f) ? diff_pres_pa_raw : 0.0f;
 
 						_diff_pres.timestamp = t;
 						_diff_pres.differential_pressure_pa = diff_pres_pa;
-						_diff_pres.differential_pressure_filtered_pa = diff_pres_pa;
+						_diff_pres.differential_pressure_raw_pa = diff_pres_pa_raw;
+						_diff_pres.differential_pressure_filtered_pa = (_diff_pres.differential_pressure_filtered_pa * 0.9f) + (diff_pres_pa * 0.1f);
 						_diff_pres.temperature = -1000.0f;
-						_diff_pres.voltage = voltage;
 
 						/* announce the airspeed if needed, just publish else */
 						if (_diff_pres_pub > 0) {
@@ -1503,8 +1516,10 @@ Quat_Sensors::adc_poll(struct sensor_combined_s &raw)
 					}
 				}
 			}
+
 			_last_adc = t;
-			if (_battery_status.voltage_v > 0.0f) {
+
+			if (_battery_status.voltage_filtered_v > BATT_V_IGNORE_THRESHOLD) {
 				/* announce the battery status if needed, just publish else */
 				if (_battery_pub > 0) {
 					orb_publish(ORB_ID(battery_status), _battery_pub, &_battery_status);
