@@ -343,13 +343,13 @@ int quat_log_thread_main(int argc, char *argv[])
 		int ukf_state_sub;
 	} subs;
 
-	subs.gyro_sub = orb_subscribe(ORB_ID(sensor_gyro));
+	subs.gyro_sub = orb_subscribe(ORB_ID(sensor_gyro0));
 	fds[fdsc_count].fd = subs.gyro_sub;
 	fds[fdsc_count].events = POLLIN;
 	orb_set_interval(subs.gyro_sub, (unsigned int)params.q_log_interval);
 	fdsc_count++;
 
-	subs.mag_sub = orb_subscribe(ORB_ID(sensor_mag));
+	subs.mag_sub = orb_subscribe(ORB_ID(sensor_mag0));
 	fds[fdsc_count].fd = subs.mag_sub;
 	fds[fdsc_count].events = POLLIN;
 	//orb_set_interval(subs.mag_sub, intervall);
@@ -361,13 +361,13 @@ int quat_log_thread_main(int argc, char *argv[])
 	//orb_set_interval(subs.battery_sub, intervall);
 	fdsc_count++;
 
-	subs.accel_sub = orb_subscribe(ORB_ID(sensor_accel));
+	subs.accel_sub = orb_subscribe(ORB_ID(sensor_accel0));
 	fds[fdsc_count].fd = subs.accel_sub;
 	fds[fdsc_count].events = POLLIN;
 	//orb_set_interval(subs.accel_sub, intervall);
 	fdsc_count++;
 
-	subs.baro_sub = orb_subscribe(ORB_ID(sensor_baro));
+	subs.baro_sub = orb_subscribe(ORB_ID(sensor_baro0));
 	fds[fdsc_count].fd = subs.baro_sub;
 	fds[fdsc_count].events = POLLIN;
 	//orb_set_interval(subs.baro_sub, intervall);
@@ -433,11 +433,11 @@ int quat_log_thread_main(int argc, char *argv[])
 
 				perf_begin(quat_log_do_perf);
 				/* copy command into local buffer */
-				orb_copy(ORB_ID(sensor_gyro), subs.gyro_sub, &buf.gyro_report);
-				orb_copy(ORB_ID(sensor_mag), subs.mag_sub, &buf.mag_report);
+				orb_copy(ORB_ID(sensor_gyro0), subs.gyro_sub, &buf.gyro_report);
+				orb_copy(ORB_ID(sensor_mag0), subs.mag_sub, &buf.mag_report);
 				orb_copy(ORB_ID(battery_status), subs.battery_sub, &buf.battery_status);
-				orb_copy(ORB_ID(sensor_accel), subs.accel_sub, &buf.accel_report);
-				orb_copy(ORB_ID(sensor_baro), subs.baro_sub, &buf.barometer);
+				orb_copy(ORB_ID(sensor_accel0), subs.accel_sub, &buf.accel_report);
+				orb_copy(ORB_ID(sensor_baro0), subs.baro_sub, &buf.barometer);
 				orb_copy(ORB_ID(sensor_combined), subs.raw_sub, &buf.raw);
 				orb_copy(ORB_ID(ukf_state_vector), subs.ukf_state_sub, &buf.ukf_state);
 				if (!(loops % 200)) {

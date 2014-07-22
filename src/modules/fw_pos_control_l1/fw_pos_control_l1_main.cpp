@@ -159,6 +159,8 @@ private:
 
 	perf_counter_t	_loop_perf;			/**< loop performance counter */
 
+	float	_hold_alt;				/**< hold altitude for velocity mode */
+
 	/* land states */
 	/* not in non-abort mode for landing yet */
 	bool land_noreturn_horizontal;
@@ -199,6 +201,9 @@ private:
 		float l1_period;
 		float l1_damping;
 
+		float max_climb_rate;
+		float max_sink_rate;
+
 		float airspeed_min;
 		float airspeed_trim;
 		float airspeed_max;
@@ -225,6 +230,9 @@ private:
 
 		param_t l1_period;
 		param_t l1_damping;
+
+		param_t max_climb_rate;
+		param_t max_sink_rate;
 
 		param_t airspeed_min;
 		param_t airspeed_trim;
@@ -438,6 +446,9 @@ FixedwingPositionControl::FixedwingPositionControl() :
 	_parameter_handles.land_heading_hold_horizontal_distance = param_find("FW_LND_HHDIST");
 	_parameter_handles.range_finder_rel_alt = param_find("FW_LND_RFRALT");
 
+	_parameter_handles.max_sink_rate =			param_find("FW_T_SINK_MAX");
+	_parameter_handles.max_climb_rate =			param_find("FW_T_CLMB_MAX");
+
 	/* fetch initial parameter values */
 	parameters_update();
 }
@@ -487,6 +498,9 @@ FixedwingPositionControl::parameters_update()
 	param_get(_parameter_handles.throttle_cruise, &(_parameters.throttle_cruise));
 
 	param_get(_parameter_handles.throttle_land_max, &(_parameters.throttle_land_max));
+
+	param_get(_parameter_handles.max_sink_rate, &(_parameters.max_sink_rate));
+	param_get(_parameter_handles.max_climb_rate, &(_parameters.max_climb_rate));
 
 	param_get(_parameter_handles.land_slope_angle, &(_parameters.land_slope_angle));
 	param_get(_parameter_handles.land_H1_virt, &(_parameters.land_H1_virt));
@@ -1082,7 +1096,8 @@ FixedwingPositionControl::control_position(const math::Vector<2> &current_positi
 									false,
 									math::radians(_parameters.pitch_limit_min),
 									_global_pos.alt,
-									ground_speed);
+									ground_speed,
+									TECS_MODE_NORMAL);
 		
 	} else {
 

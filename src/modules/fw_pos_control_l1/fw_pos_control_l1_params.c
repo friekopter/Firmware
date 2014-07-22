@@ -199,3 +199,36 @@ PARAM_DEFINE_FLOAT(FW_LND_HHDIST, 15.0f);
  * @group L1 Control
  */
 PARAM_DEFINE_FLOAT(FW_LND_RFRALT, -1.0f);
+
+/**
+ * Maximum climb rate
+ *
+ * This is the best climb rate that the aircraft can achieve with
+ * the throttle set to THR_MAX and the airspeed set to the
+ * default value. For electric aircraft make sure this number can be
+ * achieved towards the end of flight when the battery voltage has reduced.
+ * The setting of this parameter can be checked by commanding a positive
+ * altitude change of 100m in loiter, RTL or guided mode. If the throttle
+ * required to climb is close to THR_MAX and the aircraft is maintaining
+ * airspeed, then this parameter is set correctly. If the airspeed starts
+ * to reduce, then the parameter is set to high, and if the throttle
+ * demand required to climb and maintain speed is noticeably less than
+ * FW_THR_MAX, then either FW_T_CLMB_MAX should be increased or
+ * FW_THR_MAX reduced.
+ *
+ * @group L1 Control
+ */
+PARAM_DEFINE_FLOAT(FW_T_CLMB_MAX, 5.0f);
+
+/**
+ * Maximum descent rate
+ *
+ * This sets the maximum descent rate that the controller will use.
+ * If this value is too large, the aircraft can over-speed on descent.
+* This should be set to a value that can be achieved without
+ * exceeding the lower pitch angle limit and without over-speeding
+ * the aircraft.
+ *
+ * @group L1 Control
+ */
+PARAM_DEFINE_FLOAT(FW_T_SINK_MAX, 5.0f);
