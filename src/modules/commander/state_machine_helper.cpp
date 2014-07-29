@@ -629,7 +629,7 @@ bool set_nav_state(struct vehicle_status_s *status, const bool data_link_loss_en
 
 int prearm_check(const struct vehicle_status_s *status, const int mavlink_fd)
 {
-	int ret;
+	int ret = OK;
 	bool failed = false;
 
 	int fd = open(ACCEL_DEVICE_PATH, O_RDONLY);
@@ -640,7 +640,7 @@ int prearm_check(const struct vehicle_status_s *status, const int mavlink_fd)
 		goto system_eval;
 	}
 
-	ret = ioctl(fd, ACCELIOCSELFTEST, 0);
+	//ret = ioctl(fd, ACCELIOCSELFTEST, 0);
 
 	if (ret != OK) {
 		mavlink_log_critical(mavlink_fd, "ARM FAIL: ACCEL CALIBRATION");
