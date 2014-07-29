@@ -95,8 +95,6 @@ uint8_t quat_flow_calculate_flow(
 		struct quat_flow_calculator_params* params,
 		struct vehicle_local_position_s* local_position_data,
 		struct optical_flow_s* flow,
-		const float filtered_flow_ned_z,
-		const uint8_t filtered_flow_ned_z_valid,
 		struct vehicle_attitude_s* att);
 void quat_flow_calculate_altitude(bool vehicle_liftoff,
 		bool armed,
@@ -171,12 +169,10 @@ uint8_t quat_flow_calculate_flow(
 		struct quat_flow_calculator_params* params,
 		struct vehicle_local_position_s* local_position_data,
 		struct optical_flow_s* flow,
-		const float filtered_flow_ned_z,
-		const uint8_t filtered_flow_ned_z_valid,
 		struct vehicle_attitude_s* att)
 {
 	const float max_flow = params->max_velocity;	// max flow value that can be used, rad/s
-	if( filtered_flow_ned_z_valid == 0 ||
+	if( !local_position_data->dist_bottom_valid ||
 			flow->quality < (uint8_t)params->minimum_quality ||
 			att->R[2][2] <= 0.7f)
 	{
@@ -186,7 +182,7 @@ uint8_t quat_flow_calculate_flow(
 		return 0;
 	}
 	/* distance to surface */
-	float flow_dist = -filtered_flow_ned_z / att->R[2][2];
+	float flow_dist = local_position_data->dist_bottom / att->R[2][2];
 	/* check if flow is too large for accurate measurements */
 	/* calculate estimated velocity in body frame */
 	float body_v_est[3] = { 0.0f, 0.0f, 0.0f };
@@ -200,7 +196,7 @@ uint8_t quat_flow_calculate_flow(
 						att->R[2][i] * local_position_data->vz;
 	}
 
-	// Calculate a measure of flow accuracy based on the expecte flow velocity
+	// Calculate a measure of flow accuracy based on the expected flow velocity
 	float expected_x_flow = fabsf(body_v_est[1] / flow_dist - att->rollspeed);
 	float expected_y_flow = fabsf(body_v_est[0] / flow_dist + att->pitchspeed);
 	float expected_max_flow = expected_x_flow > expected_y_flow ? expected_x_flow : expected_y_flow;
@@ -571,7 +567,7 @@ int quat_flow_calculator_thread_main(int argc, char *argv[])
 
 					//Calculate flow velocity
 
-					uint8_t flow_accuracy = quat_flow_calculate_flow(&params,&local_position_data,&flow,filtered_flow.ned_z,filtered_flow.ned_z_valid,&att);
+					uint8_t flow_accuracy = quat_flow_calculate_flow(&params,&local_position_data,&flow,&att);
 
 					/* calc dt between flow timestamps */
 					/* ignore first flow msg */

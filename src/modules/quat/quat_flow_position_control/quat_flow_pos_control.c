@@ -313,7 +313,6 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 	/*// Local position setpoint
 	int local_pos_sp_sub = orb_subscribe(ORB_ID(vehicle_local_position_setpoint));*/
 	memset(&local_position_sp, 0, sizeof(local_position_sp));
-	local_position_sp.nav_cmd = NAV_CMD_LOITER_UNLIMITED;
 	// Sometimes also publish
 	orb_advert_t local_pos_sp_pub = orb_advertise(ORB_ID(vehicle_local_position_setpoint), &local_position_sp);
 
@@ -798,9 +797,13 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 			}
 			// local altitude is the negative distance to ground
 			if(UKF_FLOW_CALCULATES_ALTITUDE) {
-				local_position_data.z = UKF_FLOW_POSD + navFlowUkfData.sonarAltOffset;
+				local_position_data.z = UKF_FLOW_POSD;
+				local_position_data.dist_bottom = -UKF_FLOW_POSD - navFlowUkfData.sonarAltOffset;
+				local_position_data.dist_bottom_valid = true;
 			} else {
-				local_position_data.z = -UKF_FLOW_PRES_ALT + navFlowUkfData.sonarAltOffset;
+				local_position_data.z = -UKF_FLOW_PRES_ALT;
+				local_position_data.dist_bottom = UKF_FLOW_PRES_ALT - navFlowUkfData.sonarAltOffset;
+				local_position_data.dist_bottom_valid = true;
 			}
 			local_position_data.xy_valid = filtered_bottom_flow_data.ned_xy_valid;
 			local_position_data.v_xy_valid = true;//filtered_bottom_flow_data.ned_v_xy_valid;
