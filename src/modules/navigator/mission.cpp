@@ -141,6 +141,13 @@ Mission::on_active()
 
 	/* lets check if we reached the current mission item */
 	if (_mission_type != MISSION_TYPE_NONE && is_mission_item_reached()) {
+		if(_mission_type == MISSION_TYPE_OFFBOARD){
+			mavlink_log_info(_navigator->get_mavlink_fd(), "#audio: waypoint %d",
+								 		_current_offboard_mission_index);
+		} else if(_mission_type == MISSION_TYPE_ONBOARD){
+			mavlink_log_info(_navigator->get_mavlink_fd(), "#audio: waypoint %d",
+								 		_current_onboard_mission_index);
+		}
 		advance_mission();
 		set_mission_items();
 
