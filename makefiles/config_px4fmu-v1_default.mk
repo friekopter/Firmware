@@ -24,12 +24,11 @@ MODULES		+= drivers/l3gd20
 MODULES		+= drivers/mpu6000
 MODULES		+= drivers/hmc5883
 MODULES		+= drivers/ms5611
-#MODULES		+= drivers/mb12xx
-#MODULES		+= drivers/ll40ls
+MODULES		+= drivers/mb12xx
 MODULES		+= drivers/gps
 MODULES		+= drivers/hil
-#MODULES		+= drivers/hott/hott_telemetry
-#MODULES		+= drivers/hott/hott_sensors
+MODULES		+= drivers/hott/hott_telemetry
+MODULES		+= drivers/hott/hott_sensors
 MODULES		+= drivers/blinkm
 MODULES		+= drivers/rgbled
 MODULES		+= drivers/mkblctrl
@@ -44,7 +43,6 @@ MODULES		+= modules/sensors
 #
 MODULES		+= systemcmds/mtd
 MODULES		+= systemcmds/bl_update
-MODULES		+= systemcmds/i2c
 MODULES		+= systemcmds/mixer
 MODULES		+= systemcmds/param
 MODULES		+= systemcmds/perf
@@ -134,6 +132,9 @@ MODULES		+= lib/launchdetection
 # https://pixhawk.ethz.ch/px4/dev/example_fixedwing_control
 #MODULES			+= examples/fixedwing_control
 
+# Hardware test
+#MODULES			+= examples/hwtest
+
 #
 # Transitional support - add commands from the NuttX export archive.
 #
@@ -149,5 +150,4 @@ endef
 #                  command                 priority                   stack  entrypoint
 BUILTIN_COMMANDS := \
 	$(call _B, sercon,                 ,                          2048,  sercon_main                ) \
-	$(call _B, serdis,                 ,                          2048,  serdis_main                ) \
-	$(call _B, sysinfo,                ,                          2048,  sysinfo_main               )
+	$(call _B, serdis,                 ,                          2048,  serdis_main                )
