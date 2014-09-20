@@ -105,3 +105,21 @@ PARAM_DEFINE_FLOAT(BAT_CAPACITY, -1.0f);
  * @max 1
  */
 PARAM_DEFINE_INT32(COM_DL_LOSS_EN, 0);
+
+/**
+ * Max horizontal distance in meters.
+ *
+ * Set to > 0 to activate RTL if horizontal distance to home exceeds this value.
+ *
+ * @group commander
+ */
+PARAM_DEFINE_INT32(COM_MX_HOR_DIST, 100);
+
+/**
+ * Max vertical distance in meters.
+ *
+ * Set to > 0 to activate RTL if vertical distance to home exceeds this value.
+ *
+ * @group commander
+ */
+PARAM_DEFINE_INT32(COM_MX_VER_DIST, 100);

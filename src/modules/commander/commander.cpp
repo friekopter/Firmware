@@ -705,6 +705,8 @@ int commander_thread_main(int argc, char *argv[])
 	param_t _param_takeoff_alt = param_find("NAV_TAKEOFF_ALT");
 	param_t _param_enable_parachute = param_find("NAV_PARACHUTE_EN");
 	param_t _param_enable_datalink_loss = param_find("COM_DL_LOSS_EN");
+	param_t _param_max_horizontal_distance = param_find("COM_MX_HOR_DIST");
+	param_t _param_max_vertical_distance = param_find("COM_MX_VER_DIST");
 
 	/* welcome user */
 	warnx("starting");
@@ -793,6 +795,8 @@ int commander_thread_main(int argc, char *argv[])
 	status.circuit_breaker_engaged_power_check = false;
 	status.circuit_breaker_engaged_airspd_check = false;
 
+	status.condition_range_violated = false;
+
 	/* publish initial state */
 	status_pub = orb_advertise(ORB_ID(vehicle_status), &status);
 	if (status_pub < 0) {
@@ -857,7 +861,7 @@ int commander_thread_main(int argc, char *argv[])
 	pthread_attr_destroy(&commander_low_prio_attr);
 
 	/* Start monitoring loop */
-	unsigned counter = 0;
+	uint16_t counter = 0;
 	unsigned stick_off_counter = 0;
 	unsigned stick_on_counter = 0;
 
@@ -987,6 +991,8 @@ int commander_thread_main(int argc, char *argv[])
 	transition_result_t arming_ret;
 
 	int32_t datalink_loss_enabled = false;
+	int32_t max_vertical_distance = 0;
+	int32_t max_horizontal_distance = 0;
 
 	/* check which state machines for changes, clear "changed" flag */
 	bool arming_state_changed = false;
@@ -1047,6 +1053,8 @@ int commander_thread_main(int argc, char *argv[])
 			param_get(_param_takeoff_alt, &takeoff_alt);
 			param_get(_param_enable_parachute, &parachute_enabled);
 			param_get(_param_enable_datalink_loss, &datalink_loss_enabled);
+			param_get(_param_max_horizontal_distance, &max_horizontal_distance);
+			param_get(_param_max_vertical_distance, &max_vertical_distance);
 		}
 
 		orb_check(sp_man_sub, &updated);
@@ -1632,6 +1640,26 @@ int commander_thread_main(int argc, char *argv[])
 			status_changed = true;
 			warnx("nav state: %s", nav_states_str[status.nav_state]);
 			mavlink_log_info(mavlink_fd, "[cmd] nav state: %s", nav_states_str[status.nav_state]);
+		}
+
+		/* Check for range violation with 0.5 Hz */
+		if (counter % (2000000 / COMMANDER_MONITORING_INTERVAL) == 0 &&
+				status.condition_home_position_valid &&
+				status.condition_global_position_valid)
+		{
+			home.lat = global_position.lat;
+							home.lon = global_position.lon;
+							home.alt = global_position.alt;
+			if(	(max_vertical_distance > 0 && (((int32_t)fabsf(home.alt - global_position.alt)) > max_vertical_distance)) ||
+				(max_horizontal_distance > 0 && (((int32_t)get_distance_to_next_waypoint(home.lat, home.lon, global_position.lat, global_position.lon)) > max_horizontal_distance))) {
+				if(!status.condition_range_violated) {
+					status.condition_range_violated = true;
+					mavlink_log_critical(mavlink_fd, "#audio: range range");
+					status_changed = true;
+				}
+			} else {
+				status.condition_range_violated = false;
+			}
 		}
 
 		/* publish states (armed, control mode, vehicle status) at least with 5 Hz */

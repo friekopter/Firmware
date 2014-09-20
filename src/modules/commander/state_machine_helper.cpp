@@ -500,7 +500,8 @@ bool set_nav_state(struct vehicle_status_s *status, const bool data_link_loss_en
 		 * - if either the datalink is enabled and lost as well as RC is lost
 		 * - if there is no datalink and the mission is finished */
 		if (((status->data_link_lost && data_link_loss_enabled) && status->rc_signal_lost) ||
-		    (!data_link_loss_enabled && status->rc_signal_lost && mission_finished)) {
+		    (!data_link_loss_enabled && status->rc_signal_lost && mission_finished) ||
+		    (status->rc_signal_lost && status->condition_range_violated)) {
 			status->failsafe = true;
 
 			if (status->condition_global_position_valid && status->condition_home_position_valid) {
