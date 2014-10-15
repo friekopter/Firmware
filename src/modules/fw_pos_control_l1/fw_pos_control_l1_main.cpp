@@ -316,6 +316,11 @@ private:
 	bool		vehicle_airspeed_poll();
 
 	/**
+	 * Check for manual setpoint updates.
+	 */
+	bool		vehicle_manual_control_setpoint_poll();
+
+	/**
 	 * Check for range finder updates.
 	 */
 	bool		range_finder_poll();
@@ -387,6 +392,8 @@ private:
 			const math::Vector<3> &ground_speed,
 			tecs_mode mode = TECS_MODE_NORMAL,
 			bool pitch_max_special = false);
+
+	void warn_underspeed(tecs_mode mode);
 
 };
 
@@ -675,6 +682,21 @@ FixedwingPositionControl::vehicle_airspeed_poll()
 	_tecs.enable_airspeed(_airspeed_valid);
 
 	return airspeed_updated;
+}
+
+bool
+FixedwingPositionControl::vehicle_manual_control_setpoint_poll()
+{
+	bool manual_updated;
+
+	/* Check if manual setpoint has changed */
+	orb_check(_manual_control_sub, &manual_updated);
+
+	if (manual_updated) {
+		orb_copy(ORB_ID(manual_control_setpoint), _manual_control_sub, &_manual);
+	}
+
+	return manual_updated;
 }
 
 bool
@@ -1144,8 +1166,7 @@ FixedwingPositionControl::control_position(const math::Vector<2> &current_positi
 							_parameters.throttle_min, takeoff_throttle,
 							_parameters.throttle_cruise,
 							true,
-							math::max(math::radians(pos_sp_triplet.current.pitch_min),
-							math::radians(10.0f)),
+							math::max(math::radians(pos_sp_triplet.current.pitch_min),math::radians(10.0f)),
 							_global_pos.alt,
 							ground_speed,
 							TECS_MODE_TAKEOFF,
@@ -1370,6 +1391,7 @@ FixedwingPositionControl::task_main()
 			vehicle_setpoint_poll();
 			vehicle_sensor_combined_poll();
 			vehicle_airspeed_poll();
+			vehicle_manual_control_setpoint_poll();
 			range_finder_poll();
 			// vehicle_baro_poll();
 
@@ -1517,6 +1539,8 @@ void FixedwingPositionControl::tecs_update_pitch_throttle(float alt_sp, float v_
 		t.energyDistributionRateSp	= s.ptch;
 		t.energyDistributionRate	= s.iptch;
 
+		warn_underspeed(t.mode);
+
 		if (_tecs_status_pub > 0) {
 			orb_publish(ORB_ID(tecs_status), _tecs_status_pub, &t);
 		} else {
@@ -1524,6 +1548,23 @@ void FixedwingPositionControl::tecs_update_pitch_throttle(float alt_sp, float v_
 		}
 	}
 }
+
+void
+FixedwingPositionControl::warn_underspeed(tecs_mode mode)
+{
+	static bool underspeed = false;
+	static hrt_abstime last_underspeed_sent = 0;
+	if (mode == TECS_MODE_UNDERSPEED && !underspeed) {
+		if(hrt_absolute_time() - last_underspeed_sent > 5e6) {
+			underspeed = true;
+			mavlink_log_info(_mavlink_fd, "#audio: acc acc");
+			last_underspeed_sent = hrt_absolute_time();
+		}
+	} else if (mode != TECS_MODE_UNDERSPEED && underspeed) {
+		underspeed = false;
+	}
+}
+
 
 int
 FixedwingPositionControl::start()
