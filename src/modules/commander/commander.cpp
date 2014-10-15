@@ -1643,15 +1643,18 @@ int commander_thread_main(int argc, char *argv[])
 		}
 
 		/* Check for range violation with 0.5 Hz */
-		if (counter % (2000000 / COMMANDER_MONITORING_INTERVAL) == 0 &&
+		if ((counter % (2000000 / COMMANDER_MONITORING_INTERVAL)) == 0 &&
 				status.condition_home_position_valid &&
 				status.condition_global_position_valid)
 		{
-			home.lat = global_position.lat;
-							home.lon = global_position.lon;
-							home.alt = global_position.alt;
-			if(	(max_vertical_distance > 0 && (((int32_t)fabsf(home.alt - global_position.alt)) > max_vertical_distance)) ||
-				(max_horizontal_distance > 0 && (((int32_t)get_distance_to_next_waypoint(home.lat, home.lon, global_position.lat, global_position.lon)) > max_horizontal_distance))) {
+			float dist_xy = -1.0f;
+			float dist_z = -1.0f;
+			get_distance_to_point_global_wgs84(
+					global_position.lat, global_position.lon, global_position.alt,
+					home.lat, home.lon, home.alt,
+					&dist_xy, &dist_z);
+			if(	(max_vertical_distance > 0 && (((int32_t)dist_z) > max_vertical_distance)) ||
+				(max_horizontal_distance > 0 && (((int32_t)dist_xy) > max_horizontal_distance))) {
 				if(!status.condition_range_violated) {
 					status.condition_range_violated = true;
 					mavlink_log_critical(mavlink_fd, "#audio: range range");
