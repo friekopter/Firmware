@@ -393,7 +393,11 @@ private:
 			tecs_mode mode = TECS_MODE_NORMAL,
 			bool pitch_max_special = false);
 
-	void warn_underspeed(tecs_mode mode);
+	/*
+	 * Send an stall warning if parameter true and not already done.
+	 * Reset stall warning if parameter false.
+	 */
+	void warn_underspeed(bool underspeed);
 
 };
 
@@ -1298,6 +1302,15 @@ FixedwingPositionControl::control_position(const math::Vector<2> &current_positi
 		last_manual = true;
 	}
 
+	// Check airspeed
+	if (_airspeed_valid) {
+		if (_airspeed.indicated_airspeed_m_s < _parameters.airspeed_min * 0.9f){
+			warn_underspeed(true);
+		}
+		else {
+			warn_underspeed(false);
+		}
+	}
 
 	return setpoint;
 }
@@ -1539,8 +1552,6 @@ void FixedwingPositionControl::tecs_update_pitch_throttle(float alt_sp, float v_
 		t.energyDistributionRateSp	= s.ptch;
 		t.energyDistributionRate	= s.iptch;
 
-		warn_underspeed(t.mode);
-
 		if (_tecs_status_pub > 0) {
 			orb_publish(ORB_ID(tecs_status), _tecs_status_pub, &t);
 		} else {
@@ -1550,18 +1561,18 @@ void FixedwingPositionControl::tecs_update_pitch_throttle(float alt_sp, float v_
 }
 
 void
-FixedwingPositionControl::warn_underspeed(tecs_mode mode)
+FixedwingPositionControl::warn_underspeed(bool underspeed)
 {
-	static bool underspeed = false;
+	static bool underspeedWarningSent = false;
 	static hrt_abstime last_underspeed_sent = 0;
-	if (mode == TECS_MODE_UNDERSPEED && !underspeed) {
+	if (underspeed && !underspeedWarningSent) {
 		if(hrt_absolute_time() - last_underspeed_sent > 5e6) {
-			underspeed = true;
-			mavlink_log_info(_mavlink_fd, "#audio: acc acc");
+			underspeedWarningSent = true;
+			mavlink_log_info(_mavlink_fd, "#audio: stall stall");
 			last_underspeed_sent = hrt_absolute_time();
 		}
-	} else if (mode != TECS_MODE_UNDERSPEED && underspeed) {
-		underspeed = false;
+	} else if (!underspeed && underspeedWarningSent) {
+		underspeedWarningSent = false;
 	}
 }
 
