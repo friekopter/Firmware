@@ -201,6 +201,8 @@ private:
 	TECS						_tecs;
 	fwPosctrl::mTecs				_mTecs;
 	bool						_was_pos_control_mode;
+	bool						_was_velocity_control_mode;
+	bool						_was_alt_control_mode;
 
 	struct {
 		float l1_period;
@@ -397,7 +399,7 @@ private:
 	 * Send an stall warning if parameter true and not already done.
 	 * Reset stall warning if parameter false.
 	 */
-	void warn_underspeed(bool underspeed);
+	void warn_stall(bool stallCondition);
 
 };
 
@@ -875,6 +877,13 @@ bool
 FixedwingPositionControl::control_position(const math::Vector<2> &current_position, const math::Vector<3> &ground_speed,
 		const struct position_setpoint_triplet_s &pos_sp_triplet)
 {
+	static hrt_abstime functionLastCalled = 0;
+	float dt = 0.0f;
+	if (functionLastCalled > 0) {
+		dt = (float)hrt_elapsed_time(&functionLastCalled) * 1e-6f;
+	}
+	functionLastCalled = hrt_absolute_time();
+
 	bool setpoint = true;
 
 	math::Vector<2> ground_speed_2d = {ground_speed(0), ground_speed(1)};
@@ -911,6 +920,7 @@ FixedwingPositionControl::control_position(const math::Vector<2> &current_positi
 		}
 
 		_was_pos_control_mode = true;
+		_was_velocity_control_mode = false;
 
 		/* reset hold altitude */
 		_hold_alt = _global_pos.alt;
@@ -1225,26 +1235,35 @@ FixedwingPositionControl::control_position(const math::Vector<2> &current_positi
 		}
 
 	} else if (_control_mode.flag_control_velocity_enabled) {
+		const float deadBand = (60.0f/1000.0f);
+		const float factor = 1.0f - deadBand;
+		if (!_was_velocity_control_mode) {
+			_hold_alt = _global_pos.alt;
+			_was_alt_control_mode = false;
+		}
+		_was_velocity_control_mode = true;
+		_was_pos_control_mode = false;
+		// Get demanded airspeed
 		float altctrl_airspeed = _parameters.airspeed_min +
 					  (_parameters.airspeed_max - _parameters.airspeed_min) *
 					  _manual.z;
-		const float deadBand = (60.0f/1000.0f);
-		const float factor = 1.0f - deadBand;
-		// assuming 50 Hz update
-		const float dt = 1.0f/50.0f;
+
+		// Get demanded vertical velocity from pitch control
 		float pitch = 0.0f;
 		if (_manual.x > deadBand) {
 			pitch = (_manual.x - deadBand) / factor;
-		} else if (_manual.x < -deadBand) {
+		} else if (_manual.x < - deadBand) {
 			pitch = (_manual.x + deadBand) / factor;
 		}
-
-		if(pitch > 0.0f) {
-			_hold_alt += (_parameters.max_climb_rate * dt) * pitch;
+		if (pitch > 0.0f) {
+			_hold_alt -= (_parameters.max_climb_rate * dt) * pitch;
+			_was_alt_control_mode = false;
 		} else if (pitch < 0.0f) {
-			_hold_alt -= -(_parameters.max_sink_rate * dt) * pitch;
-		} else {
+			_hold_alt -= (_parameters.max_sink_rate * dt) * pitch;
+			_was_alt_control_mode = false;
+		} else if (!_was_alt_control_mode) {
 			_hold_alt = _global_pos.alt;
+			_was_alt_control_mode = true;
 		}
 		tecs_update_pitch_throttle(_hold_alt,
 									altctrl_airspeed,
@@ -1259,9 +1278,8 @@ FixedwingPositionControl::control_position(const math::Vector<2> &current_positi
 									_global_pos.alt,
 									ground_speed,
 									TECS_MODE_NORMAL);
-		
 	} else {
-
+		_was_velocity_control_mode = false;
 		_was_pos_control_mode = false;
 
 		/** MANUAL FLIGHT **/
@@ -1305,10 +1323,10 @@ FixedwingPositionControl::control_position(const math::Vector<2> &current_positi
 	// Check airspeed
 	if (_airspeed_valid) {
 		if (_airspeed.indicated_airspeed_m_s < _parameters.airspeed_min * 0.9f){
-			warn_underspeed(true);
+			warn_stall(true);
 		}
 		else {
-			warn_underspeed(false);
+			warn_stall(false);
 		}
 	}
 
@@ -1561,18 +1579,18 @@ void FixedwingPositionControl::tecs_update_pitch_throttle(float alt_sp, float v_
 }
 
 void
-FixedwingPositionControl::warn_underspeed(bool underspeed)
+FixedwingPositionControl::warn_stall(bool stallCondition)
 {
-	static bool underspeedWarningSent = false;
-	static hrt_abstime last_underspeed_sent = 0;
-	if (underspeed && !underspeedWarningSent) {
-		if(hrt_absolute_time() - last_underspeed_sent > 5e6) {
-			underspeedWarningSent = true;
+	static bool stallWarningSent = false;
+	static hrt_abstime last_warning_sent = 0;
+	if (stallCondition && !stallWarningSent) {
+		if(hrt_absolute_time() - last_warning_sent > 5e6) {
+			stallWarningSent = true;
 			mavlink_log_info(_mavlink_fd, "#audio: stall stall");
-			last_underspeed_sent = hrt_absolute_time();
+			last_warning_sent = hrt_absolute_time();
 		}
-	} else if (!underspeed && underspeedWarningSent) {
-		underspeedWarningSent = false;
+	} else if (!stallCondition && stallWarningSent) {
+		stallWarningSent = false;
 	}
 }
 
