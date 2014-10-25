@@ -1538,14 +1538,14 @@ int commander_thread_main(int argc, char *argv[])
 			if (telemetry_last_heartbeat[i] != 0 && hrt_elapsed_time(&telemetry_last_heartbeat[i]) < DL_TIMEOUT) {
 				/* handle the case where data link was regained */
 				if (telemetry_lost[i]) {
-					mavlink_log_critical(mavlink_fd, "data link %i regained", i);
+					//mavlink_log_critical(mavlink_fd, "data link %i regained", i);
 					telemetry_lost[i] = false;
 				}
 				have_link = true;
 
 			} else {
 				if (!telemetry_lost[i]) {
-					mavlink_log_critical(mavlink_fd, "data link %i lost", i);
+					//mavlink_log_critical(mavlink_fd, "data link %i lost", i);
 					telemetry_lost[i] = true;
 				}
 			}
@@ -1560,7 +1560,7 @@ int commander_thread_main(int argc, char *argv[])
 
 		} else {
 			if (!status.data_link_lost) {
-				mavlink_log_critical(mavlink_fd, "ALL DATA LINKS LOST");
+				//mavlink_log_critical(mavlink_fd, "ALL DATA LINKS LOST");
 				status.data_link_lost = true;
 				status_changed = true;
 			}
