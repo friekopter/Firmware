@@ -117,7 +117,7 @@ MavlinkMissionManager::init_offboard_mission()
 	mission_s mission_state;
 	if (dm_read(DM_KEY_MISSION_STATE, 0, &mission_state, sizeof(mission_s)) == sizeof(mission_s)) {
 		_dataman_id = mission_state.dataman_id;
-		_count = mission_state.count;
+		_count = mission_state.count_formission[_dataman_id];
 		_current_seq = mission_state.current_seq;
 
 		warnx("offboard mission init: dataman_id=%d, count=%u, current_seq=%d", _dataman_id, _count, _current_seq);
@@ -137,9 +137,12 @@ int
 MavlinkMissionManager::update_active_mission(int dataman_id, unsigned count, int seq)
 {
 	struct mission_s mission;
+	if (!dm_read(DM_KEY_MISSION_STATE, 0, &mission, sizeof(mission_s)) == sizeof(mission_s)) {
+		warnx("ERROR: can't write mission state");
+	}
 
 	mission.dataman_id = dataman_id;
-	mission.count = count;
+	mission.count_formission[_dataman_id] = count;
 	mission.current_seq = seq;
 
 	/* update mission state in dataman */
@@ -386,6 +389,7 @@ MavlinkMissionManager::handle_mission_ack(const mavlink_message_t *msg)
 {
 	mavlink_mission_ack_t wpa;
 	mavlink_msg_mission_ack_decode(msg, &wpa);
+	init_offboard_mission();
 
 	if (CHECK_SYSID_COMPID_MISSION(wpa)) {
 		if ((msg->sysid == _transfer_partner_sysid && msg->compid == _transfer_partner_compid)) {
@@ -418,6 +422,7 @@ MavlinkMissionManager::handle_mission_set_current(const mavlink_message_t *msg)
 {
 	mavlink_mission_set_current_t wpc;
 	mavlink_msg_mission_set_current_decode(msg, &wpc);
+	init_offboard_mission();
 
 	if (CHECK_SYSID_COMPID_MISSION(wpc)) {
 		if (_state == MAVLINK_WPM_STATE_IDLE) {
@@ -453,6 +458,7 @@ MavlinkMissionManager::handle_mission_request_list(const mavlink_message_t *msg)
 {
 	mavlink_mission_request_list_t wprl;
 	mavlink_msg_mission_request_list_decode(msg, &wprl);
+	init_offboard_mission();
 
 	if (CHECK_SYSID_COMPID_MISSION(wprl)) {
 		if (_state == MAVLINK_WPM_STATE_IDLE || _state == MAVLINK_WPM_STATE_SENDLIST) {
@@ -489,6 +495,7 @@ MavlinkMissionManager::handle_mission_request(const mavlink_message_t *msg)
 {
 	mavlink_mission_request_t wpr;
 	mavlink_msg_mission_request_decode(msg, &wpr);
+	init_offboard_mission();
 
 	if (CHECK_SYSID_COMPID_MISSION(wpr)) {
 		if (msg->sysid == _transfer_partner_sysid && msg->compid == _transfer_partner_compid) {
@@ -560,6 +567,7 @@ MavlinkMissionManager::handle_mission_count(const mavlink_message_t *msg)
 {
 	mavlink_mission_count_t wpc;
 	mavlink_msg_mission_count_decode(msg, &wpc);
+	init_offboard_mission();
 
 	if (CHECK_SYSID_COMPID_MISSION(wpc)) {
 		if (_state == MAVLINK_WPM_STATE_IDLE) {
@@ -575,8 +583,8 @@ MavlinkMissionManager::handle_mission_count(const mavlink_message_t *msg)
 			if (wpc.count == 0) {
 				if (_verbose) { warnx("WPM: MISSION_COUNT 0, clearing waypoints list and staying in state MAVLINK_WPM_STATE_IDLE"); }
 
-				/* alternate dataman ID anyway to let navigator know about changes */
-				update_active_mission(_dataman_id == 0 ? 1 : 0, 0, 0);
+				// FL! /* alternate dataman ID anyway to let navigator know about changes */
+				update_active_mission(_dataman_id, 0, 0);
 				_mavlink->send_statustext_info("WPM: COUNT 0: CLEAR MISSION");
 
 				// TODO send ACK?
@@ -590,7 +598,7 @@ MavlinkMissionManager::handle_mission_count(const mavlink_message_t *msg)
 			_transfer_partner_sysid = msg->sysid;
 			_transfer_partner_compid = msg->compid;
 			_transfer_count = wpc.count;
-			_transfer_dataman_id = _dataman_id == 0 ? 1 : 0;	// use inactive storage for transmission
+			_transfer_dataman_id = _dataman_id;	// FL!: use inactive storage for transmission
 			_transfer_current_seq = -1;
 
 		} else if (_state == MAVLINK_WPM_STATE_GETLIST) {
@@ -626,6 +634,7 @@ MavlinkMissionManager::handle_mission_item(const mavlink_message_t *msg)
 {
 	mavlink_mission_item_t wp;
 	mavlink_msg_mission_item_decode(msg, &wp);
+	init_offboard_mission();
 
 	if (CHECK_SYSID_COMPID_MISSION(wp)) {
 		if (_state == MAVLINK_WPM_STATE_GETLIST) {
@@ -712,6 +721,7 @@ MavlinkMissionManager::handle_mission_clear_all(const mavlink_message_t *msg)
 {
 	mavlink_mission_clear_all_t wpca;
 	mavlink_msg_mission_clear_all_decode(msg, &wpca);
+	init_offboard_mission();
 
 	if (CHECK_SYSID_COMPID_MISSION(wpca)) {
 
@@ -719,7 +729,7 @@ MavlinkMissionManager::handle_mission_clear_all(const mavlink_message_t *msg)
 			/* don't touch mission items storage itself, but only items count in mission state */
 			_time_last_recv = hrt_absolute_time();
 
-			if (update_active_mission(_dataman_id == 0 ? 1 : 0, 0, 0) == OK) {
+			if (update_active_mission(_dataman_id, 0, 0) == OK) {
 				if (_verbose) { warnx("WPM: CLEAR_ALL OK"); }
 				send_mission_ack(_transfer_partner_sysid, _transfer_partner_compid, MAV_MISSION_ACCEPTED);
 

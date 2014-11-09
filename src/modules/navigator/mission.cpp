@@ -175,11 +175,11 @@ Mission::update_onboard_mission()
 	if (orb_copy(ORB_ID(onboard_mission), _navigator->get_onboard_mission_sub(), &_onboard_mission) == OK) {
 		/* accept the current index set by the onboard mission if it is within bounds */
 		if (_onboard_mission.current_seq >=0
-		&& _onboard_mission.current_seq < (int)_onboard_mission.count) {
+		&& _onboard_mission.current_seq < (int)_onboard_mission.count_formission[0]) {
 			_current_onboard_mission_index = _onboard_mission.current_seq;
 		} else {
 			/* if less WPs available, reset to first WP */
-			if (_current_onboard_mission_index >= (int)_onboard_mission.count) {
+			if (_current_onboard_mission_index >= (int)_onboard_mission.count_formission[0]) {
 				_current_onboard_mission_index = 0;
 			/* if not initialized, set it to 0 */
 			} else if (_current_onboard_mission_index < 0) {
@@ -189,7 +189,7 @@ Mission::update_onboard_mission()
 		}
 
 	} else {
-		_onboard_mission.count = 0;
+		_onboard_mission.count_formission[0] = 0;
 		_onboard_mission.current_seq = 0;
 		_current_onboard_mission_index = 0;
 	}
@@ -199,13 +199,17 @@ void
 Mission::update_offboard_mission()
 {
 	if (orb_copy(ORB_ID(offboard_mission), _navigator->get_offboard_mission_sub(), &_offboard_mission) == OK) {
-		warnx("offboard mission updated: dataman_id=%d, count=%d, current_seq=%d", _offboard_mission.dataman_id, _offboard_mission.count, _offboard_mission.current_seq);
+		unsigned int count = 0;
+		if (_offboard_mission.dataman_id == 1) {
+			count = 1;
+		}
+		warnx("offboard mission updated: dataman_id=%d, count=%d, current_seq=%d", _offboard_mission.dataman_id, count, _offboard_mission.current_seq);
 		/* determine current index */
-		if (_offboard_mission.current_seq >= 0 && _offboard_mission.current_seq < (int)_offboard_mission.count) {
+		if (_offboard_mission.current_seq >= 0 && _offboard_mission.current_seq < (int)count) {
 			_current_offboard_mission_index = _offboard_mission.current_seq;
 		} else {
 			/* if less items available, reset to first item */
-			if (_current_offboard_mission_index >= (int)_offboard_mission.count) {
+			if (_current_offboard_mission_index >= (int)count) {
 				_current_offboard_mission_index = 0;
 
 			/* if not initialized, set it to 0 */
@@ -220,12 +224,14 @@ Mission::update_offboard_mission()
 		dm_item_t dm_current = DM_KEY_WAYPOINTS_OFFBOARD(_offboard_mission.dataman_id);
 
 		_missionFeasiblityChecker.checkMissionFeasible(_navigator->get_vstatus()->is_rotary_wing,
-				dm_current, (size_t) _offboard_mission.count, _navigator->get_geofence(),
+				dm_current, (size_t) count, _navigator->get_geofence(),
 				_navigator->get_home_position()->alt);
 
 	} else {
 		warnx("offboard mission update failed");
-		_offboard_mission.count = 0;
+		for ( int i = 0; i < NUM_MISSION_STORAGE_PLACES; i++){
+			_offboard_mission.count_formission[i] = 0;
+		}
 		_offboard_mission.current_seq = 0;
 		_current_offboard_mission_index = 0;
 	}
@@ -264,14 +270,17 @@ Mission::check_dist_1wp()
 		/* always return true after at least one successful check */
 		return true;
 	}
-
+	unsigned int count = 0;
+	if (_offboard_mission.dataman_id == 1) {
+		count = 1;
+	}
 	/* check if first waypoint is not too far from home */
 	if (_param_dist_1wp.get() > 0.0f) {
 		if (_navigator->get_vstatus()->condition_home_position_valid) {
 			struct mission_item_s mission_item;
 
 			/* find first waypoint (with lat/lon) item in datamanager */
-			for (unsigned i = 0; i < _offboard_mission.count; i++) {
+			for (unsigned i = 0; i < count; i++) {
 				if (dm_read(DM_KEY_WAYPOINTS_OFFBOARD(_offboard_mission.dataman_id), i,
 						&mission_item, sizeof(mission_item_s)) == sizeof(mission_item_s)) {
 
@@ -548,6 +557,7 @@ Mission::read_mission_item(bool onboard, bool is_current, struct mission_item_s 
 	struct mission_s *mission;
 	dm_item_t dm_item;
 	int mission_index_next;
+	int count = 0;
 
 	if (onboard) {
 		/* onboard mission */
@@ -566,9 +576,9 @@ Mission::read_mission_item(bool onboard, bool is_current, struct mission_item_s 
 		mission = &_offboard_mission;
 
 		dm_item = DM_KEY_WAYPOINTS_OFFBOARD(_offboard_mission.dataman_id);
+		count = (int)mission->dataman_id;
 	}
-
-	if (*mission_index_ptr < 0 || *mission_index_ptr >= (int)mission->count) {
+	if (*mission_index_ptr < 0 || *mission_index_ptr >= count) {
 		/* mission item index out of bounds */
 		return false;
 	}
@@ -644,7 +654,8 @@ Mission::save_offboard_mission_state()
 
 	if (read_res == sizeof(mission_s)) {
 		/* data read successfully, check dataman ID and items count */
-		if (mission_state.dataman_id == _offboard_mission.dataman_id && mission_state.count == _offboard_mission.count) {
+		if (mission_state.dataman_id == _offboard_mission.dataman_id &&
+				mission_state.count_formission[mission_state.dataman_id] == _offboard_mission.count_formission[mission_state.dataman_id]) {
 			/* navigator may modify only sequence, write modified state only if it changed */
 			if (mission_state.current_seq != _current_offboard_mission_index) {
 				if (dm_write(DM_KEY_MISSION_STATE, 0, DM_PERSIST_POWER_ON_RESET, &mission_state, sizeof(mission_s)) != sizeof(mission_s)) {
@@ -657,7 +668,7 @@ Mission::save_offboard_mission_state()
 	} else {
 		/* invalid data, this must not happen and indicates error in offboard_mission publisher */
 		mission_state.dataman_id = _offboard_mission.dataman_id;
-		mission_state.count = _offboard_mission.count;
+		mission_state.count_formission[mission_state.dataman_id] = _offboard_mission.count_formission[mission_state.dataman_id];
 		mission_state.current_seq = _current_offboard_mission_index;
 
 		warnx("ERROR: invalid mission state");
