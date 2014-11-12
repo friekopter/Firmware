@@ -247,7 +247,13 @@ void *commander_low_prio_loop(void *arg);
 
 void answer_command(struct vehicle_command_s &cmd, enum VEHICLE_CMD_RESULT result);
 
-int switch_active_mission();
+/**
+ * Switches the active mission pointer to another mission storage slot.
+ * Parameter direction defines the number of slots the
+ * pointer is forwarded.
+ * Returns OK if successful.
+ */
+int switch_active_offboard_mission(int direction);
 
 int commander_main(int argc, char *argv[])
 {
@@ -1680,12 +1686,12 @@ int commander_thread_main(int argc, char *argv[])
 
 			/* check if right stick is in far middle right position and we're in MANUAL disarmed mode -> switch mission */
 			if (status.arming_state == ARMING_STATE_STANDBY &&
-			    sp_man.x > STICK_SWITCH_MISSION_LIMIT ) {
+			    fabsf(sp_man.y) > STICK_SWITCH_MISSION_LIMIT ) {
 				if (stick_switch_mission_counter > STICK_ON_OFF_COUNTER_LIMIT) {
 
 					// Switch mission
 					//mavlink_log_info(mavlink_fd, "Switch mission");
-					int result = switch_active_mission();
+					int result = switch_active_offboard_mission((sp_man.y > 0) ? +1 : -1);
 					if (result != OK) {
 						mavlink_log_info(mavlink_fd, "Can't switch mission result: %d", result);
 					}
@@ -2740,21 +2746,24 @@ void *commander_low_prio_loop(void *arg)
 }
 
 /**
- * Switch to next mission, rite new mission state to dataman and publish offboard_mission topic to notify navigator about changes.
+ * Switches the active mission pointer to another mission storage slot.
+ * Parameter direction defines the number of slots the
+ * pointer is forwarded.
+ * Returns OK if successful.
  */
 int
-switch_active_mission()
+switch_active_offboard_mission(int direction)
 {
 	mission_s mission_state;
 	dm_lock(DM_KEY_MISSION_STATE);
 	if (!dm_read(DM_KEY_MISSION_STATE, 0, &mission_state, sizeof(mission_s)) == sizeof(mission_s)) {
-		warnx("offboard mission init: ERROR, reading mission state failed");
+		warnx("switch_active_mission: ERROR, reading mission state failed");
 		dm_unlock(DM_KEY_MISSION_STATE);
 		return ERROR;
 	}
 
 	// change active storage place and reset current
-	mission_state.dataman_id = (mission_state.dataman_id + 1)  % NUM_MISSION_STORAGE_PLACES;
+	mission_state.dataman_id = (mission_state.dataman_id + direction)  % NUM_MISSION_STORAGE_PLACES;
 	mission_state.current_seq = 0;
 	/* update mission state in dataman */
 	int res = dm_write(DM_KEY_MISSION_STATE, 0, DM_PERSIST_POWER_ON_RESET, &mission_state, sizeof(mission_s));

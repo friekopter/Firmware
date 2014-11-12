@@ -105,9 +105,9 @@ struct mission_item_s {
  */
 struct mission_s
 {
-	int dataman_id;			/**< default 0, there are two offboard storage places in the dataman: 0 or 1 */
-	unsigned count_formission[NUM_MISSION_STORAGE_PLACES];			/**< count of the mission storage n stored in the dataman */
-	int current_seq;				/**< default -1, start at the one changed latest */
+	int dataman_id;			/**< active storage slot. Default 0,  There are NUM_MISSION_STORAGE_PLACES offboard storage places in the dataman, beginning with index 0.*/
+	unsigned count_formission[NUM_MISSION_STORAGE_PLACES];			/**< count of mission items in storage slot n currently stored in the dataman */
+	int current_seq;				/**< current mission item index. Default -1, start at the one changed latest */
 };
 
 /**

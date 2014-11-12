@@ -584,6 +584,7 @@ Mission::read_mission_item(bool onboard, bool is_current, struct mission_item_s 
 	struct mission_s *mission;
 	dm_item_t dm_item;
 	int mission_index_next;
+	unsigned mission_count;
 
 	if (onboard) {
 		/* onboard mission */
@@ -593,6 +594,7 @@ Mission::read_mission_item(bool onboard, bool is_current, struct mission_item_s 
 		mission = &_onboard_mission;
 
 		dm_item = DM_KEY_WAYPOINTS_ONBOARD;
+		mission_count = mission->count_formission[0];
 
 	} else {
 		/* offboard mission */
@@ -601,11 +603,10 @@ Mission::read_mission_item(bool onboard, bool is_current, struct mission_item_s 
 
 		mission = &_offboard_mission;
 
-
 		dm_item = DM_KEY_WAYPOINTS_OFFBOARD(_offboard_mission.dataman_id);
+		mission_count = mission->count_formission[mission->dataman_id];
 	}
 
-	unsigned mission_count = mission->count_formission[mission->dataman_id];
 	if (*mission_index_ptr < 0 || *mission_index_ptr >= (int)mission_count) {
 		/* mission item index out of bounds */
 		return false;

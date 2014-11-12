@@ -583,7 +583,6 @@ MavlinkMissionManager::handle_mission_count(const mavlink_message_t *msg)
 			if (wpc.count == 0) {
 				if (_verbose) { warnx("WPM: MISSION_COUNT 0, clearing waypoints list and staying in state MAVLINK_WPM_STATE_IDLE"); }
 
-				// FL! /* alternate dataman ID anyway to let navigator know about changes */
 				update_active_mission(_dataman_id, 0, 0);
 				_mavlink->send_statustext_info("WPM: COUNT 0: CLEAR MISSION");
 

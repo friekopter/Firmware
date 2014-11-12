@@ -55,11 +55,13 @@ extern "C" {
 		DM_KEY_WAYPOINTS_OFFBOARD_2,	/* (alternate between 0 and 3) */
 		DM_KEY_WAYPOINTS_OFFBOARD_3,	/* (alternate between 0 and 3) */
 		DM_KEY_WAYPOINTS_ONBOARD,	/* Mission way point coordinates generated onboard */
-		DM_KEY_MISSION_STATE,		/* Persistent mission state */
+		DM_KEY_MISSION_STATE,		/* Persistent (offboard) mission state */
 		DM_KEY_NUM_KEYS			/* Total number of item types defined */
 	} dm_item_t;
 
-	#define DM_KEY_WAYPOINTS_OFFBOARD(_id) (_id == 0 ? DM_KEY_WAYPOINTS_OFFBOARD_0 : (_id == 1 ? DM_KEY_WAYPOINTS_OFFBOARD_1 : (_id == 2 ? DM_KEY_WAYPOINTS_OFFBOARD_2 : DM_KEY_WAYPOINTS_OFFBOARD_3)))
+	#define DM_KEY_WAYPOINTS_OFFBOARD(_id) (_id == 0 ? DM_KEY_WAYPOINTS_OFFBOARD_0 : \
+			(_id == 1 ? DM_KEY_WAYPOINTS_OFFBOARD_1 : \
+					(_id == 2 ? DM_KEY_WAYPOINTS_OFFBOARD_2 : DM_KEY_WAYPOINTS_OFFBOARD_3)))
 
 	/** The maximum number of instances for each item type */
 	enum {
