@@ -320,12 +320,16 @@ int commander_main(int argc, char *argv[])
 	}
 
 	if (!strcmp(argv[1], "arm")) {
-		arm_disarm(true, mavlink_fd, "command line");
+		int mavlink_fd_local = open(MAVLINK_LOG_DEVICE, 0);
+		arm_disarm(true, mavlink_fd_local, "command line");
+		close(mavlink_fd_local);
 		exit(0);
 	}
 
 	if (!strcmp(argv[1], "disarm")) {
-		arm_disarm(false, mavlink_fd, "command line");
+		int mavlink_fd_local = open(MAVLINK_LOG_DEVICE, 0);
+		arm_disarm(false, mavlink_fd_local, "command line");
+		close(mavlink_fd_local);
 		exit(0);
 	}
 
@@ -1619,7 +1623,7 @@ int commander_thread_main(int argc, char *argv[])
 
 			} else {
 				if (status.rc_signal_lost) {
-					mavlink_log_critical(mavlink_fd, "RC signal regained");
+					mavlink_log_critical(mavlink_fd, "RC SIGNAL REGAINED after %llums",(hrt_absolute_time()-status.rc_signal_lost_timestamp)/1000);
 					status_changed = true;
 				}
 			}
@@ -1741,8 +1745,9 @@ int commander_thread_main(int argc, char *argv[])
 
 		} else {
 			if (!status.rc_signal_lost) {
-				mavlink_log_critical(mavlink_fd, "RC SIGNAL LOST");
+				mavlink_log_critical(mavlink_fd, "RC SIGNAL LOST (at t=%llums)",hrt_absolute_time()/1000);
 				status.rc_signal_lost = true;
+				status.rc_signal_lost_timestamp=sp_man.timestamp;
 				status_changed = true;
 			}
 		}
@@ -2320,6 +2325,59 @@ set_control_mode()
 		control_mode.flag_control_termination_enabled = false;
 		break;
 
+	case NAVIGATION_STATE_ALTCTL:
+		control_mode.flag_control_manual_enabled = true;
+		control_mode.flag_control_auto_enabled = false;
+		control_mode.flag_control_rates_enabled = true;
+		control_mode.flag_control_attitude_enabled = true;
+		control_mode.flag_control_altitude_enabled = true;
+		control_mode.flag_control_climb_rate_enabled = true;
+		control_mode.flag_control_position_enabled = false;
+		control_mode.flag_control_velocity_enabled = false;
+		control_mode.flag_control_termination_enabled = false;
+		break;
+
+	case NAVIGATION_STATE_POSCTL:
+		control_mode.flag_control_manual_enabled = true;
+		control_mode.flag_control_auto_enabled = false;
+		control_mode.flag_control_rates_enabled = true;
+		control_mode.flag_control_attitude_enabled = true;
+		control_mode.flag_control_altitude_enabled = true;
+		control_mode.flag_control_climb_rate_enabled = true;
+		control_mode.flag_control_position_enabled = true;
+		control_mode.flag_control_velocity_enabled = true;
+		control_mode.flag_control_termination_enabled = false;
+		break;
+
+	case NAVIGATION_STATE_AUTO_MISSION:
+	case NAVIGATION_STATE_AUTO_LOITER:
+	case NAVIGATION_STATE_AUTO_RTL:
+	case NAVIGATION_STATE_AUTO_RCRECOVER:
+	case NAVIGATION_STATE_AUTO_RTGS:
+	case NAVIGATION_STATE_AUTO_LANDENGFAIL:
+		control_mode.flag_control_manual_enabled = false;
+		control_mode.flag_control_auto_enabled = true;
+		control_mode.flag_control_rates_enabled = true;
+		control_mode.flag_control_attitude_enabled = true;
+		control_mode.flag_control_altitude_enabled = true;
+		control_mode.flag_control_climb_rate_enabled = true;
+		control_mode.flag_control_position_enabled = true;
+		control_mode.flag_control_velocity_enabled = true;
+		control_mode.flag_control_termination_enabled = false;
+		break;
+
+	case NAVIGATION_STATE_AUTO_LANDGPSFAIL:
+		control_mode.flag_control_manual_enabled = false;
+		control_mode.flag_control_auto_enabled = false;
+		control_mode.flag_control_rates_enabled = true;
+		control_mode.flag_control_attitude_enabled = true;
+		control_mode.flag_control_altitude_enabled = false;
+		control_mode.flag_control_climb_rate_enabled = true;
+		control_mode.flag_control_position_enabled = false;
+		control_mode.flag_control_velocity_enabled = false;
+		control_mode.flag_control_termination_enabled = false;
+		break;
+
 	case NAVIGATION_STATE_ACRO:
 		control_mode.flag_control_manual_enabled = true;
 		control_mode.flag_control_auto_enabled = false;
@@ -2332,16 +2390,44 @@ set_control_mode()
 		control_mode.flag_control_termination_enabled = false;
 		break;
 
-	case NAVIGATION_STATE_ALTCTL:
-		control_mode.flag_control_manual_enabled = true;
-		control_mode.flag_control_auto_enabled = false;
+
+	case NAVIGATION_STATE_LAND:
+		control_mode.flag_control_manual_enabled = false;
+		control_mode.flag_control_auto_enabled = true;
 		control_mode.flag_control_rates_enabled = true;
 		control_mode.flag_control_attitude_enabled = true;
+		/* in failsafe LAND mode position may be not available */
+		control_mode.flag_control_position_enabled = status.condition_local_position_valid;
+		control_mode.flag_control_velocity_enabled = status.condition_local_position_valid;
 		control_mode.flag_control_altitude_enabled = true;
 		control_mode.flag_control_climb_rate_enabled = true;
+		control_mode.flag_control_termination_enabled = false;
+		break;
+
+	case NAVIGATION_STATE_DESCEND:
+		/* TODO: check if this makes sense */
+		control_mode.flag_control_manual_enabled = false;
+		control_mode.flag_control_auto_enabled = true;
+		control_mode.flag_control_rates_enabled = true;
+		control_mode.flag_control_attitude_enabled = true;
 		control_mode.flag_control_position_enabled = false;
 		control_mode.flag_control_velocity_enabled = false;
+		control_mode.flag_control_altitude_enabled = false;
+		control_mode.flag_control_climb_rate_enabled = true;
 		control_mode.flag_control_termination_enabled = false;
+		break;
+
+	case NAVIGATION_STATE_TERMINATION:
+		/* disable all controllers on termination */
+		control_mode.flag_control_manual_enabled = false;
+		control_mode.flag_control_auto_enabled = false;
+		control_mode.flag_control_rates_enabled = false;
+		control_mode.flag_control_attitude_enabled = false;
+		control_mode.flag_control_position_enabled = false;
+		control_mode.flag_control_velocity_enabled = false;
+		control_mode.flag_control_altitude_enabled = false;
+		control_mode.flag_control_climb_rate_enabled = false;
+		control_mode.flag_control_termination_enabled = true;
 		break;
 
 	case NAVIGATION_STATE_OFFBOARD:
@@ -2399,73 +2485,6 @@ set_control_mode()
 			control_mode.flag_control_position_enabled = false;
 			control_mode.flag_control_velocity_enabled = false;
 		}
-
-		break;
-
-	case NAVIGATION_STATE_POSCTL:
-		control_mode.flag_control_manual_enabled = true;
-		control_mode.flag_control_auto_enabled = false;
-		control_mode.flag_control_rates_enabled = true;
-		control_mode.flag_control_attitude_enabled = true;
-		control_mode.flag_control_altitude_enabled = true;
-		control_mode.flag_control_climb_rate_enabled = true;
-		control_mode.flag_control_position_enabled = true;
-		control_mode.flag_control_velocity_enabled = true;
-		control_mode.flag_control_termination_enabled = false;
-		break;
-
-	case NAVIGATION_STATE_AUTO_MISSION:
-	case NAVIGATION_STATE_AUTO_LOITER:
-	case NAVIGATION_STATE_AUTO_RTL:
-	case NAVIGATION_STATE_AUTO_RTGS:
-	case NAVIGATION_STATE_AUTO_LANDENGFAIL:
-		control_mode.flag_control_manual_enabled = false;
-		control_mode.flag_control_auto_enabled = true;
-		control_mode.flag_control_rates_enabled = true;
-		control_mode.flag_control_attitude_enabled = true;
-		control_mode.flag_control_altitude_enabled = true;
-		control_mode.flag_control_climb_rate_enabled = true;
-		control_mode.flag_control_position_enabled = true;
-		control_mode.flag_control_velocity_enabled = true;
-		control_mode.flag_control_termination_enabled = false;
-		break;
-
-	case NAVIGATION_STATE_AUTO_LANDGPSFAIL:
-		control_mode.flag_control_manual_enabled = false;
-		control_mode.flag_control_auto_enabled = false;
-		control_mode.flag_control_rates_enabled = true;
-		control_mode.flag_control_attitude_enabled = true;
-		control_mode.flag_control_altitude_enabled = false;
-		control_mode.flag_control_climb_rate_enabled = true;
-		control_mode.flag_control_position_enabled = false;
-		control_mode.flag_control_velocity_enabled = false;
-		control_mode.flag_control_termination_enabled = false;
-		break;
-
-	case NAVIGATION_STATE_LAND:
-		control_mode.flag_control_manual_enabled = false;
-		control_mode.flag_control_auto_enabled = true;
-		control_mode.flag_control_rates_enabled = true;
-		control_mode.flag_control_attitude_enabled = true;
-		/* in failsafe LAND mode position may be not available */
-		control_mode.flag_control_position_enabled = status.condition_local_position_valid;
-		control_mode.flag_control_velocity_enabled = status.condition_local_position_valid;
-		control_mode.flag_control_altitude_enabled = true;
-		control_mode.flag_control_climb_rate_enabled = true;
-		control_mode.flag_control_termination_enabled = false;
-		break;
-
-	case NAVIGATION_STATE_TERMINATION:
-		/* disable all controllers on termination */
-		control_mode.flag_control_manual_enabled = false;
-		control_mode.flag_control_auto_enabled = false;
-		control_mode.flag_control_rates_enabled = false;
-		control_mode.flag_control_attitude_enabled = false;
-		control_mode.flag_control_position_enabled = false;
-		control_mode.flag_control_velocity_enabled = false;
-		control_mode.flag_control_altitude_enabled = false;
-		control_mode.flag_control_climb_rate_enabled = false;
-		control_mode.flag_control_termination_enabled = true;
 		break;
 
 	default:
