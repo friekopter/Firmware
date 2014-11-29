@@ -597,7 +597,7 @@ MavlinkMissionManager::handle_mission_count(const mavlink_message_t *msg)
 			_transfer_partner_sysid = msg->sysid;
 			_transfer_partner_compid = msg->compid;
 			_transfer_count = wpc.count;
-			_transfer_dataman_id = _dataman_id;	// FL!: use inactive storage for transmission
+			_transfer_dataman_id = _dataman_id;
 			_transfer_current_seq = -1;
 
 		} else if (_state == MAVLINK_WPM_STATE_GETLIST) {
