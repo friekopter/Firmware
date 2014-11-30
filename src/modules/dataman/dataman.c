@@ -52,6 +52,10 @@
 #include "dataman.h"
 #include <systemlib/param/param.h>
 
+
+/** Current datamanager file schema version */
+const char* dm_version = "20141121";
+
 /**
  * data manager app start / stop handling function
  *
@@ -116,8 +120,11 @@ static const unsigned g_per_item_max_index[DM_KEY_NUM_KEYS] = {
 	DM_KEY_FENCE_POINTS_MAX,
 	DM_KEY_WAYPOINTS_OFFBOARD_0_MAX,
 	DM_KEY_WAYPOINTS_OFFBOARD_1_MAX,
+	DM_KEY_WAYPOINTS_OFFBOARD_2_MAX,
+	DM_KEY_WAYPOINTS_OFFBOARD_3_MAX,
 	DM_KEY_WAYPOINTS_ONBOARD_MAX,
-	DM_KEY_MISSION_STATE_MAX
+	DM_KEY_MISSION_STATE_MAX,
+	DM_KEY_DBVERSION_MAX
 };
 
 /* Table of offset for index 0 of each item type */
@@ -439,6 +446,22 @@ _clear(dm_item_t item)
 	return result;
 }
 
+/** Clear all data */
+static int
+_clear_all()
+{
+	int result = OK;
+	if(!_clear(DM_KEY_SAFE_POINTS)) result = -1;
+	if(!_clear(DM_KEY_FENCE_POINTS)) result = -1;
+	if(!_clear(DM_KEY_WAYPOINTS_OFFBOARD_0)) result = -1;
+	if(!_clear(DM_KEY_WAYPOINTS_OFFBOARD_1)) result = -1;
+	if(!_clear(DM_KEY_WAYPOINTS_OFFBOARD_2)) result = -1;
+	if(!_clear(DM_KEY_WAYPOINTS_OFFBOARD_3)) result = -1;
+	if(!_clear(DM_KEY_WAYPOINTS_ONBOARD)) result = -1;
+	if(!_clear(DM_KEY_MISSION_STATE)) result = -1;
+	return result;
+}
+
 /** Tell the data manager about the type of the last reset */
 static int
 _restart(dm_reset_reason reason)
@@ -663,12 +686,43 @@ task_main(int argc, char *argv[])
 			close(g_task_fd);
 			unlink(k_data_manager_device_path);
 		}
-		else
-			close(g_task_fd);
+		else {
+			/* File size ok, check its version */
+			char file_version[sizeof(dm_version)];
+			if (_read(DM_KEY_DBVERSION,0,file_version,sizeof(dm_version)) == sizeof(dm_version)) {
+				/* check if version is correct */
+				if (strncmp(file_version, dm_version, sizeof(dm_version))) {
+					/* wrong version, for now no migration just delete */
+					warnx("Incompatible data manager file version %s, resetting it", k_data_manager_device_path);
+					close(g_task_fd);
+					unlink(k_data_manager_device_path);
+				}  else {
+					/* good version */
+					close(g_task_fd);
+				}
+			} else {
+				/* could not read version, reset file */
+				close(g_task_fd);
+				unlink(k_data_manager_device_path);
+			}
+		}
 	}
 
-	/* Open or create the data manager file */
-	g_task_fd = open(k_data_manager_device_path, O_RDWR | O_CREAT | O_BINARY);
+	/* Open the data manager file */
+	g_task_fd = open(k_data_manager_device_path, O_RDWR | O_BINARY);
+	if(g_task_fd < 0) {
+		/* File did not exist: create */
+		g_task_fd = open(k_data_manager_device_path, O_RDWR | O_CREAT | O_BINARY);
+		warnx("Clear all data");
+		_clear_all();
+	}
+
+	/* write file version */
+	if(_write(DM_KEY_DBVERSION,0,DM_PERSIST_POWER_ON_RESET,dm_version,sizeof(dm_version)) != sizeof(dm_version)) {
+		warnx("Could not write version to %s", k_data_manager_device_path);
+		sem_post(&g_init_sema); /* Don't want to hang startup */
+		return -1;
+	}
 
 	if (g_task_fd < 0) {
 		warnx("Could not open data manager file %s", k_data_manager_device_path);
@@ -702,8 +756,8 @@ task_main(int argc, char *argv[])
 	}
 
 	/* We use two file descriptors, one for the caller context and one for the worker thread */
-	/* They are actually the same but we need to some way to reject caller request while the */
-	/* worker thread is shutting down but still processing requests */
+	/* They are actually the same, but we need some way to reject caller requests while the */
+	/* worker thread is shutting down, but still processing requests */
 	g_fd = g_task_fd;
 
 	warnx("Initialized, data manager file '%s' size is %d bytes", k_data_manager_device_path, max_offset);
