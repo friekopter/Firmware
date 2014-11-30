@@ -311,12 +311,12 @@ MavlinkMissionManager::send_mission_item_reached(uint16_t seq)
 void
 MavlinkMissionManager::send(const hrt_abstime now)
 {
+	update_offboard_mission();
 	/* update interval for slow rate limiter */
 	_slow_rate_limiter.set_interval(_interval * 10 / _mavlink->get_rate_mult());
 
 	bool updated = false;
 	orb_check(_mission_result_sub, &updated);
-
 	if (updated) {
 		mission_result_s mission_result;
 		orb_copy(ORB_ID(mission_result), _mission_result_sub, &mission_result);
