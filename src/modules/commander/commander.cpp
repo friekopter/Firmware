@@ -862,6 +862,7 @@ int commander_thread_main(int argc, char *argv[])
 
 	/* init mission state, do it here to allow navigator to use stored mission even if mavlink failed to start */
 	mission_s mission;
+	memset(&mission, 0, sizeof(mission));
 
 	if (dm_read(DM_KEY_MISSION_STATE, 0, &mission, sizeof(mission_s)) == sizeof(mission_s)) {
 		if (mission.dataman_id >= 0 && mission.dataman_id < NUM_MISSION_STORAGE_PLACES) {
@@ -875,15 +876,17 @@ int commander_thread_main(int argc, char *argv[])
 			const char *missionfail = "reading mission state failed";
 			warnx("%s", missionfail);
 			mavlink_log_critical(mavlink_fd, missionfail);
-
-			/* initialize mission state in dataman */
-			mission.dataman_id = 0;
-			for ( int i = 0; i < NUM_MISSION_STORAGE_PLACES; i++){
-				mission.count_formission[i] = 0;
-			}
-			mission.current_seq = 0;
-			dm_write(DM_KEY_MISSION_STATE, 0, DM_PERSIST_POWER_ON_RESET, &mission, sizeof(mission_s));
+			dm_clear(DM_KEY_MISSION_STATE);
 		}
+
+		mission_pub = orb_advertise(ORB_ID(offboard_mission), &mission);
+		orb_publish(ORB_ID(offboard_mission), mission_pub, &mission);
+	} else {
+		/* failed to read mission state, this is really bad */
+		const char *missionfail = "reading mission state failed: corrupted data";
+		warnx("%s", missionfail);
+		mavlink_log_critical(mavlink_fd, missionfail);
+		dm_clear(DM_KEY_MISSION_STATE);
 
 		mission_pub = orb_advertise(ORB_ID(offboard_mission), &mission);
 		orb_publish(ORB_ID(offboard_mission), mission_pub, &mission);

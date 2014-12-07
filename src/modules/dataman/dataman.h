@@ -86,9 +86,9 @@ extern "C" {
 
 	/** The reason for the last reset */
 	typedef enum {
-		DM_INIT_REASON_POWER_ON = 0,	/* Data survives resets */
-		DM_INIT_REASON_IN_FLIGHT,		/* Data survives in-flight resets only */
-		DM_INIT_REASON_VOLATILE			/* Data does not survive reset */
+		DM_INIT_REASON_POWER_ON = 0,	/* Only Persistent data survives */
+		DM_INIT_REASON_IN_FLIGHT,		/* Also flight persistent data survives */
+		DM_INIT_REASON_VOLATILE			/* No data survives */
 	} dm_reset_reason;
 
 	/** Maximum size in bytes of a single item instance */

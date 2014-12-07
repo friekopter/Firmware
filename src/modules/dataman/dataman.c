@@ -54,7 +54,7 @@
 
 
 /** Current datamanager file schema version */
-const char* dm_version = "20141121";
+const char dm_version[10] = "20141207";
 
 /**
  * data manager app start / stop handling function
@@ -451,14 +451,15 @@ static int
 _clear_all()
 {
 	int result = OK;
-	if(!_clear(DM_KEY_SAFE_POINTS)) result = -1;
-	if(!_clear(DM_KEY_FENCE_POINTS)) result = -1;
+	//if(!_clear(DM_KEY_SAFE_POINTS)) result = -1;
+	//if(!_clear(DM_KEY_FENCE_POINTS)) result = -1;
 	if(!_clear(DM_KEY_WAYPOINTS_OFFBOARD_0)) result = -1;
-	if(!_clear(DM_KEY_WAYPOINTS_OFFBOARD_1)) result = -1;
-	if(!_clear(DM_KEY_WAYPOINTS_OFFBOARD_2)) result = -1;
-	if(!_clear(DM_KEY_WAYPOINTS_OFFBOARD_3)) result = -1;
-	if(!_clear(DM_KEY_WAYPOINTS_ONBOARD)) result = -1;
+	//if(!_clear(DM_KEY_WAYPOINTS_OFFBOARD_1)) result = -1;
+	//if(!_clear(DM_KEY_WAYPOINTS_OFFBOARD_2)) result = -1;
+	//if(!_clear(DM_KEY_WAYPOINTS_OFFBOARD_3)) result = -1;
+	//if(!_clear(DM_KEY_WAYPOINTS_ONBOARD)) result = -1;
 	if(!_clear(DM_KEY_MISSION_STATE)) result = -1;
+	//if(!_clear(DM_KEY_DBVERSION)) result = -1;
 	return result;
 }
 
@@ -693,15 +694,18 @@ task_main(int argc, char *argv[])
 				/* check if version is correct */
 				if (strncmp(file_version, dm_version, sizeof(dm_version))) {
 					/* wrong version, for now no migration just delete */
+					warnx("Data manager file version %s should be %s", file_version, dm_version);
 					warnx("Incompatible data manager file version %s, resetting it", k_data_manager_device_path);
 					close(g_task_fd);
 					unlink(k_data_manager_device_path);
 				}  else {
 					/* good version */
+					warnx("Data manager file version %s should be %s", file_version, dm_version);
 					close(g_task_fd);
 				}
 			} else {
 				/* could not read version, reset file */
+				warnx("Could not read version reset file");
 				close(g_task_fd);
 				unlink(k_data_manager_device_path);
 			}
@@ -712,14 +716,15 @@ task_main(int argc, char *argv[])
 	g_task_fd = open(k_data_manager_device_path, O_RDWR | O_BINARY);
 	if(g_task_fd < 0) {
 		/* File did not exist: create */
+		warnx("open new file");
 		g_task_fd = open(k_data_manager_device_path, O_RDWR | O_CREAT | O_BINARY);
-		warnx("Clear all data");
 		_clear_all();
 	}
 
 	/* write file version */
-	if(_write(DM_KEY_DBVERSION,0,DM_PERSIST_POWER_ON_RESET,dm_version,sizeof(dm_version)) != sizeof(dm_version)) {
-		warnx("Could not write version to %s", k_data_manager_device_path);
+	int result = _write(DM_KEY_DBVERSION,0,DM_PERSIST_POWER_ON_RESET,dm_version,sizeof(dm_version));
+	if(result != sizeof(dm_version)) {
+		warnx("Could not write version to %s result %d", k_data_manager_device_path, result);
 		sem_post(&g_init_sema); /* Don't want to hang startup */
 		return -1;
 	}
