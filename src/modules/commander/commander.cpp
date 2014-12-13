@@ -882,12 +882,14 @@ int commander_thread_main(int argc, char *argv[])
 		mission_pub = orb_advertise(ORB_ID(offboard_mission), &mission);
 		orb_publish(ORB_ID(offboard_mission), mission_pub, &mission);
 	} else {
-		/* failed to read mission state, this is really bad */
-		const char *missionfail = "reading mission state failed: corrupted data";
+		/* failed to read mission state, maybe there is mission yet */
+		const char *missionfail = "reading mission state failed";
 		warnx("%s", missionfail);
 		mavlink_log_critical(mavlink_fd, missionfail);
-		dm_clear(DM_KEY_MISSION_STATE);
-
+		if (dm_write(DM_KEY_MISSION_STATE, 0, DM_PERSIST_POWER_ON_RESET, &mission, sizeof(mission_s)) != sizeof(mission_s)) {
+			warnx("ERROR: can't create mission state");
+			mavlink_log_critical(mavlink_fd, "ERROR: can't save mission state");
+		}
 		mission_pub = orb_advertise(ORB_ID(offboard_mission), &mission);
 		orb_publish(ORB_ID(offboard_mission), mission_pub, &mission);
 	}

@@ -54,7 +54,7 @@
 
 
 /** Current datamanager file schema version */
-const char dm_version[10] = "20141207";
+const char dm_version[10] = "20141212";
 
 /**
  * data manager app start / stop handling function
@@ -705,7 +705,7 @@ task_main(int argc, char *argv[])
 				}
 			} else {
 				/* could not read version, reset file */
-				warnx("Could not read version reset file");
+				warnx("Could not read version, reset file");
 				close(g_task_fd);
 				unlink(k_data_manager_device_path);
 			}
