@@ -1,8 +1,6 @@
 /****************************************************************************
  *
- *   Copyright (C) 2008-2013 PX4 Development Team. All rights reserved.
- *   Author: Samuel Zihlmann <samuezih@ee.ethz.ch>
- *   		 Lorenz Meier <lm@inf.ethz.ch>
+ *   Copyright (c) 2014 PX4 Development Team. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -33,38 +31,58 @@
  *
  ****************************************************************************/
 
-/*
- * @file flow_speed_control_params.c
- * 
+/**
+ * @file vtol_att_control_params.c
+ * Parameters for vtol attitude controller.
+ *
+ * @author Roman Bapst <bapstr@ethz.ch>
  */
 
-#include "flow_speed_control_params.h"
+#include <systemlib/param/param.h>
 
-/* controller parameters */
-PARAM_DEFINE_FLOAT(FSC_S_P, 0.1f);
-PARAM_DEFINE_FLOAT(FSC_L_PITCH, 0.4f);
-PARAM_DEFINE_FLOAT(FSC_L_ROLL, 0.4f);
+/**
+ * VTOL number of engines
+ *
+ * @min 1.0
+ * @group VTOL Attitude Control
+ */
+PARAM_DEFINE_INT32(VT_MOT_COUNT,0);
 
-int parameters_init(struct flow_speed_control_param_handles *h)
-{
-	/* PID parameters */
-	h->speed_p	 			=	param_find("FSC_S_P");
-	h->limit_pitch 			=	param_find("FSC_L_PITCH");
-	h->limit_roll 			=	param_find("FSC_L_ROLL");
-	h->trim_roll 			=	param_find("TRIM_ROLL");
-	h->trim_pitch 			=	param_find("TRIM_PITCH");
+/**
+ * Idle speed of VTOL when in multicopter mode
+ *
+ * @min 900
+ * @group VTOL Attitude Control
+ */
+PARAM_DEFINE_INT32(VT_IDLE_PWM_MC,900);
 
+/**
+ * Minimum airspeed in multicopter mode
+ *
+ * This is the minimum speed of the air flowing over the control surfaces.
+ *
+ * @min 0.0
+ * @group VTOL Attitude Control
+ */
+PARAM_DEFINE_FLOAT(VT_MC_ARSPD_MIN,2.0f);
 
-	return OK;
-}
+/**
+ * Maximum airspeed in multicopter mode
+ *
+ * This is the maximum speed of the air flowing over the control surfaces.
+ *
+ * @min 0.0
+ * @group VTOL Attitude Control
+ */
+PARAM_DEFINE_FLOAT(VT_MC_ARSPD_MAX,30.0f);
 
-int parameters_update(const struct flow_speed_control_param_handles *h, struct flow_speed_control_params *p)
-{
-	param_get(h->speed_p, &(p->speed_p));
-	param_get(h->limit_pitch, &(p->limit_pitch));
-	param_get(h->limit_roll, &(p->limit_roll));
-	param_get(h->trim_roll, &(p->trim_roll));
-	param_get(h->trim_pitch, &(p->trim_pitch));
+/**
+ * Trim airspeed when in multicopter mode
+ *
+ * This is the airflow over the control surfaces for which no airspeed scaling is applied in multicopter mode.
+ *
+ * @min 0.0
+ * @group VTOL Attitude Control
+ */
+PARAM_DEFINE_FLOAT(VT_MC_ARSPD_TRIM,10.0f);
 
-	return OK;
-}

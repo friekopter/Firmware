@@ -177,8 +177,8 @@ uint8_t quat_flow_calculate_flow(
 			att->R[2][2] <= 0.7f)
 	{
 		//invalid position or bad quality
-		flow->flow_comp_x_m = 0.0f;
-		flow->flow_comp_y_m = 0.0f;
+		flow->pixel_flow_x_integral = 0.0f;
+		flow->pixel_flow_y_integral = 0.0f;
 		return 0;
 	}
 	/* distance to surface */
@@ -215,8 +215,8 @@ uint8_t quat_flow_calculate_flow(
 	}
 
 	float flow_ang[3];
-	flow_ang[0] = (float)flow->flow_raw_x * params->flow_k;
-	flow_ang[1] = (float)flow->flow_raw_y * params->flow_k;
+	flow_ang[0] = (float)flow->pixel_flow_x_integral * params->flow_k;
+	flow_ang[1] = (float)flow->pixel_flow_y_integral * params->flow_k;
 	flow_ang[2] = 0.0f;
 
 	/* flow measurements vector */
@@ -241,8 +241,8 @@ uint8_t quat_flow_calculate_flow(
 	/* project measurements vector to NED basis, skip Z component */
     utilRotateVecByMatrix2(flow_v, flow_mb, att->R);
 
-	flow->flow_comp_x_m = flow_v[0];
-	flow->flow_comp_y_m = flow_v[1];
+	flow->pixel_flow_x_integral = flow_v[0];
+	flow->pixel_flow_y_integral = flow_v[1];
 	return flow_accuracy;
 }
 
@@ -583,8 +583,8 @@ int quat_flow_calculator_thread_main(int argc, char *argv[])
 					if (vehicle_liftoff || params.debug)
 					{
 						/* copy flow */
-						flow_speed[0] = flow.flow_comp_x_m;
-						flow_speed[1] = flow.flow_comp_y_m;
+						flow_speed[0] = flow.pixel_flow_x_integral;
+						flow_speed[1] = flow.pixel_flow_y_integral;
 						flow_speed[2] = 0.0f;
 
 						/* update filtered flow */
