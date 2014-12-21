@@ -182,8 +182,8 @@ uint8_t flow_calculate_flow(
 			att->R[2][2] <= 0.7f)
 	{
 		//invalid position or bad quality
-		flow->flow_comp_x_m = 0.0f;
-		flow->flow_comp_y_m = 0.0f;
+		flow->pixel_flow_x_integral = 0.0f;
+		flow->pixel_flow_y_integral = 0.0f;
 		return 0;
 	}
 	/* distance to surface */
@@ -225,8 +225,8 @@ uint8_t flow_calculate_flow(
 	/* project measurements vector to NED basis, skip Z component */
     //utilRotateVecByMatrix2(flow_v, flow_mb, att->R);
 
-	flow->flow_comp_x_m = flow_v[0];
-	flow->flow_comp_y_m = flow_v[1];
+	flow->pixel_flow_x_integral = flow_v[0];
+	flow->pixel_flow_y_integral = flow_v[1];
 	return flow_accuracy;
 }
 
