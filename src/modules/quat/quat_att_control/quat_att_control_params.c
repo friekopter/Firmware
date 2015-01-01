@@ -92,6 +92,8 @@ PARAM_DEFINE_FLOAT(QUA_CO_DB, 0.02f);//10
 // => just forward to actuator
 PARAM_DEFINE_FLOAT(QUA_CO_THROF, 1.0f);//2.4
 
+int pid_update(	struct attitude_pid_quat_param_handles *source,
+				struct attitude_pid_quat_params *destination);
 
 int parameters_init(struct attitude_pid_quat_param_handles *tiltRate,
 					struct attitude_pid_quat_param_handles *tiltAngle,

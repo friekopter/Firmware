@@ -20,7 +20,7 @@ void normalizeVector3(quat_real_t *v) {
     quat_real_t mag;
 
     mag = sqrtf(v[0]*v[0] + v[1]*v[1] + v[2]*v[2]);
-    if (mag == 0)return;
+    if (fabsf(mag) < FLT_MIN)return;
     v[0] /= mag;
     v[1] /= mag;
     v[2] /= mag;
@@ -30,7 +30,7 @@ void normalizeVector4(quat_real_t *v) {
     quat_real_t mag;
 
     mag = sqrtf(v[0]*v[0] + v[1]*v[1] + v[2]*v[2] + v[3]*v[3]);
-    if (mag == 0)return;
+    if (fabsf(mag) < FLT_MIN)return;
     v[0] /= mag;
     v[1] /= mag;
     v[2] /= mag;
@@ -122,7 +122,7 @@ void rotateQuat(quat_real_t *qr,
     lrate[2] = rate[2];
 
     s = sqrtf(rate[0]*rate[0] + rate[1]*rate[1] + rate[2]*rate[2]) * 0.5f;
-    if(s==0.0f)
+    if (fabsf(s) < FLT_MIN)
     {
     	t = 1;
     }

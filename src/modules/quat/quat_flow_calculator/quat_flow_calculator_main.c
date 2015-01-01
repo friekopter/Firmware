@@ -68,6 +68,7 @@
 #include <quat/utils/util.h>
 #include <systemlib/perf_counter.h>
 #include <poll.h>
+#include <systemlib/systemlib.h>
 
 #include "quat_flow_calculator_params.h"
 
@@ -141,7 +142,7 @@ int quat_flow_calculator_main(int argc, char *argv[])
 					 SCHED_PRIORITY_MAX - 5,
 					 4096,
 					 quat_flow_calculator_thread_main,
-					 (argv) ? (const char **)&argv[2] : (const char **)NULL);
+					 (argv) ? (char * const *)&argv[2] : (char * const *)NULL);
 		exit(0);
 	}
 
@@ -293,7 +294,7 @@ void quat_flow_calculate_altitude(bool vehicle_liftoff,
 
 	/* simple lowpass sonar filtering */
 	/* if new value or with sonar update frequency */
-	if (sonar_new != sonar_last || counter++ % 10 == 0)
+	if (fabsf(sonar_new - sonar_last) < FLT_MIN || counter++ % 10 == 0)
 	{
 		sonar_lp = 0.05f * sonar_new + 0.95f * sonar_lp;
 		sonar_last = sonar_new;
@@ -330,7 +331,7 @@ void quat_flow_calculate_altitude(bool vehicle_liftoff,
 		if(debug) printf("..m:%8.4f\tv:%8.4f\n", (double)filtered_flow->ned_z, (double)time_since_last_sonar);
 
 		if(time_since_last_sonar > 0.09f &&
-				(sonar_last_measurement != ned_z_lp || time_since_last_sonar > 0.11f)) {
+				(fabsf(sonar_last_measurement - ned_z_lp) < FLT_MIN || time_since_last_sonar > 0.11f)) {
 
 			if(filtered_flow->ned_z_valid > 0) {
 
