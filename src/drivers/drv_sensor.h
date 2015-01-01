@@ -82,13 +82,23 @@
 #define SENSORIOCGQUEUEDEPTH	_SENSORIOC(3)
 
 /**
- * Reset the sensor to its default configuration.
+ * Reset the sensor to its default configuration
  */
 #define SENSORIOCRESET		_SENSORIOC(4)
 
 /**
+ * Set the sensor orientation
+ */
+#define SENSORIOCSROTATION	_SENSORIOC(5)
+
+/**
+ * Get the sensor orientation
+ */
+#define SENSORIOCGROTATION	_SENSORIOC(6)
+
+/**
  * Set the DLP Filter cutoff frequency
  */
-#define SENSORIOCSDLPF		_SENSORIOC(5)
+#define SENSORIOCSDLPF		_SENSORIOC(7)
 
 #endif /* _DRV_SENSOR_H */
