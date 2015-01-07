@@ -40,7 +40,7 @@ typedef struct
 	uint8_t Current;  			// in 0.1 A steps, read back from BL
 	uint8_t MaxPWM;   			// read back from BL is less than 255 if BL is in current limit
 	int8_t  Temperature;		// old BL-Ctrl will return a 255 here, the new version the temp. in °C
-} __attribute__((packed)) MotorData_t;
+} /*__attribute__((packed))*/ MotorData_t;
 
 
 __BEGIN_DECLS

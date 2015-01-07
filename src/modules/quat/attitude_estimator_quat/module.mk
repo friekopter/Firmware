@@ -9,3 +9,5 @@ SRCS		 	= attitude_estimator_quat_main.c \
 					quat.c
 
 INCLUDE_DIRS	 += $(MAVLINK_SRC)/include/mavlink
+
+EXTRACXXFLAGS = -Wno-float-equal

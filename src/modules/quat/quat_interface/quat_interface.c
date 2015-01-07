@@ -206,7 +206,7 @@ int quat_interface_main(int argc, char *argv[])
 						    SCHED_PRIORITY_MAX - 15,
 						    2048,
 						    quat_interface_thread_main,
-						    (argv) ? (const char **)&argv[1] : (const char **)NULL);
+						    (argv) ? (char * const *)&argv[2] : (char * const *)NULL);
 		exit(0);
 	}
 

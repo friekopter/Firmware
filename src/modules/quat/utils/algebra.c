@@ -23,7 +23,7 @@
 #define MIN(a, b) ((a < b) ? a : b)
 #define MAX(a, b) ((a > b) ? a : b)
 
-__attribute__((always_inline)) float inline __aq_sqrtf(float x) {
+__attribute__((always_inline)) inline float __aq_sqrtf(float x) {
 	//float result = 0;
 	//arm_sqrt_f32(x, &result);
 	//return result;
@@ -41,11 +41,11 @@ __attribute__((always_inline)) float inline __aq_sqrtf(float x) {
 	//return sqrtf(x);
 }
 
-float inline __aq_cosf(float x) {
+inline float __aq_cosf(float x) {
 	return arm_cos_f32(x);
 }
 
-float inline __aq_sinf(float x) {
+inline float __aq_sinf(float x) {
 	return arm_sin_f32(x);
 }
 
@@ -57,7 +57,7 @@ float __aq_atanf(float x)
 
 float __aq_atan2f(float y, float x)
 {
-  if (y == 0.0f)
+  if (fabsf(y) < FLT_MIN)
     {
       if (x >= 0.0f)
         {
@@ -70,7 +70,7 @@ float __aq_atan2f(float y, float x)
     }
   else if (y > 0.0f)
     {
-      if (x == 0.0f)
+      if (fabsf(x) < FLT_MIN)
         {
           return M_PI_2;
         }
@@ -85,7 +85,7 @@ float __aq_atan2f(float y, float x)
     }
   else
     {
-      if (x == 0.0f)
+      if (fabsf(x) < FLT_MIN)
         {
           return M_PI + M_PI_2;
         }
@@ -189,7 +189,7 @@ void qrDecompositionT_f32(arm_matrix_instance_f32 *A, arm_matrix_instance_f32 *Q
 
                 R->pData[minor*R->numCols + minor] = a;
 
-                if (a != 0.0f) {
+                if (fabsf(a) > FLT_MIN) {
         		    	R->pData[minor*R->numCols + minor] = a;
 
                         /*
@@ -258,7 +258,7 @@ void qrDecompositionT_f32(arm_matrix_instance_f32 *A, arm_matrix_instance_f32 *Q
                 for (minor = min-1; minor >= 0; minor--) {
                         Q->pData[minor * m + minor] = 1.0f;
 
-                        if (A->pData[minor*m + minor] != 0.0f) {
+                        if (fabsf(A->pData[minor*m + minor]) > FLT_MIN) {
                                 for (col = minor; col < m; col++) {
                                         float alpha = 0.0f;
 

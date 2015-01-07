@@ -38,7 +38,6 @@
  * Extended Kalman Filter for Attitude Estimation.
  */
 
-#include "v1.0/common/mavlink.h"
 #include <nuttx/config.h>
 #include <string.h>
 #include <unistd.h>

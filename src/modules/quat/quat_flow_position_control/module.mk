@@ -12,3 +12,6 @@ SRCS				= nav_flow_ukf.c \
 
 INCLUDE_DIRS	 += ../utils
 INCLUDE_DIRS	 += ../quat_position_control
+
+
+EXTRACFLAGS = -Wno-shadow

@@ -1,6 +1,6 @@
 /****************************************************************************
  *
- *   Copyright (C) 2012 PX4 Development Team. All rights reserved.
+ *   Copyright (c) 2015 PX4 Development Team. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -32,52 +32,21 @@
  ****************************************************************************/
 
 /**
- * @file drv_baro.h
+ * @file hmc5883.h
  *
- * Barometric pressure sensor driver interface.
+ * Shared defines for the hmc5883 driver.
  */
 
-#ifndef _DRV_BARO_H
-#define _DRV_BARO_H
+#pragma once
 
-#include <stdint.h>
-#include <sys/ioctl.h>
+#define ADDR_ID_A			0x0a
+#define ADDR_ID_B			0x0b
+#define ADDR_ID_C			0x0c
 
-#include "drv_sensor.h"
-#include "drv_orb_dev.h"
+#define ID_A_WHO_AM_I			'H'
+#define ID_B_WHO_AM_I			'4'
+#define ID_C_WHO_AM_I			'3'
 
-#define BARO_DEVICE_PATH	"/dev/baro"
-
-/**
- * baro report structure.  Reads from the device must be in multiples of this
- * structure.
- */
-struct baro_report {
-	float pressure;
-	float altitude;
-	float temperature;
-	uint64_t timestamp;
-	uint64_t error_count;
-};
-
-/*
- * ObjDev tag for raw barometer data.
- */
-ORB_DECLARE(sensor_baro0);
-ORB_DECLARE(sensor_baro1);
-ORB_DECLARE(sensor_baro2);
-
-/*
- * ioctl() definitions
- */
-
-#define _BAROIOCBASE		(0x2200)
-#define _BAROIOC(_n)		(_IOC(_BAROIOCBASE, _n))
-
-/** set corrected MSL pressure in pascals */
-#define BAROIOCSMSLPRESSURE	_BAROIOC(0)
-
-/** get current MSL pressure in pascals */
-#define BAROIOCGMSLPRESSURE	_BAROIOC(1)
-
-#endif /* _DRV_BARO_H */
+/* interface factories */
+extern device::Device *HMC5883_SPI_interface(int bus) weak_function;
+extern device::Device *HMC5883_I2C_interface(int bus) weak_function;

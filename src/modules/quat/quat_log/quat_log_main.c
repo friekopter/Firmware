@@ -174,7 +174,7 @@ int quat_log_main(int argc, char *argv[])
 					 SCHED_PRIORITY_DEFAULT - 30,
 					 4096,
 					 quat_log_thread_main,
-					 (const char **)argv);
+					 (argv) ? (char * const *)&argv[2] : (char * const *)NULL);
 		exit(0);
 	}
 

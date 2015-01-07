@@ -5,3 +5,4 @@ SRCS		 = compass_utils.c \
 		   algebra.c \
 		   quat_pos_control_params.c
 		   
+EXTRACFLAGS = -Wno-shadow

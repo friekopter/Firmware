@@ -40,6 +40,7 @@
 #include <uORB/topics/vehicle_gps_position.h>
 #include <systemlib/systemlib.h>
 #include <systemlib/perf_counter.h>
+#include <systemlib/err.h>
 #include <quat/utils/quat_pos_control_params.h>
 #include "nav_flow.h"
 #include "nav_flow_ukf.h"
@@ -201,7 +202,7 @@ int quat_flow_pos_control_main(int argc, char *argv[])
 					 SCHED_PRIORITY_MAX - 60,
 					 4096,
 					 quat_flow_pos_control_thread_main,
-					 (argv) ? (const char **)&argv[2] : (const char **)NULL);
+					 (argv) ? (char * const *)&argv[2] : (char * const *)NULL);
 		exit(0);
 	}
 

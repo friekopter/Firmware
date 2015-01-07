@@ -18,6 +18,7 @@
 #include "pid.h"
 #include "util.h"
 #include <stdlib.h>
+#include <float.h>
 
 pidStruct_t *pidInit(const float *p,const float *i,const float *d,const float *f,const float *pMax,const float *iMax,const float *dMax,const float *oMax,const int *pTrim,const int *iTrim,const int *dTrim,const int *fTrim) {
     pidStruct_t *pid;
@@ -120,7 +121,7 @@ float pidUpdate(pidStruct_t *pid, float setpoint, float position) {
 }
 
 void pidZeroIntegral(pidStruct_t *pid, float pv, float iState) {
-    if (*pid->iGain != 0.0f)
+    if (fabsf(*pid->iGain) > FLT_MIN)
 	pid->iState = iState / *pid->iGain;
     pid->dState = -pv;
     pid->sp_1 = pv;

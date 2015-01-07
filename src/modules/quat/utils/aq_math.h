@@ -27,6 +27,7 @@ __EXPORT float __aq_sqrtf(float x);
 __EXPORT float __aq_cosf(float x);
 __EXPORT float __aq_sinf(float x);
 __EXPORT float __aq_atan2f(float y, float x);
+__EXPORT float __aq_atanf(float x);
 __EXPORT void matrixInit(arm_matrix_instance_f32 *m, int rows, int cols);
 __EXPORT void matrixFree(arm_matrix_instance_f32 *m);
 __EXPORT void matrixDump(char *name, arm_matrix_instance_f32 *m);

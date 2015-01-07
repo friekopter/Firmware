@@ -41,3 +41,5 @@ MODULE_STACKSIZE	 = 1024
 
 SRCS		= quat_sensors.cpp \
 		  quat_sensor_params.c
+		  
+EXTRACXXFLAGS	= -Wno-type-limits
