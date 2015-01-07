@@ -913,7 +913,7 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 				global_position_data.vel_e = UKF_FLOW_VELY;
 				global_position_data.vel_d = UKF_FLOW_VELD;
 				global_position_data.yaw = navFlowUkfData.yaw;
-				global_position_data.time_gps_usec = gps_data.timestamp_time;
+				global_position_data.time_utc_usec = gps_data.timestamp_time;
 				global_position_data.timestamp = hrt_absolute_time();
 				orb_publish(ORB_ID(vehicle_global_position), global_pos_pub, &global_position_data);
 			} else if(!control_mode.flag_control_auto_enabled && !((printcounter + 18) % 20)) {
