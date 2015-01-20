@@ -32,9 +32,9 @@ MODULES		+= drivers/ll40ls
 # MODULES		+= drivers/trone
 MODULES		+= drivers/gps
 MODULES		+= drivers/hil
-MODULES		+= drivers/hott
-MODULES		+= drivers/hott/hott_telemetry
-MODULES		+= drivers/hott/hott_sensors
+# MODULES		+= drivers/hott
+# MODULES		+= drivers/hott/hott_telemetry
+# MODULES		+= drivers/hott/hott_sensors
 # MODULES		+= drivers/blinkm
 MODULES		+= drivers/airspeed
 MODULES		+= drivers/ets_airspeed
@@ -71,6 +71,7 @@ MODULES		+= modules/navigator
 MODULES		+= modules/mavlink
 MODULES		+= modules/gpio_led
 MODULES		+= modules/uavcan
+MODULES 	+= modules/land_detector
 
 #
 # Estimation modules (EKF/ SO3 / other filters)
