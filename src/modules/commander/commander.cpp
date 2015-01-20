@@ -970,6 +970,7 @@ int commander_thread_main(int argc, char *argv[])
 
 	/* init mission state, do it here to allow navigator to use stored mission even if mavlink failed to start */
 	mission_s mission;
+	memset(&mission, 0, sizeof(mission));
 
 	if (dm_read(DM_KEY_MISSION_STATE, 0, &mission, sizeof(mission_s)) == sizeof(mission_s)) {
 		if (mission.dataman_id >= 0 && mission.dataman_id < NUM_MISSION_STORAGE_PLACES) {
@@ -983,16 +984,18 @@ int commander_thread_main(int argc, char *argv[])
 			const char *missionfail = "reading mission state failed";
 			warnx("%s", missionfail);
 			mavlink_log_critical(mavlink_fd, missionfail);
-
-			/* initialize mission state in dataman */
-			mission.dataman_id = 0;
-			for ( int i = 0; i < NUM_MISSION_STORAGE_PLACES; i++){
-				mission.count_formission[i] = 0;
-			}
-			mission.current_seq = 0;
-			dm_write(DM_KEY_MISSION_STATE, 0, DM_PERSIST_POWER_ON_RESET, &mission, sizeof(mission_s));
 		}
 
+		mission_pub = orb_advertise(ORB_ID(offboard_mission), &mission);
+		orb_publish(ORB_ID(offboard_mission), mission_pub, &mission);
+	} else {
+		/* failed to read mission state, this can mean that there is not yet a mission state created in a fresh database */
+		const char *missionfail = "reading mission state failed: no data";
+		warnx("%s", missionfail);
+		mavlink_log_critical(mavlink_fd, missionfail);
+		if (dm_write(DM_KEY_MISSION_STATE, 0, DM_PERSIST_POWER_ON_RESET, &mission, sizeof(mission_s)) != sizeof(mission_s)) {
+			warnx("ERROR: can't save mission state");
+		}
 		mission_pub = orb_advertise(ORB_ID(offboard_mission), &mission);
 		orb_publish(ORB_ID(offboard_mission), mission_pub, &mission);
 	}
@@ -1013,10 +1016,11 @@ int commander_thread_main(int argc, char *argv[])
 	pthread_attr_destroy(&commander_low_prio_attr);
 
 	/* Start monitoring loop */
-	uint16_t counter = 0;
+	unsigned counter = 0;
 	unsigned stick_off_counter = 0;
 	unsigned stick_on_counter = 0;
 	unsigned stick_switch_mission_counter = 0;
+	bool mission_switched = false;
 
 	bool low_battery_voltage_actions_done = false;
 	bool critical_battery_voltage_actions_done = false;
@@ -1792,22 +1796,22 @@ int commander_thread_main(int argc, char *argv[])
 			/* check if right stick is in far middle right position and we're in MANUAL disarmed mode -> switch mission */
 			if (status.arming_state == ARMING_STATE_STANDBY &&
 			    fabsf(sp_man.y) > STICK_SWITCH_MISSION_LIMIT ) {
-				if (stick_switch_mission_counter > STICK_ON_OFF_COUNTER_LIMIT) {
-
-					// Switch mission
-					//mavlink_log_info(mavlink_fd, "Switch mission");
+				/* mission switch requested, delay action */
+				if (stick_switch_mission_counter <= STICK_ON_OFF_COUNTER_LIMIT) {
+					/* still waiting */
+					stick_switch_mission_counter++;
+				} else if (!mission_switched) {
+					/* Wait time ended and not yet switched: Switch mission */
 					int result = switch_active_offboard_mission((sp_man.y > 0) ? +1 : -1);
 					if (result != OK) {
 						mavlink_log_info(mavlink_fd, "Can't switch mission result: %d", result);
 					}
 					stick_switch_mission_counter = 0;
-
-				} else {
-					stick_switch_mission_counter++;
+					mission_switched = true;
 				}
-
 			} else {
 				stick_switch_mission_counter = 0;
+				mission_switched = false;
 			}
 
 			if (arming_ret == TRANSITION_CHANGED) {
@@ -2878,13 +2882,14 @@ switch_active_offboard_mission(int direction)
 
 	// change active storage place and reset current
 	mission_state.dataman_id = (mission_state.dataman_id + direction)  % NUM_MISSION_STORAGE_PLACES;
+	if(mission_state.dataman_id < 0) mission_state.dataman_id = NUM_MISSION_STORAGE_PLACES - 1;
 	mission_state.current_seq = 0;
 	/* update mission state in dataman */
 	int res = dm_write(DM_KEY_MISSION_STATE, 0, DM_PERSIST_POWER_ON_RESET, &mission_state, sizeof(mission_s));
+	dm_unlock(DM_KEY_MISSION_STATE);
 
 	if (res != sizeof(mission_s)) {
 		warnx("ERROR: can't switch mission state");
-		dm_unlock(DM_KEY_MISSION_STATE);
 		return ERROR;
 	}
 
@@ -2895,8 +2900,11 @@ switch_active_offboard_mission(int direction)
 	} else {
 		orb_publish(ORB_ID(offboard_mission), mission_pub, &mission_state);
 	}
-	mavlink_log_info(mavlink_fd, "#audio: mission %d",mission_state.dataman_id);
+
+	int new_mission_number = mission_state.dataman_id + 1;
+	tune_positive(true);
+	mavlink_log_info(mavlink_fd, "#audio: mission %d", new_mission_number);
 	warnx("offboard mission switched: dataman_id=%d, count=%u, current_seq=%d", mission_state.dataman_id, mission_state.count_formission[mission_state.dataman_id], mission_state.current_seq);
-	dm_unlock(DM_KEY_MISSION_STATE);
+
 	return OK;
 }

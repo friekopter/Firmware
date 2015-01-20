@@ -119,12 +119,33 @@ MavlinkMissionManager::init_offboard_mission()
 		_dataman_id = mission_state.dataman_id;
 		_count = mission_state.count_formission[_dataman_id];
 		_current_seq = mission_state.current_seq;
+		warnx("offboard mission init: dataman_id=%d, count=%u, current_seq=%d", _dataman_id, _count, _current_seq);
 
 	} else {
 		_dataman_id = 0;
 		_count = 0;
 		_current_seq = 0;
 		warnx("offboard mission init: ERROR");
+		memset(&mission_state, 0, sizeof(mission_state));
+		if (dm_write(DM_KEY_MISSION_STATE, 0, DM_PERSIST_POWER_ON_RESET, &mission_state, sizeof(mission_s)) != sizeof(mission_s)) {
+			warnx("ERROR: can't save mission state");
+		}
+	}
+}
+
+void
+MavlinkMissionManager::update_offboard_mission()
+{
+	bool updated = false;
+	orb_check(_offboard_mission_sub, &updated);
+
+	if (updated) {
+		mission_s mission_state;
+		/* parameters changed */
+		orb_copy(ORB_ID(offboard_mission), _offboard_mission_sub, &mission_state);
+		_dataman_id = mission_state.dataman_id;
+		_count = mission_state.count_formission[_dataman_id];
+		_current_seq = mission_state.current_seq;
 	}
 }
 
@@ -136,7 +157,8 @@ MavlinkMissionManager::update_active_mission(int dataman_id, unsigned count, int
 {
 	struct mission_s mission;
 	if (!dm_read(DM_KEY_MISSION_STATE, 0, &mission, sizeof(mission_s)) == sizeof(mission_s)) {
-		warnx("ERROR: can't write mission state");
+		warnx("ERROR: can't read mission state");
+		return ERROR;
 	}
 
 	mission.dataman_id = dataman_id;
@@ -248,7 +270,6 @@ MavlinkMissionManager::send_mission_item(uint8_t sysid, uint8_t compid, uint16_t
 	} else {
 		send_mission_ack(_transfer_partner_sysid, _transfer_partner_compid, MAV_MISSION_ERROR);
 		_mavlink->send_statustext_critical("Unable to read from micro SD");
-
 		if (_verbose) { warnx("WPM: Send MISSION_ITEM ERROR: could not read seq %u from dataman ID %i", seq, _dataman_id); }
 	}
 }
@@ -293,14 +314,12 @@ MavlinkMissionManager::send_mission_item_reached(uint16_t seq)
 void
 MavlinkMissionManager::send(const hrt_abstime now)
 {
+	update_offboard_mission();
 	bool updated = false;
 	orb_check(_mission_result_sub, &updated);
-
 	if (updated) {
 		mission_result_s mission_result;
 		orb_copy(ORB_ID(mission_result), _mission_result_sub, &mission_result);
-
-		_current_seq = mission_result.seq_current;
 
 		if (_verbose) { warnx("WPM: got mission result, new current_seq: %d", _current_seq); }
 
@@ -390,7 +409,7 @@ MavlinkMissionManager::handle_mission_ack(const mavlink_message_t *msg)
 {
 	mavlink_mission_ack_t wpa;
 	mavlink_msg_mission_ack_decode(msg, &wpa);
-	init_offboard_mission();
+	update_offboard_mission();
 
 	if (CHECK_SYSID_COMPID_MISSION(wpa)) {
 		if ((msg->sysid == _transfer_partner_sysid && msg->compid == _transfer_partner_compid)) {
@@ -423,7 +442,7 @@ MavlinkMissionManager::handle_mission_set_current(const mavlink_message_t *msg)
 {
 	mavlink_mission_set_current_t wpc;
 	mavlink_msg_mission_set_current_decode(msg, &wpc);
-	init_offboard_mission();
+	update_offboard_mission();
 
 	if (CHECK_SYSID_COMPID_MISSION(wpc)) {
 		if (_state == MAVLINK_WPM_STATE_IDLE) {
@@ -459,7 +478,7 @@ MavlinkMissionManager::handle_mission_request_list(const mavlink_message_t *msg)
 {
 	mavlink_mission_request_list_t wprl;
 	mavlink_msg_mission_request_list_decode(msg, &wprl);
-	init_offboard_mission();
+	update_offboard_mission();
 
 	if (CHECK_SYSID_COMPID_MISSION(wprl)) {
 		if (_state == MAVLINK_WPM_STATE_IDLE || _state == MAVLINK_WPM_STATE_SENDLIST) {
@@ -496,7 +515,7 @@ MavlinkMissionManager::handle_mission_request(const mavlink_message_t *msg)
 {
 	mavlink_mission_request_t wpr;
 	mavlink_msg_mission_request_decode(msg, &wpr);
-	init_offboard_mission();
+	update_offboard_mission();
 
 	if (CHECK_SYSID_COMPID_MISSION(wpr)) {
 		if (msg->sysid == _transfer_partner_sysid && msg->compid == _transfer_partner_compid) {
@@ -568,7 +587,7 @@ MavlinkMissionManager::handle_mission_count(const mavlink_message_t *msg)
 {
 	mavlink_mission_count_t wpc;
 	mavlink_msg_mission_count_decode(msg, &wpc);
-	init_offboard_mission();
+	update_offboard_mission();
 
 	if (CHECK_SYSID_COMPID_MISSION(wpc)) {
 		if (_state == MAVLINK_WPM_STATE_IDLE) {
@@ -634,7 +653,7 @@ MavlinkMissionManager::handle_mission_item(const mavlink_message_t *msg)
 {
 	mavlink_mission_item_t wp;
 	mavlink_msg_mission_item_decode(msg, &wp);
-	init_offboard_mission();
+	update_offboard_mission();
 
 	if (CHECK_SYSID_COMPID_MISSION(wp)) {
 		if (_state == MAVLINK_WPM_STATE_GETLIST) {
@@ -721,7 +740,7 @@ MavlinkMissionManager::handle_mission_clear_all(const mavlink_message_t *msg)
 {
 	mavlink_mission_clear_all_t wpca;
 	mavlink_msg_mission_clear_all_decode(msg, &wpca);
-	init_offboard_mission();
+	update_offboard_mission();
 
 	if (CHECK_SYSID_COMPID_MISSION(wpca)) {
 
