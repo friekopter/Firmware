@@ -1,6 +1,6 @@
 /****************************************************************************
  *
- *   Copyright (c) 2012-2014 PX4 Development Team. All rights reserved.
+ *   Copyright (c) 2012-2015 PX4 Development Team. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -834,7 +834,7 @@ PX4IO::init()
 	_task = task_spawn_cmd("px4io",
 					SCHED_DEFAULT,
 					SCHED_PRIORITY_ACTUATOR_OUTPUTS,
-					2000,
+					1800,
 					(main_t)&PX4IO::task_main_trampoline,
 					nullptr);
 
@@ -3006,7 +3006,9 @@ monitor(void)
 
 		fds[0].fd = 0;
 		fds[0].events = POLLIN;
-		poll(fds, 1, 2000);
+		if (poll(fds, 1, 2000) < 0) {
+			errx(1, "poll fail");
+		}
 
 		if (fds[0].revents == POLLIN) {
 			/* control logic is to cancel with any key */
