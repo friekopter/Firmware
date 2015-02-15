@@ -422,9 +422,8 @@ typedef struct {
 	uint16_t hDOP; 					/**< Horizontal DOP (scaling 0.01) */
 	uint16_t nDOP; 					/**< Northing DOP (scaling 0.01) */
 	uint16_t eDOP; 					/**< Easting DOP (scaling 0.01) */
-	uint8_t ck_a;
-	uint8_t ck_b;
 } ubx_payload_rx_nav_dop_t;
+
 
 /* General message and payload buffer union */
 typedef union {

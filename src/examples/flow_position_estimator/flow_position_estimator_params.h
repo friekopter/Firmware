@@ -48,7 +48,6 @@ struct flow_position_estimator_params {
 	int debug;
 	int minimum_quality;
 	float max_velocity; //Max measurable velocity rad/s
-	float flow_k;		//Focal length factor for the flow
 };
 
 struct flow_position_estimator_param_handles {
@@ -58,7 +57,6 @@ struct flow_position_estimator_param_handles {
 	param_t debug;
 	param_t minimum_quality;
 	param_t max_velocity; //Max measurable velocity rad/s
-	param_t flow_k;		//Focal length factor for the flow
 };
 
 /**

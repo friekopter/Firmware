@@ -605,6 +605,9 @@ LL40LS::collect()
 	ret = OK;
 
 	perf_end(_sample_perf);
+
+	//printf("distance: %8.2fm\n", (double)si_units);
+
 	return ret;
 }
 
@@ -706,8 +709,8 @@ LL40LS::print_info()
 	perf_print_counter(_buffer_overflows);
 	printf("poll interval:  %u ticks\n", _measure_ticks);
 	_reports->print_info("report queue");
-	printf("distance: %ucm (0x%04x)\n",
-	       (unsigned)_last_distance, (unsigned)_last_distance);
+	//printf("distance: %ucm (0x%04x)\n",
+	      // (unsigned)_last_distance, (unsigned)_last_distance);
 }
 
 /**

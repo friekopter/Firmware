@@ -20,6 +20,13 @@ else
 	lsm303 start
 fi
 
+if ll40ls start
+then 
+	echo "ll40ls started"
+else 
+	echo "failed starting ll40ls"
+fi
+
 #
 # Start the sensor collection task.
 # IMPORTANT: this also loads param offsets

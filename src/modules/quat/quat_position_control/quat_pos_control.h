@@ -17,12 +17,15 @@ typedef struct {
     float accHist[3][RUN_SENSOR_HIST];
     float magHist[3][RUN_SENSOR_HIST];
     float presHist[RUN_SENSOR_HIST];
+    //float rangeHist[RUN_SENSOR_HIST];
     float sumAcc[3];
     float sumMag[3];
     float sumPres;
+    //float sumRange;
     int accHistIndex;
     int magHistIndex;
     int presHistIndex;
+    //int rangeHistIndex;
 } runStruct_t;
 
 extern runStruct_t runData;

@@ -62,7 +62,6 @@ int parameters_init(struct flow_position_estimator_param_handles *h)
 	h->debug					=	param_find("FPE_DEBUG");
 	h->minimum_quality 			= 	param_find("FPE_MIN_QUA");
 	h->max_velocity				= 	param_find("FPE_MAX_VEL");
-	h->flow_k					= 	param_find("FPE_FLOW_K");
 	return OK;
 }
 
@@ -74,7 +73,6 @@ int parameters_update(const struct flow_position_estimator_param_handles *h, str
 	param_get(h->debug, &(p->debug));
 	param_get(h->minimum_quality, &(p->minimum_quality));
 	param_get(h->max_velocity, &(p->max_velocity));
-	param_get(h->flow_k, &(p->flow_k));
 
 	return OK;
 }

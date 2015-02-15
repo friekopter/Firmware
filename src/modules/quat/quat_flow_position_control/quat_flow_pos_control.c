@@ -21,6 +21,7 @@
 #include <sys/prctl.h>
 #include <drivers/drv_hrt.h>
 #include <drivers/drv_tone_alarm.h>
+#include <drivers/drv_range_finder.h>
 #include <geo/geo.h>
 #include <uORB/uORB.h>
 #include <uORB/topics/vehicle_status.h>
@@ -64,6 +65,7 @@ static struct vehicle_global_position_s global_position_data;
 static struct filtered_bottom_flow_s filtered_bottom_flow_data;
 static struct ukf_state_vector_s ukf_state;
 struct vehicle_gps_position_s 	gps_data;
+//struct range_finder_report range;
 
 
 struct map_projection_reference_s gps_map_ref;	/**< local projection reference */
@@ -250,7 +252,6 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 	//publish local position
 	orb_advert_t local_pos_pub = orb_advertise(ORB_ID(vehicle_local_position), &local_position_data);
 	memset(&local_position_data, 0, sizeof(local_position_data));
-	local_position_data.landed = true;
 
 	//publish global position
 	orb_advert_t global_pos_pub = orb_advertise(ORB_ID(vehicle_global_position), &global_position_data);
@@ -310,6 +311,10 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 	int gps_sub = orb_subscribe(ORB_ID(vehicle_gps_position));
 	memset(&gps_data, 0, sizeof(gps_data));
 	orb_set_interval(gps_sub, 200);	/* 5Hz updates */
+
+	// Range finder
+	//int range_finder_sub = orb_subscribe(ORB_ID(sensor_range_finder));
+	//memset(&range, 0, sizeof(range));
 
 	/*// Local position setpoint
 	int local_pos_sp_sub = orb_subscribe(ORB_ID(vehicle_local_position_setpoint));*/
@@ -759,6 +764,17 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 				}
 			}
 
+			/*
+			orb_check(range_finder_sub, &updated);
+			if (updated) {
+				orb_copy(ORB_ID(sensor_range_finder), range_finder_sub, &range);
+				runData.sumRange -= runData.rangeHist[runData.rangeHistIndex];
+				runData.rangeHist[runData.rangeHistIndex] = range.distance;
+				runData.sumRange += runData.rangeHist[runData.rangeHistIndex];
+				runData.rangeHistIndex = (runData.rangeHistIndex + 1) % run_sensor_hist;
+			}
+			*/
+
 			orb_check(pos_sp_sub, &updated);
 			if (updated)
 			{
@@ -822,7 +838,6 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 			local_position_data.vz = UKF_FLOW_VELD;
 			local_position_data.timestamp = raw.timestamp;
 			local_position_data.yaw = att.yaw;
-			local_position_data.landed = !inAir;
 			// Local position calculation results set
 
 			// +++++++++++++++++++++++++++++++++++++++++++
@@ -830,7 +845,7 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 			perf_begin(quat_flow_pos_nav_perf);
 			float manual_control_ned[3] = { 0.0f, 0.0f, 0.0f };
 			float manual_control_body[3] = { manual.y, manual.x, 0.0f };
-			// rotage body manual control to ned frame
+			// rotate body manual control to ned frame
 			utilRotateVecByMatrix2(manual_control_ned,manual_control_body,att.R);
 			manual_control_ned[2] = manual.z;
 			navFlowNavigate(&control_mode,
