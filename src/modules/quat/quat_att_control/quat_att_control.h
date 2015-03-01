@@ -61,18 +61,6 @@ typedef struct {
 extern controlStruct_t controlData;
 
 
-typedef struct {
-	const float *paramControlThrottleF;
-	const float *paramControlYawF;
-	const float *paramControlPitchF;
-	const float *paramControlRollF;
-	const float *paramControlDeadBand;
-	const float *paramHoverThrottle;
-} controlParameter_t;
-
-extern controlParameter_t controlParameter;
-
-
 #endif /* QUAT_ATT_CONTROL_H_ */
 
 

@@ -105,7 +105,7 @@ float pidUpdate(pidStruct_t *pid, float setpoint, float position) {
     }
 
     pid->pv_1 = position;
-    pid->sp_1 = setpoint;
+    //pid->sp_1 = setpoint;
     //Construct result from proportional, integral and derivative term
     pid->co_1 = pid->pTerm_1 + pid->iTerm_1 + pid->dTerm_1;
     //Constraint result in the max range
@@ -124,8 +124,8 @@ void pidZeroIntegral(pidStruct_t *pid, float pv, float iState) {
     if (fabsf(*pid->iGain) > FLT_MIN)
 	pid->iState = iState / *pid->iGain;
     pid->dState = -pv;
-    pid->sp_1 = pv;
+    //pid->sp_1 = pv;
     pid->co_1 = 0.0f;
     pid->pv_1 = pv;
-    pid->pv_2 = pv;
+    //pid->pv_2 = pv;
 }

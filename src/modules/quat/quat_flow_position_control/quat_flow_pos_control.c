@@ -335,12 +335,12 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 
 	sleep(2);
 	/* register the perf counter */
-	perf_counter_t quat_flow_pos_loop_perf = perf_alloc(PC_ELAPSED, "quat_flow_pos_control");
-	perf_counter_t quat_flow_pos_sensor_perf = perf_alloc(PC_ELAPSED, "quat_flow_pos_sensor_control");
-	perf_counter_t quat_flow_pos_inertial_perf = perf_alloc(PC_ELAPSED, "quat_flow_pos_inertial_control");
-	perf_counter_t quat_flow_pos_nav_perf = perf_alloc(PC_ELAPSED, "quat_flow_pos_nav_control");
-	perf_counter_t quat_flow_ukf_finish_perf = perf_alloc(PC_ELAPSED, "quat_flow_ukf_finish_perf");
-	perf_counter_t quat_flow_position_perf = perf_alloc(PC_ELAPSED, "quat_flow_position_perf");
+	//perf_counter_t quat_flow_pos_loop_perf = perf_alloc(PC_ELAPSED, "quat_flow_pos_control");
+	//perf_counter_t quat_flow_pos_sensor_perf = perf_alloc(PC_ELAPSED, "quat_flow_pos_sensor_control");
+	//perf_counter_t quat_flow_pos_inertial_perf = perf_alloc(PC_ELAPSED, "quat_flow_pos_inertial_control");
+	//perf_counter_t quat_flow_pos_nav_perf = perf_alloc(PC_ELAPSED, "quat_flow_pos_nav_control");
+	//perf_counter_t quat_flow_ukf_finish_perf = perf_alloc(PC_ELAPSED, "quat_flow_ukf_finish_perf");
+	//perf_counter_t quat_flow_position_perf = perf_alloc(PC_ELAPSED, "quat_flow_position_perf");
 	struct pollfd fds[8] = {
 		{ .fd = sub_raw,   .events = POLLIN },
 		{ .fd = filtered_bottom_flow_sub, .events = POLLIN },
@@ -559,7 +559,7 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 		else
 		{
 			static float dt = 0;
-			perf_begin(quat_flow_pos_loop_perf);
+			//perf_begin(quat_flow_pos_loop_perf);
 			bool updated = false;
 			orb_check(control_mode_sub, &updated);
 			if (updated) {
@@ -593,24 +593,24 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 					//	   (UKF_FLOW_Q1*UKF_FLOW_Q1 - UKF_FLOW_Q3*UKF_FLOW_Q3 - UKF_FLOW_Q4*UKF_FLOW_Q4 + UKF_FLOW_Q2*UKF_FLOW_Q2));
 
 				// raw parameter changed
-				perf_begin(quat_flow_pos_inertial_perf);
+				//perf_begin(quat_flow_pos_inertial_perf);
 				orb_copy(ORB_ID(sensor_combined), sub_raw, &raw);
 				if ( !((loopcounter + 2) % ukf_params.ukf_bias_update_count)  ) {
 					dt = navFlowUkfInertialUpdate(&raw,true);
 				} else {
 					dt = navFlowUkfInertialUpdate(&raw,false);
 				}
-				perf_end(quat_flow_pos_inertial_perf);
+				//perf_end(quat_flow_pos_inertial_perf);
 
 				/*float yawAfter = atan2f((2.0f * (UKF_FLOW_Q2 * UKF_FLOW_Q3 + UKF_FLOW_Q1 * UKF_FLOW_Q4)),
 						   (UKF_FLOW_Q1*UKF_FLOW_Q1 - UKF_FLOW_Q3*UKF_FLOW_Q3 - UKF_FLOW_Q4*UKF_FLOW_Q4 + UKF_FLOW_Q2*UKF_FLOW_Q2));
 				yawDiff1 += yawAfter - yawBefore;*/
 				if(dt < FLT_MIN) {
-					perf_end(quat_flow_pos_loop_perf);
+					//perf_end(quat_flow_pos_loop_perf);
 					continue;
 				}
 
-				perf_begin(quat_flow_pos_sensor_perf);
+				//perf_begin(quat_flow_pos_sensor_perf);
 				// record history for acc & mag & pressure readings for smoothing purposes
 				// acc
 				static uint64_t acc_timestamp = 0;
@@ -693,7 +693,7 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 									  &control_mode,
 									  &ukf_params);
 				}
-				perf_begin(quat_flow_ukf_finish_perf);
+				//perf_begin(quat_flow_ukf_finish_perf);
 				navFlowUkfFinish();
 
 /*				if(!(yawDiffCount3 % 100)) {
@@ -720,8 +720,8 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 				att.yawspeed = raw.gyro_rad_s[2];// - UKF_FLOW_GYO_BIAS_Z;
 				att.q_valid = false;
 				orb_publish(ORB_ID(vehicle_attitude), pub_att, &att);
-				perf_end(quat_flow_ukf_finish_perf);
-				perf_end(quat_flow_pos_sensor_perf);
+				//perf_end(quat_flow_ukf_finish_perf);
+				//perf_end(quat_flow_pos_sensor_perf);
 			}
 
 			// Attitude and position calculation from inertial sensors finished
@@ -731,7 +731,7 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 			if (fds[1].revents & POLLIN)
 			{
 				static uint8_t count = 0;
-				perf_begin(quat_flow_position_perf);
+				//perf_begin(quat_flow_position_perf);
 				orb_copy(ORB_ID(filtered_bottom_flow), filtered_bottom_flow_sub, &filtered_bottom_flow_data);
 				if(!control_mode.flag_armed) {
 					if(!(count++ % 2)){
@@ -748,7 +748,7 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 				}
 				////navFlowUkfFlowPosUpate(&filtered_bottom_flow_data,&control_mode,&ukf_params);
 				////navFlowUkfFlowVelUpate(&filtered_bottom_flow_data,&control_mode,&ukf_params);
-				perf_end(quat_flow_position_perf);
+				//perf_end(quat_flow_position_perf);
 			}
 			else if (fds[2].revents & POLLIN)
 			{
@@ -842,7 +842,7 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 
 			// +++++++++++++++++++++++++++++++++++++++++++
 			// Do navigation, calculate setpoints
-			perf_begin(quat_flow_pos_nav_perf);
+			//perf_begin(quat_flow_pos_nav_perf);
 			float manual_control_ned[3] = { 0.0f, 0.0f, 0.0f };
 			float manual_control_body[3] = { manual.y, manual.x, 0.0f };
 			// rotate body manual control to ned frame
@@ -858,7 +858,7 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 							sonarValid,
 							raw.timestamp,
 							mavlink_fd);
-			perf_end(quat_flow_pos_nav_perf);
+			//perf_end(quat_flow_pos_nav_perf);
 			// rotate nav's NE frame of reference to our craft's local frame of reference
 			// Tilt north means for yaw=0 nose up. If yaw=90 degrees it means left wing up that is positive roll
 			float tilt[3] = { navFlowData.holdTiltX, navFlowData.holdTiltY, 0.0f };
@@ -879,7 +879,7 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 				control_mode.flag_control_altitude_enabled) {
 				orb_publish(ORB_ID(vehicle_attitude_setpoint), att_sp_pub, &att_sp);
 			}
-			perf_end(quat_flow_pos_loop_perf);
+			//perf_end(quat_flow_pos_loop_perf);
 
 			// +++++++++++++++++++++++++++++++++++++++++++
 			// Publish Results

@@ -6,7 +6,7 @@
 __BEGIN_DECLS
 
 typedef struct {
-    float setPoint;		// Last setpoint
+    //float setPoint;		// Last setpoint
     float dState;		// Last position input
     float iState;		// Integrator state
     const float *iGain;		// integral gain
@@ -15,12 +15,12 @@ typedef struct {
     const float *fGain;		// low pass filter factor (1 - pole) for derivative gain
     const float *pMax, *iMax, *dMax, *oMax;
     const int *pTrim, *iTrim, *dTrim, *fTrim;	// pointers to radio trim channels (or NULL)
-    float pv_1, pv_2;
+    float pv_1;//, pv_2;
     float co_1;
     float pTerm_1;
     float iTerm_1;
     float dTerm_1;
-    float sp_1;
+    //float sp_1;
 } pidStruct_t;
 
 __EXPORT  pidStruct_t *pidInit(const float *p,const float *i,const float *d,const float *f,const float *pMax,const float *iMax,const float *dMax,const float *oMax,const int *pTrim,const int *iTrim,const int *dTrim,const int *fTrim);

@@ -14,7 +14,6 @@
 
 
 controlStruct_t controlData;
-controlParameter_t controlParameter;
 
 
 uint32_t controller_counter = 0;
@@ -74,11 +73,6 @@ void control_quadrotor_attitude_init(		const struct attitude_pid_quat_params *ti
     controlData.yawAngle = pidInit(&yaw_angle->p, &yaw_angle->i, &yaw_angle->d, &yaw_angle->f,
 									&yaw_angle->max_p, &yaw_angle->max_i, &yaw_angle->max_d, &yaw_angle->max_o,
 									0, 0, 0, 0);
-    controlParameter.paramControlDeadBand 	= &control->controlDeadBand;
-    controlParameter.paramControlPitchF 		= &control->controlPitchF;
-    controlParameter.paramControlRollF 		= &control->controlRollF;
-    controlParameter.paramControlThrottleF 	= &control->controlThrottleF;
-    controlParameter.paramControlYawF 			= &control->controlYawF;
 }
 
 void control_quadrotor_attitude(

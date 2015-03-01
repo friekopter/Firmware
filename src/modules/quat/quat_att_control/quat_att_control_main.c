@@ -79,8 +79,6 @@ static bool thread_should_exit;
 static int mc_task;
 static bool motor_test_mode = false;
 
-static orb_advert_t actuator_pub;
-
 int
 quat_att_control_thread_main(int argc, char *argv[]);
 
@@ -167,7 +165,7 @@ quat_att_control_thread_main(int argc, char *argv[])
 		actuators.control[i] = 0.0f;
 	}
 
-	actuator_pub = orb_advertise(ORB_ID_VEHICLE_ATTITUDE_CONTROLS, &actuators);
+	orb_advert_t actuator_pub = orb_advertise(ORB_ID_VEHICLE_ATTITUDE_CONTROLS, &actuators);
 	orb_advert_t att_sp_pub = orb_advertise(ORB_ID(vehicle_attitude_setpoint), &att_sp);
 	orb_advert_t rates_sp_pub = orb_advertise(ORB_ID(vehicle_rates_setpoint), &rates_sp);
 
