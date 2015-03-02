@@ -89,6 +89,8 @@ public:
 	void set_time_constant(float time_constant);
 	void set_k_p(float k_p);
 	void set_k_i(float k_i);
+	void set_k_d(float k_d);
+	void set_k_f(float k_f);
 	void set_k_ff(float k_ff);
 	void set_integrator_max(float max);
 	void set_max_rate(float max_rate);
@@ -105,12 +107,15 @@ protected:
 	float _tc;
 	float _k_p;
 	float _k_i;
+	float _k_d;
+	float _k_f;
 	float _k_ff;
 	float _integrator_max;
 	float _max_rate;
 	float _last_output;
 	float _integrator;
 	float _rate_error;
+	float _rate_diff_error_state;
 	float _rate_setpoint;
 	float _bodyrate_setpoint;
 	perf_counter_t _nonfinite_input_perf;

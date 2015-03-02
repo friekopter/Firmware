@@ -161,6 +161,28 @@ PARAM_DEFINE_FLOAT(FW_RR_P, 0.05f);
 PARAM_DEFINE_FLOAT(FW_RR_I, 0.0f);
 
 /**
+ * Roll rate differential Gain
+ *
+ * This gain defines how much control response will result out of a steady
+ * state error. It trims any constant error.
+ *
+ * @min 0.0
+ * @max 100.0
+ * @group FW Attitude Control
+ */
+PARAM_DEFINE_FLOAT(FW_RR_D, 0.0f);
+/**
+ * Roll rate f Gain
+ *
+ * This gain defines how much control response will result out of a steady
+ * state error. It trims any constant error.
+ *
+ * @min 0.0
+ * @max 100.0
+ * @group FW Attitude Control
+ */
+PARAM_DEFINE_FLOAT(FW_RR_F, 0.0f);
+/**
  * Roll Integrator Anti-Windup
  *
  * The portion of the integrator part in the control surface deflection is limited to this value.

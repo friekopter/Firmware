@@ -144,10 +144,25 @@ float ECL_RollController::control_bodyrate(const struct ECL_ControlData &ctl_dat
 	float integrator_constrained = math::constrain(_integrator * _k_i, -_integrator_max, _integrator_max);
 	//warnx("roll: _integrator: %.4f, _integrator_max: %.4f", (double)_integrator, (double)_integrator_max);
 
+	//Calculate D term
+  	// uncomment this line if you want the D term to ignore set point changes
+	float diff_error = -roll_bodyrate;
+	float d_term = (_k_d * _k_f) * (diff_error - _rate_diff_error_state);
+	_rate_diff_error_state += _k_f * (diff_error - _rate_diff_error_state);
+	if (d_term > 1.0f)
+	{
+		d_term = 1.0f;
+	}
+	else if (d_term < -1.0f)
+	{
+		d_term = -1.0;
+	}
+
 	/* Apply PI rate controller and store non-limited output */
 	_last_output = _bodyrate_setpoint * _k_ff * ctl_data.scaler +
 		_rate_error * _k_p * ctl_data.scaler * ctl_data.scaler
-		+ integrator_constrained;  //scaler is proportional to 1/airspeed
+		+ integrator_constrained  //scaler is proportional to 1/airspeed
+		+ d_term;
 
 	return math::constrain(_last_output, -1.0f, 1.0f);
 }

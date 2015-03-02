@@ -168,6 +168,7 @@ private:
 		float r_p;
 		float r_d;
 		float r_i;
+		float r_f;
 		float r_ff;
 		float r_integrator_max;
 		float r_rmax;
@@ -210,6 +211,7 @@ private:
 		param_t r_p;
 		param_t r_d;
 		param_t r_i;
+		param_t r_f;
 		param_t r_ff;
 		param_t r_integrator_max;
 		param_t r_rmax;
@@ -371,6 +373,8 @@ FixedwingAttitudeControl::FixedwingAttitudeControl() :
 
 	_parameter_handles.r_p = param_find("FW_RR_P");
 	_parameter_handles.r_i = param_find("FW_RR_I");
+	_parameter_handles.r_d = param_find("FW_RR_D");
+	_parameter_handles.r_f = param_find("FW_RR_F");
 	_parameter_handles.r_ff = param_find("FW_RR_FF");
 	_parameter_handles.r_integrator_max = param_find("FW_RR_IMAX");
 	_parameter_handles.r_rmax = param_find("FW_R_RMAX");
@@ -444,6 +448,8 @@ FixedwingAttitudeControl::parameters_update()
 
 	param_get(_parameter_handles.r_p, &(_parameters.r_p));
 	param_get(_parameter_handles.r_i, &(_parameters.r_i));
+	param_get(_parameter_handles.r_d, &(_parameters.r_d));
+	param_get(_parameter_handles.r_f, &(_parameters.r_f));
 	param_get(_parameter_handles.r_ff, &(_parameters.r_ff));
 
 	param_get(_parameter_handles.r_integrator_max, &(_parameters.r_integrator_max));
@@ -486,6 +492,8 @@ FixedwingAttitudeControl::parameters_update()
 	_roll_ctrl.set_time_constant(_parameters.tconst);
 	_roll_ctrl.set_k_p(_parameters.r_p);
 	_roll_ctrl.set_k_i(_parameters.r_i);
+	_roll_ctrl.set_k_d(_parameters.r_d);
+	_roll_ctrl.set_k_f(_parameters.r_f);
 	_roll_ctrl.set_k_ff(_parameters.r_ff);
 	_roll_ctrl.set_integrator_max(_parameters.r_integrator_max);
 	_roll_ctrl.set_max_rate(math::radians(_parameters.r_rmax));

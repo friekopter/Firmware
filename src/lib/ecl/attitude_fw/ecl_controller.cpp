@@ -97,6 +97,16 @@ void ECL_Controller::set_k_i(float k_i)
 	_k_i = k_i;
 }
 
+void ECL_Controller::set_k_d(float k_d)
+{
+	_k_d = k_d;
+}
+
+void ECL_Controller::set_k_f(float k_f)
+{
+	_k_f = k_f;
+}
+
 void ECL_Controller::set_k_ff(float k_ff)
 {
 	_k_ff = k_ff;
