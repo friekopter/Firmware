@@ -61,11 +61,12 @@ ECL_PitchController::~ECL_PitchController()
 float ECL_PitchController::control_attitude(const struct ECL_ControlData &ctl_data)
 {
 	float roll = ctl_data.roll;
+
 	/* Do not calculate control signal with bad inputs */
 	if (!(isfinite(ctl_data.pitch_setpoint) &&
-				isfinite(roll) &&
-				isfinite(ctl_data.pitch) &&
-				isfinite(ctl_data.airspeed))) {
+	      isfinite(roll) &&
+	      isfinite(ctl_data.pitch) &&
+	      isfinite(ctl_data.airspeed))) {
 		perf_count(_nonfinite_input_perf);
 		warnx("not controlling pitch");
 		return _rate_setpoint;
@@ -78,6 +79,7 @@ float ECL_PitchController::control_attitude(const struct ECL_ControlData &ctl_da
 	if (fabsf(roll) < math::radians(90.0f)) {
 		/* not inverted, but numerically still potentially close to infinity */
 		roll = math::constrain(roll, math::radians(-80.0f), math::radians(80.0f));
+
 	} else {
 		/* inverted flight, constrain on the two extremes of -pi..+pi to avoid infinity */
 
@@ -85,6 +87,7 @@ float ECL_PitchController::control_attitude(const struct ECL_ControlData &ctl_da
 		if (roll > 0.0f) {
 			/* right hemisphere */
 			roll = math::constrain(roll, math::radians(100.0f), math::radians(180.0f));
+
 		} else {
 			/* left hemisphere */
 			roll = math::constrain(roll, math::radians(-100.0f), math::radians(-180.0f));
@@ -96,9 +99,11 @@ float ECL_PitchController::control_attitude(const struct ECL_ControlData &ctl_da
 	/* calculate the offset in the rate resulting from rolling  */
 	//xxx needs explanation and conversion to body angular rates or should be removed
 	float turn_offset = fabsf((CONSTANTS_ONE_G / airspeed) *
-				tanf(roll) * sinf(roll)) * _roll_ff;
-	if (inverted)
+				  tanf(roll) * sinf(roll)) * _roll_ff;
+
+	if (inverted) {
 		turn_offset = -turn_offset;
+	}
 
 	/* Calculate the error */
 	float pitch_error = ctl_data.pitch_setpoint - ctl_data.pitch;
@@ -110,9 +115,11 @@ float ECL_PitchController::control_attitude(const struct ECL_ControlData &ctl_da
 	_rate_setpoint += turn_offset;
 
 	/* limit the rate */ //XXX: move to body angluar rates
+
 	if (_max_rate > 0.01f && _max_rate_neg > 0.01f) {
 		if (_rate_setpoint > 0.0f) {
 			_rate_setpoint = (_rate_setpoint > _max_rate) ? _max_rate : _rate_setpoint;
+
 		} else {
 			_rate_setpoint = (_rate_setpoint < -_max_rate_neg) ? -_max_rate_neg : _rate_setpoint;
 		}
@@ -126,13 +133,13 @@ float ECL_PitchController::control_bodyrate(const struct ECL_ControlData &ctl_da
 {
 	/* Do not calculate control signal with bad inputs */
 	if (!(isfinite(ctl_data.roll) &&
-				isfinite(ctl_data.pitch) &&
-				isfinite(ctl_data.pitch_rate) &&
-				isfinite(ctl_data.yaw_rate) &&
-				isfinite(ctl_data.yaw_rate_setpoint) &&
-				isfinite(ctl_data.airspeed_min) &&
-				isfinite(ctl_data.airspeed_max) &&
-				isfinite(ctl_data.scaler))) {
+	      isfinite(ctl_data.pitch) &&
+	      isfinite(ctl_data.pitch_rate) &&
+	      isfinite(ctl_data.yaw_rate) &&
+	      isfinite(ctl_data.yaw_rate_setpoint) &&
+	      isfinite(ctl_data.airspeed_min) &&
+	      isfinite(ctl_data.airspeed_max) &&
+	      isfinite(ctl_data.scaler))) {
 		perf_count(_nonfinite_input_perf);
 		return math::constrain(_last_output, -1.0f, 1.0f);
 	}
@@ -144,16 +151,18 @@ float ECL_PitchController::control_bodyrate(const struct ECL_ControlData &ctl_da
 
 	/* lock integral for long intervals */
 	bool lock_integrator = ctl_data.lock_integrator;
-	if (dt_micros > 500000)
+
+	if (dt_micros > 500000) {
 		lock_integrator = true;
+	}
 
 	/* Transform setpoint to body angular rates (jacobian) */
 	_bodyrate_setpoint = cosf(ctl_data.roll) * _rate_setpoint +
-		cosf(ctl_data.pitch) * sinf(ctl_data.roll) * ctl_data.yaw_rate_setpoint;
+			     cosf(ctl_data.pitch) * sinf(ctl_data.roll) * ctl_data.yaw_rate_setpoint;
 
 	/* Transform estimation to body angular rates (jacobian) */
 	float pitch_bodyrate = cosf(ctl_data.roll) * ctl_data.pitch_rate +
-		cosf(ctl_data.pitch) * sinf(ctl_data.roll) * ctl_data.yaw_rate;
+			       cosf(ctl_data.pitch) * sinf(ctl_data.roll) * ctl_data.yaw_rate;
 
 	_rate_error = _bodyrate_setpoint - pitch_bodyrate;
 
@@ -167,6 +176,7 @@ float ECL_PitchController::control_bodyrate(const struct ECL_ControlData &ctl_da
 		if (_last_output < -1.0f) {
 			/* only allow motion to center: increase value */
 			id = math::max(id, 0.0f);
+
 		} else if (_last_output > 1.0f) {
 			/* only allow motion to center: decrease value */
 			id = math::min(id, 0.0f);
@@ -181,8 +191,8 @@ float ECL_PitchController::control_bodyrate(const struct ECL_ControlData &ctl_da
 
 	/* Apply PI rate controller and store non-limited output */
 	_last_output = _bodyrate_setpoint * _k_ff * ctl_data.scaler +
-		_rate_error * _k_p * ctl_data.scaler * ctl_data.scaler
-		+ integrator_constrained;  //scaler is proportional to 1/airspeed
+		       _rate_error * _k_p * ctl_data.scaler * ctl_data.scaler
+		       + integrator_constrained;  //scaler is proportional to 1/airspeed
 //	warnx("pitch: _integrator: %.4f, _integrator_max: %.4f, airspeed %.4f, _k_i %.4f, _k_p: %.4f", (double)_integrator, (double)_integrator_max, (double)airspeed, (double)_k_i, (double)_k_p);
 //	warnx("roll: _last_output %.4f", (double)_last_output);
 	return math::constrain(_last_output, -1.0f, 1.0f);
