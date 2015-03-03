@@ -189,10 +189,24 @@ float ECL_PitchController::control_bodyrate(const struct ECL_ControlData &ctl_da
 	//xxx: until start detection is available: integral part in control signal is limited here
 	float integrator_constrained = math::constrain(_integrator * _k_i, -_integrator_max, _integrator_max);
 
-	/* Apply PI rate controller and store non-limited output */
+	//Calculate D term
+	float diff_error = -pitch_bodyrate;
+	float d_term = (_k_d * _k_f) * (diff_error - _rate_diff_error_state);
+	_rate_diff_error_state += _k_f * (diff_error - _rate_diff_error_state);
+	if (d_term > 1.0f)
+	{
+		d_term = 1.0f;
+	}
+	else if (d_term < -1.0f)
+	{
+		d_term = -1.0;
+	}
+
+	/* Apply PID rate controller and store non-limited output */
 	_last_output = _bodyrate_setpoint * _k_ff * ctl_data.scaler +
 		       _rate_error * _k_p * ctl_data.scaler * ctl_data.scaler
-		       + integrator_constrained;  //scaler is proportional to 1/airspeed
+		       + integrator_constrained  //scaler is proportional to 1/airspeed
+			   + d_term;
 //	warnx("pitch: _integrator: %.4f, _integrator_max: %.4f, airspeed %.4f, _k_i %.4f, _k_p: %.4f", (double)_integrator, (double)_integrator_max, (double)airspeed, (double)_k_i, (double)_k_p);
 //	warnx("roll: _last_output %.4f", (double)_last_output);
 	return math::constrain(_last_output, -1.0f, 1.0f);

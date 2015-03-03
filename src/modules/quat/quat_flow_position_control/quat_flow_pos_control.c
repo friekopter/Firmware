@@ -711,7 +711,7 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 
 				// Publish attitude
 				att.R_valid = true;
-				utilQuatToMatrix2(att.R, &UKF_FLOW_Q1, 1);
+				utilQuatToMatrix(att.R, &UKF_FLOW_Q1, 1);
 				att.roll = navFlowUkfData.roll;
 				att.pitch = navFlowUkfData.pitch;
 				att.yaw = navFlowUkfData.yaw;
@@ -846,7 +846,7 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 			float manual_control_ned[3] = { 0.0f, 0.0f, 0.0f };
 			float manual_control_body[3] = { manual.y, manual.x, 0.0f };
 			// rotate body manual control to ned frame
-			utilRotateVecByMatrix2(manual_control_ned,manual_control_body,att.R);
+			utilRotateVecByMatrix(manual_control_ned,manual_control_body,att.R);
 			manual_control_ned[2] = manual.z;
 			navFlowNavigate(&control_mode,
 							&vstatus,
@@ -863,7 +863,7 @@ quat_flow_pos_control_thread_main(int argc, char *argv[])
 			// Tilt north means for yaw=0 nose up. If yaw=90 degrees it means left wing up that is positive roll
 			float tilt[3] = { navFlowData.holdTiltX, navFlowData.holdTiltY, 0.0f };
 			float tilt_body[3] = { 0.0f, 0.0f, 0.0f };
-			utilRotateVecByRevMatrix2(tilt_body,tilt,att.R);
+			utilRotateVecByRevMatrix(tilt_body,tilt,att.R);
 			att_sp.roll_body   = +tilt_body[1] * DEG_TO_RAD;
 			att_sp.pitch_body  = -tilt_body[0] * DEG_TO_RAD;
 			att_sp.thrust = navFlowData.autoThrust;

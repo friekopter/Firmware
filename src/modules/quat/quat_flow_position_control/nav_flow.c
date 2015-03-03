@@ -30,11 +30,19 @@
 #include <stdio.h>
 #include <uORB/topics/manual_control_setpoint.h>
 #include <uORB/topics/position_setpoint_triplet.h>
+#include <uORB/topics/position_setpoint.h>
 #include <uORB/topics/subsystem_info.h>
 #include <uORB/topics/home_position.h>
 #include <mavlink/mavlink_log.h>
 
 #define CTRL_DEAD_BAND (60.0f/1000.0f)
+#define SETPOINT_TYPE_POSITION 0
+#define SETPOINT_TYPE_VELOCITY 1
+#define SETPOINT_TYPE_LOITER 2
+#define SETPOINT_TYPE_TAKEOFF 3
+#define SETPOINT_TYPE_LAND 4
+#define SETPOINT_TYPE_IDLE 5
+#define SETPOINT_TYPE_OFFBOARD 6
 
 static orb_advert_t subsystem_info_pub = -1;
 static orb_advert_t home_position_pub = -1;
@@ -65,7 +73,7 @@ void navCalculateThrust (	const struct vehicle_control_mode_s *control_mode,
 float navCalculateTakeoffThrust(const uint64_t timestamp, const float takeoffThrust);
 
 void navAudioState( const uint8_t navigationMode,
-					const enum SETPOINT_TYPE position_setpoint_triplet,
+					const uint8_t position_setpoint_type,
 					const bool failsafe,
 					const int mavlink_fd );
 
@@ -115,12 +123,12 @@ void navFlowSetHoldHeading(float targetHeading) {
 }
 
 void navAudioState( const uint8_t navigationMode,
-					const enum SETPOINT_TYPE position_setpoint_type,
+					const uint8_t position_setpoint_type,
 					const bool failsafe,
 					const int mavlink_fd ) {
 
 	static uint8_t currentNavMode = NAV_STATUS_MANUAL;
-	static enum SETPOINT_TYPE currentSetpointType = SETPOINT_TYPE_IDLE;
+	static uint8_t currentSetpointType = SETPOINT_TYPE_IDLE;
 	static bool currentFailsafe = false;
 	static uint8_t count = 0;
 	if((count++ % 10)) {

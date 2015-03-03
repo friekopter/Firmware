@@ -111,6 +111,7 @@ bool condition_local_altitude_valid
 bool condition_airspeed_valid			# set to true by the commander app if there is a valid airspeed measurement available
 bool condition_landed				# true if vehicle is landed, always true if disarmed
 bool condition_power_input_valid		# set if input power is valid
+bool condition_range_violated			# true if allowed vehicle ranges was exceeded
 float32 avionics_power_rail_voltage		# voltage of the avionics power rail
 
 bool rc_signal_found_once

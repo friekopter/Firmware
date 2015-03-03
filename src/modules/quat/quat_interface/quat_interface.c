@@ -23,6 +23,8 @@
 #include <uORB/uORB.h>
 #include <uORB/topics/vehicle_status.h>
 #include <uORB/topics/actuator_controls.h>
+#include <uORB/topics/actuator_controls_0.h>
+#include <uORB/topics/actuator_controls_1.h>
 #include <uORB/topics/actuator_armed.h>
 
 #include <systemlib/systemlib.h>

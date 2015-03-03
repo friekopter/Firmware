@@ -64,6 +64,8 @@
 #include <uORB/topics/vehicle_rates_setpoint.h>
 #include <uORB/topics/sensor_combined.h>
 #include <uORB/topics/actuator_controls.h>
+#include <uORB/topics/actuator_controls_0.h>
+#include <uORB/topics/actuator_controls_1.h>
 #include <uORB/topics/parameter_update.h>
 
 #include <systemlib/perf_counter.h>

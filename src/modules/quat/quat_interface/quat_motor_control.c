@@ -26,7 +26,7 @@ int quat_write_motor_commands(const bool simulation, uint16_t motor1, uint16_t m
 	if(!initialized){
 		mkMotorDriver_init();
 		memset(&outputs, 0, sizeof(outputs));
-		pub = orb_advertise(ORB_ID_VEHICLE_CONTROLS, &outputs);
+		pub = orb_advertise(ORB_ID(actuator_outputs), &outputs);
 		initialized = TRUE;
 	}
 	const unsigned int min_motor_interval = 4900;
@@ -53,7 +53,7 @@ int quat_write_motor_commands(const bool simulation, uint16_t motor1, uint16_t m
 			ret |= mkMotorDriver_set_11bit_pwm(MOT4, motor4);
 		}
 		/* publish just written values */
-		orb_publish(ORB_ID_VEHICLE_CONTROLS, pub, &outputs);
+		orb_publish(ORB_ID(actuator_outputs), pub, &outputs);
 		last_motor_time = currentTime;
 		return ret;
 	} else {

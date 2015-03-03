@@ -65,6 +65,7 @@
 #include <uORB/topics/optical_flow.h>
 #include <uORB/topics/filtered_bottom_flow.h>
 #include <uORB/topics/subsystem_info.h>
+#include <platforms/px4_defines.h>
 #include <quat/utils/util.h>
 #include <systemlib/perf_counter.h>
 #include <poll.h>
@@ -175,7 +176,7 @@ uint8_t quat_flow_calculate_flow(
 	const float max_flow = params->max_velocity;	// max flow value that can be used, rad/s
 	if( !local_position_data->dist_bottom_valid ||
 			flow->quality < (uint8_t)params->minimum_quality ||
-			att->R[2][2] <= 0.7f)
+			PX4_R(att->R,2,2) <= 0.7f)
 	{
 		//invalid position or bad quality
 		flow->pixel_flow_x_integral = 0.0f;
@@ -183,7 +184,7 @@ uint8_t quat_flow_calculate_flow(
 		return 0;
 	}
 	/* distance to surface */
-	float flow_dist = local_position_data->dist_bottom / att->R[2][2];
+	float flow_dist = local_position_data->dist_bottom / PX4_R(att->R,2,2);
 	/* check if flow is too large for accurate measurements */
 	/* calculate estimated velocity in body frame */
 	float body_v_est[3] = { 0.0f, 0.0f, 0.0f };
@@ -192,9 +193,9 @@ uint8_t quat_flow_calculate_flow(
 	// Transfer velocity to body frame
 	for (int i = 0; i < 3; i++) {
 		// world to body
-		body_v_est[i] = att->R[0][i] * local_position_data->vx +
-						att->R[1][i] * local_position_data->vy +
-						att->R[2][i] * local_position_data->vz;
+		body_v_est[i] = PX4_R(att->R,0,i) * local_position_data->vx +
+						PX4_R(att->R,1,i) * local_position_data->vy +
+						PX4_R(att->R,2,i) * local_position_data->vz;
 	}
 
 	// Calculate a measure of flow accuracy based on the expected flow velocity
@@ -240,7 +241,7 @@ uint8_t quat_flow_calculate_flow(
 	float flow_v[3] = { 0.0f, 0.0f, 0.0f };
 
 	/* project measurements vector to NED basis, skip Z component */
-    utilRotateVecByMatrix2(flow_v, flow_mb, att->R);
+    utilRotateVecByMatrix(flow_v, flow_mb, att->R);
 
 	flow->pixel_flow_x_integral = flow_v[0];
 	flow->pixel_flow_y_integral = flow_v[1];
@@ -300,7 +301,7 @@ void quat_flow_calculate_altitude(bool vehicle_liftoff,
 		sonar_last = sonar_new;
 	}
 
-	if ((!sonar_valid || att->R[2][2] <= 0.7f) &&
+	if ((!sonar_valid || PX4_R(att->R,2,2) <= 0.7f) &&
 			!params->debug)
 	{
 			filtered_flow->ned_vz = 0.0f;
@@ -316,18 +317,18 @@ void quat_flow_calculate_altitude(bool vehicle_liftoff,
 		if (height_diff < -params->sonar_lower_lp_threshold ||
 				height_diff > params->sonar_upper_lp_threshold)
 		{
-			filtered_flow->ned_z = -sonar_lp * att->R[2][2];
+			filtered_flow->ned_z = -sonar_lp * PX4_R(att->R,2,2);
 			filtered_flow->ground_distance = -sonar_lp;
 		}
 		else
 		{
-			filtered_flow->ned_z = -sonar_new * att->R[2][2];
+			filtered_flow->ned_z = -sonar_new * PX4_R(att->R,2,2);
 			filtered_flow->ground_distance = -sonar_new;
 		}
 		// Velocity
 		// Only calculate if last measurement was valid
 		float time_since_last_sonar = ((float)(current_timestamp - sonar_last_timestamp))/1000000.0f;
-		float ned_z_lp = -sonar_lp * att->R[2][2];
+		float ned_z_lp = -sonar_lp * PX4_R(att->R,2,2);
 		if(debug) printf("..m:%8.4f\tv:%8.4f\n", (double)filtered_flow->ned_z, (double)time_since_last_sonar);
 
 		if(time_since_last_sonar > 0.09f &&

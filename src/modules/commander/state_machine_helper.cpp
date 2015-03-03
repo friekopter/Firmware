@@ -524,13 +524,13 @@ bool set_nav_state(struct vehicle_status_s *status, const bool data_link_loss_en
 			status->failsafe = true;
 
 			if (status->condition_global_position_valid && status->condition_home_position_valid) {
-				status->nav_state = NAVIGATION_STATE_AUTO_RTGS;
+				status->nav_state = vehicle_status_s::NAVIGATION_STATE_AUTO_RTGS;
 			} else if (status->condition_local_position_valid) {
-				status->nav_state = NAVIGATION_STATE_LAND;
+				status->nav_state = vehicle_status_s::NAVIGATION_STATE_LAND;
 			} else if (status->condition_local_altitude_valid) {
-				status->nav_state = NAVIGATION_STATE_DESCEND;
+				status->nav_state = vehicle_status_s::NAVIGATION_STATE_DESCEND;
 			} else {
-				status->nav_state = NAVIGATION_STATE_TERMINATION;
+				status->nav_state = vehicle_status_s::NAVIGATION_STATE_TERMINATION;
 			}
 
 		/* datalink loss enabled:
