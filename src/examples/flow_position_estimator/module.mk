@@ -43,4 +43,3 @@ SRCS		= flow_position_estimator_main.c \
 EXTRACFLAGS = -Wno-float-equal
 
 		  
-INCLUDE_DIRS	 += ../../modules/quat/utils

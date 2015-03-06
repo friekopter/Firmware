@@ -114,6 +114,7 @@ void flow_calculate_altitude2(bool vehicle_liftoff,
 		struct flow_position_estimator_params* params,
 		struct filtered_bottom_flow_s* filtered_flow,
 		struct vehicle_attitude_s* att);
+void flowRotateVecByMatrix(float *vr, float *v, float *m);
 
 static void usage(const char *reason)
 {
@@ -121,6 +122,12 @@ static void usage(const char *reason)
 		fprintf(stderr, "%s\n", reason);
 	fprintf(stderr, "usage: daemon {start|stop|status} [-p <additional params>]\n\n");
 	exit(1);
+}
+
+void flowRotateVecByMatrix(float *vr, float *v, float *m) {
+    vr[0] = m[0*3 + 0]*v[0] + m[0*3 + 1]*v[1] + m[0*3 + 2]*v[2];
+    vr[1] = m[1*3 + 0]*v[0] + m[1*3 + 1]*v[1] + m[1*3 + 2]*v[2];
+    vr[2] = m[2*3 + 0]*v[0] + m[2*3 + 1]*v[1] + m[2*3 + 2]*v[2];
 }
 
 /**
@@ -248,7 +255,7 @@ uint8_t flow_calculate_flow(
     }
 
 	/* project measurements vector to NED basis, skip Z component */
-    utilRotateVecByMatrix(flow_v_ned, flow_mb, att->R);
+    flowRotateVecByMatrix(flow_v_ned, flow_mb, att->R);
 
 	return flow_accuracy;
 }
