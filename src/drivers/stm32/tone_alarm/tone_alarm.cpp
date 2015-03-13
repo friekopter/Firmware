@@ -891,7 +891,8 @@ tone_alarm_main(int argc, char *argv[])
 		const char *argv1 = argv[1];
 
 		if (!strcmp(argv1, "start"))
-			play_tune(TONE_STARTUP_TUNE);
+			play_tune(TONE_SINGLE_BEEP_TUNE);
+//			play_tune(TONE_STARTUP_TUNE);
 
 		if (!strcmp(argv1, "stop"))
 			play_tune(TONE_STOP_TUNE);
