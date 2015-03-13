@@ -783,6 +783,9 @@ bool handle_command(struct vehicle_status_s *status_local, const struct safety_s
 	case VEHICLE_CMD_CUSTOM_2:
 	case VEHICLE_CMD_PAYLOAD_PREPARE_DEPLOY:
 	case VEHICLE_CMD_PAYLOAD_CONTROL_DEPLOY:
+	case VEHICLE_CMD_DO_MOUNT_CONTROL:
+	case VEHICLE_CMD_DO_MOUNT_CONTROL_QUAT:
+	case VEHICLE_CMD_DO_MOUNT_CONFIGURE:
 		/* ignore commands that handled in low prio loop */
 		break;
 
@@ -1031,7 +1034,7 @@ int commander_thread_main(int argc, char *argv[])
 
 	pthread_attr_t commander_low_prio_attr;
 	pthread_attr_init(&commander_low_prio_attr);
-	pthread_attr_setstacksize(&commander_low_prio_attr, 2400);
+	pthread_attr_setstacksize(&commander_low_prio_attr, 2000);
 
 	struct sched_param param;
 	(void)pthread_attr_getschedparam(&commander_low_prio_attr, &param);
