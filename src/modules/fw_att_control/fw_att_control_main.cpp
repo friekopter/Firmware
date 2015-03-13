@@ -874,28 +874,8 @@ FixedwingAttitudeControl::task_main()
 					if (_att_sp.yaw_reset_integral) {
 						_yaw_ctrl.reset_integrator();
 					}
-				}
-				else if (_vcontrol_mode.flag_control_velocity_enabled) {
- 					/* 
-					 * Velocity should be controlled and manual is enabled.
-					*/
-					roll_sp = (_manual.y * _parameters.man_roll_max - _parameters.trim_roll)
-											+ _parameters.rollsp_offset_rad;
-					pitch_sp = _att_sp.pitch_body + _parameters.pitchsp_offset_rad;
-					throttle_sp = _att_sp.thrust;
-
-					/* reset integrals where needed */
-					if (_att_sp.roll_reset_integral) {
-						_roll_ctrl.reset_integrator();
-					}
-					if (_att_sp.pitch_reset_integral) {
-						_pitch_ctrl.reset_integrator();
-					}
-					if (_att_sp.yaw_reset_integral) {
-						_yaw_ctrl.reset_integrator();
-					}
 				} else if (_vcontrol_mode.flag_control_velocity_enabled) {
- 					/*
+ 					/* 
 					 * Velocity should be controlled and manual is enabled.
 					*/
 					roll_sp = (_manual.y * _parameters.man_roll_max - _parameters.trim_roll)
