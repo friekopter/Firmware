@@ -90,6 +90,29 @@ PARAM_DEFINE_FLOAT(FW_PR_P, 0.05f);
 PARAM_DEFINE_FLOAT(FW_PR_I, 0.0f);
 
 /**
+ * Pitch rate differential Gain
+ *
+ * This gain defines how much control response will result out of a steady
+ * state error. It trims any constant error.
+ *
+ * @min 0.0
+ * @max 100.0
+ * @group FW Attitude Control
+ */
+PARAM_DEFINE_FLOAT(FW_PR_D, 0.0f);
+/**
+ * Pitch rate f Gain
+ *
+ * This gain defines how much control response will result out of a steady
+ * state error. It trims any constant error.
+ *
+ * @min 0.0
+ * @max 100.0
+ * @group FW Attitude Control
+ */
+PARAM_DEFINE_FLOAT(FW_PR_F, 0.0f);
+
+/**
  * Maximum positive / up pitch rate.
  *
  * This limits the maximum pitch up angular rate the controller will output (in

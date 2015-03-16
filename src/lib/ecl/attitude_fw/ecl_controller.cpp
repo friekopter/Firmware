@@ -62,6 +62,7 @@ ECL_Controller::ECL_Controller(const char *name) :
 	_last_output(0.0f),
 	_integrator(0.0f),
 	_rate_error(0.0f),
+	_rate_diff_error_state(0.0f),
 	_rate_setpoint(0.0f),
 	_bodyrate_setpoint(0.0f),
 	_perf_name()

@@ -207,7 +207,12 @@ float ECL_PitchController::control_bodyrate(const struct ECL_ControlData &ctl_da
 		       _rate_error * _k_p * ctl_data.scaler * ctl_data.scaler
 		       + integrator_constrained  //scaler is proportional to 1/airspeed
 			   + d_term;
-//	warnx("pitch: _integrator: %.4f, _integrator_max: %.4f, airspeed %.4f, _k_i %.4f, _k_p: %.4f", (double)_integrator, (double)_integrator_max, (double)airspeed, (double)_k_i, (double)_k_p);
-//	warnx("roll: _last_output %.4f", (double)_last_output);
+
+	//warnx("pitch: _bodyrate_setpoint: %.4f, _k_ff: %.4f", (double)_bodyrate_setpoint, (double)_k_ff);
+	//warnx("pitch: _rate_error: %.4f, _k_p: %.4f, ctl_data.scaler: %.4f", (double)_rate_error, (double)_k_p, (double)ctl_data.scaler);
+	//warnx("pitch: integrator_constrained: %.4f, _integrator_max: %.4f, _k_i %.4f", (double)integrator_constrained, (double)_integrator_max, (double)_k_i);
+	//warnx("roll: d_term %.4f _k_d %.4f _k_f %.4f", (double)d_term, (double)_k_d, (double)_k_f);
+	//warnx("roll: _last_output %.4f", (double)_last_output);
+
 	return math::constrain(_last_output, -1.0f, 1.0f);
 }
