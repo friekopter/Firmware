@@ -9,4 +9,4 @@ SRCS					= quat_log_main.c \
 						quat_log.c \
 						quat_log_params.c
 
-EXTRACFLAGS = -Wframe-larger-than=1088 -Wno-shadow -Wno-pointer-arith
+EXTRACFLAGS = -Wframe-larger-than=1144 -Wno-shadow -Wno-pointer-arith
