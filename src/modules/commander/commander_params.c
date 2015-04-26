@@ -206,3 +206,13 @@ PARAM_DEFINE_INT32(COM_MX_HOR_DIST, 1500);
  * @group commander
  */
 PARAM_DEFINE_INT32(COM_MX_VER_DIST, 1500);
+
+/**
+ *
+ * Maximum number of missions stored offboard.
+ *
+ * @group Commander
+ * @min 1
+ * @max 4
+ */
+PARAM_DEFINE_INT32(COM_NUM_MISSIONS, 1);

@@ -267,7 +267,7 @@ void answer_command(struct vehicle_command_s &cmd, enum VEHICLE_CMD_RESULT resul
  * pointer is forwarded.
  * Returns OK if successful.
  */
-int switch_active_offboard_mission(int direction);
+int switch_active_offboard_mission(int direction, int number_of_missions);
 
 int commander_main(int argc, char *argv[])
 {
@@ -881,6 +881,7 @@ int commander_thread_main(int argc, char *argv[])
 	param_t _param_autosave_params = param_find("COM_AUTOS_PAR");
 	param_t _param_max_horizontal_distance = param_find("COM_MX_HOR_DIST");
 	param_t _param_max_vertical_distance = param_find("COM_MX_VER_DIST");
+	param_t _param_num_missions = param_find("COM_NUM_MISSIONS");
 
 	const char *main_states_str[vehicle_status_s::MAIN_STATE_MAX];
 	main_states_str[vehicle_status_s::MAIN_STATE_MANUAL]			= "MANUAL";
@@ -1008,7 +1009,7 @@ int commander_thread_main(int argc, char *argv[])
 	memset(&mission, 0, sizeof(mission));
 
 	if (dm_read(DM_KEY_MISSION_STATE, 0, &mission, sizeof(mission_s)) == sizeof(mission_s)) {
-		if (mission.dataman_id >= 0 && mission.dataman_id < NUM_MISSION_STORAGE_PLACES) {
+		if (mission.dataman_id >= 0 && mission.dataman_id < MAX_NUM_MISSION_STORAGE_PLACES) {
 
 			warnx("loaded mission state: dataman_id=%d, count=%u, current=%d", mission.dataman_id,
 					mission.count_formission[mission.dataman_id], mission.current_seq);
@@ -1200,6 +1201,8 @@ int commander_thread_main(int argc, char *argv[])
 
 	int autosave_params; /**< Autosave of parameters enabled/disabled, loaded from parameter */
 
+	int number_of_missions = 1;
+
 	/* check which state machines for changes, clear "changed" flag */
 	bool arming_state_changed = false;
 	bool main_state_changed = false;
@@ -1304,6 +1307,9 @@ int commander_thread_main(int argc, char *argv[])
 
 			/* Parameter autosave setting */
 			param_get(_param_autosave_params, &autosave_params);
+
+			/* Number of missions */
+			param_get(_param_num_missions, &number_of_missions);
 		}
 
 		/* Set flag to autosave parameters if necessary */
@@ -1833,7 +1839,7 @@ int commander_thread_main(int argc, char *argv[])
 					stick_switch_mission_counter++;
 				} else if (!mission_switched) {
 					/* Wait time ended and not yet switched: Switch mission */
-					int result = switch_active_offboard_mission((sp_man.y > 0) ? +1 : -1);
+					int result = switch_active_offboard_mission((sp_man.y > 0) ? +1 : -1, number_of_missions);
 					if (result != OK) {
 						mavlink_log_info(mavlink_fd, "Can't switch mission result: %d", result);
 					}
@@ -2894,7 +2900,7 @@ void *commander_low_prio_loop(void *arg)
  * Returns OK if successful.
  */
 int
-switch_active_offboard_mission(int direction)
+switch_active_offboard_mission(int direction, int number_of_missions)
 {
 	mission_s mission_state;
 	dm_lock(DM_KEY_MISSION_STATE);
@@ -2904,9 +2910,11 @@ switch_active_offboard_mission(int direction)
 		return ERROR;
 	}
 
+	if (number_of_missions > MAX_NUM_MISSION_STORAGE_PLACES) number_of_missions = MAX_NUM_MISSION_STORAGE_PLACES;
+	if (number_of_missions < 1) number_of_missions = 1;
 	// change active storage place and reset current
-	mission_state.dataman_id = (mission_state.dataman_id + direction)  % NUM_MISSION_STORAGE_PLACES;
-	if(mission_state.dataman_id < 0) mission_state.dataman_id = NUM_MISSION_STORAGE_PLACES - 1;
+	mission_state.dataman_id = (mission_state.dataman_id + direction)  % number_of_missions;
+	if(mission_state.dataman_id < 0) mission_state.dataman_id = number_of_missions - 1;
 	mission_state.current_seq = 0;
 	/* update mission state in dataman */
 	int res = dm_write(DM_KEY_MISSION_STATE, 0, DM_PERSIST_POWER_ON_RESET, &mission_state, sizeof(mission_s));
