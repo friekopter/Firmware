@@ -32,54 +32,36 @@
  ****************************************************************************/
 
 /**
- * @file demo_offboard_position_Setpoints.cpp
- *
- * Demo for sending offboard position setpoints to mavros to show offboard position control in SITL
- *
- * @author Thomas Gubler <thomasgubler@gmail.com>
-*/
+ * @file time_offset.h
+ * Time synchronisation offset
+ */
 
-#include "demo_offboard_attitude_setpoints.h"
+#ifndef TOPIC_TIME_OFFSET_H_
+#define TOPIC_TIME_OFFSET_H_
 
-#include <platforms/px4_middleware.h>
-#include <geometry_msgs/PoseStamped.h>
-#include <std_msgs/Float64.h>
-#include <math.h>
-#include <tf/transform_datatypes.h>
+#include <stdint.h>
+#include <stdbool.h>
+#include "../uORB.h"
 
-DemoOffboardAttitudeSetpoints::DemoOffboardAttitudeSetpoints() :
-	_n(),
-	_attitude_sp_pub(_n.advertise<geometry_msgs::PoseStamped>("mavros/setpoint_attitude/attitude", 1)),
-	_thrust_sp_pub(_n.advertise<std_msgs::Float64>("mavros/setpoint_attitude/att_throttle", 1))
-{
-}
+/**
+ * @addtogroup topics
+ * @{
+ */
 
+/**
+ * Timesync offset for synchronisation with companion computer, GCS, etc.
+ */
+struct time_offset_s {
 
-int DemoOffboardAttitudeSetpoints::main()
-{
-	px4::Rate loop_rate(10);
+	uint64_t offset_ns;		/**< time offset between companion system and PX4, in nanoseconds */
 
-	while (ros::ok()) {
-		loop_rate.sleep();
-		ros::spinOnce();
+};
 
-		/* Publish example offboard attitude setpoint */
-		geometry_msgs::PoseStamped pose;
-		tf::Quaternion q = tf::createQuaternionFromRPY(0.0, 0.1 * (sinf(0.5 * (float)px4::get_time_micros() / 1000000.0f)) , 0.0);
-		quaternionTFToMsg(q, pose.pose.orientation);
+/**
+ * @}
+ */
 
-		_attitude_sp_pub.publish(pose);
+/* register this as object request broker structure */
+ORB_DECLARE(time_offset);
 
-		std_msgs::Float64 thrust;
-		thrust.data = 0.4f + 0.25 * (sinf((float)px4::get_time_micros() / 1000000.0f)); // just some example throttle input that makes the quad 'jump'
-		_thrust_sp_pub.publish(thrust);
-	}
-	return 0;
-}
-
-int main(int argc, char **argv)
-{
-	ros::init(argc, argv, "demo_offboard_position_setpoints");
-	DemoOffboardAttitudeSetpoints d;
-	return d.main();
-}
+#endif /* TOPIC_TIME_OFFSET_H_ */
