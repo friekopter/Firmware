@@ -1007,9 +1007,14 @@ int commander_thread_main(int argc, char *argv[])
 	/* init mission state, do it here to allow navigator to use stored mission even if mavlink failed to start */
 	mission_s mission;
 	memset(&mission, 0, sizeof(mission));
+	int number_of_missions = 1;
+	/* Number of missions */
+	param_get(_param_num_missions, &number_of_missions);
 
 	if (dm_read(DM_KEY_MISSION_STATE, 0, &mission, sizeof(mission_s)) == sizeof(mission_s)) {
-		if (mission.dataman_id >= 0 && mission.dataman_id < MAX_NUM_MISSION_STORAGE_PLACES) {
+		if (mission.dataman_id >= 0 &&
+			mission.dataman_id < MAX_NUM_MISSION_STORAGE_PLACES &&
+			mission.dataman_id < number_of_missions) {
 
 			warnx("loaded mission state: dataman_id=%d, count=%u, current=%d", mission.dataman_id,
 					mission.count_formission[mission.dataman_id], mission.current_seq);
@@ -1017,11 +1022,16 @@ int commander_thread_main(int argc, char *argv[])
 			mavlink_log_info(mavlink_fd, "[cmd] dataman_id=%d, count=%u, current=%d",
 												mission.dataman_id, mission.count_formission[mission.dataman_id], mission.current_seq);
 		} else {
-			const char *missionfail = "reading mission state failed";
+			const char *missionfail = "mission number out of range: reset";
 			warnx("%s", missionfail);
 			mavlink_log_critical(mavlink_fd, missionfail);
+			mission.dataman_id = 0;
+			mission.current_seq = 0;
+			/* update mission state in dataman */
+			if (dm_write(DM_KEY_MISSION_STATE, 0, DM_PERSIST_POWER_ON_RESET, &mission, sizeof(mission_s)) != sizeof(mission_s)) {
+				warnx("ERROR: can't save mission state");
+			}
 		}
-
 		mission_pub = orb_advertise(ORB_ID(offboard_mission), &mission);
 		orb_publish(ORB_ID(offboard_mission), mission_pub, &mission);
 	} else {
@@ -1200,8 +1210,6 @@ int commander_thread_main(int argc, char *argv[])
 	int32_t max_horizontal_distance = 0;
 
 	int autosave_params; /**< Autosave of parameters enabled/disabled, loaded from parameter */
-
-	int number_of_missions = 1;
 
 	/* check which state machines for changes, clear "changed" flag */
 	bool arming_state_changed = false;
@@ -1831,7 +1839,8 @@ int commander_thread_main(int argc, char *argv[])
 			}
 
 			/* check if right stick is in far middle right position and we're in MANUAL disarmed mode -> switch mission */
-			if (status.arming_state == vehicle_status_s::ARMING_STATE_STANDBY &&
+			if (number_of_missions > 1 &&
+				status.arming_state == vehicle_status_s::ARMING_STATE_STANDBY &&
 			    fabsf(sp_man.y) > STICK_SWITCH_MISSION_LIMIT ) {
 				/* mission switch requested, delay action */
 				if (stick_switch_mission_counter <= STICK_ON_OFF_COUNTER_LIMIT) {
