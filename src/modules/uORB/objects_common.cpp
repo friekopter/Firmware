@@ -254,5 +254,8 @@ ORB_DEFINE(rc_parameter_map, struct rc_parameter_map_s);
 #include "topics/time_offset.h"
 ORB_DEFINE(time_offset, struct time_offset_s);
 
+#include "topics/mc_att_ctrl_status.h"
+ORB_DEFINE(mc_att_ctrl_status, struct mc_att_ctrl_status_s);
+
 #include "topics/ukf_state_vector.h"
 ORB_DEFINE(ukf_state_vector, struct ukf_state_vector_s);
