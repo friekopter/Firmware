@@ -81,7 +81,7 @@ PARAM_DEFINE_INT32(NAV_DLL_OBC, 0);
 /**
  * Set OBC mode for rc loss
  *
- * If set to 1 the behaviour on data link loss is set to a mode according to the OBC rules
+ * If set to 1 the behaviour on rc loss is set to a mode according to the OBC rules
  *
  * @min 0
  * @group Mission
