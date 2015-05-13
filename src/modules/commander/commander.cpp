@@ -1790,8 +1790,7 @@ int commander_thread_main(int argc, char *argv[])
 
 			} else {
 				if (status.rc_signal_lost) {
-					mavlink_log_critical(mavlink_fd, "RC SIGNAL REGAINED after %llums",
-							     (hrt_absolute_time() - status.rc_signal_lost_timestamp) / 1000);
+					mavlink_log_critical(mavlink_fd, "RC SIGNAL REGAINED");
 					status_changed = true;
 				}
 			}
@@ -1914,7 +1913,7 @@ int commander_thread_main(int argc, char *argv[])
 
 		} else {
 			if (!status.rc_signal_lost) {
-				mavlink_log_critical(mavlink_fd, "RC SIGNAL LOST (at t=%llums)", hrt_absolute_time() / 1000);
+				mavlink_log_critical(mavlink_fd, "RC SIGNAL LOST");
 				status.rc_signal_lost = true;
 				status.rc_signal_lost_timestamp = sp_man.timestamp;
 				status_changed = true;
@@ -2165,7 +2164,7 @@ int commander_thread_main(int argc, char *argv[])
 
 		} else if (status.battery_warning == vehicle_status_s::VEHICLE_BATTERY_WARNING_LOW || status.failsafe) {
 			/* play tune on battery warning or failsafe */
-			set_tune(TONE_BATTERY_WARNING_SLOW_TUNE);
+			set_tune(TONE_BATTERY_WARNING_FAST_TUNE);//TONE_BATTERY_WARNING_SLOW_TUNE);
 
 		} else {
 			set_tune(TONE_STOP_TUNE);
