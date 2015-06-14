@@ -215,6 +215,8 @@ Mission::update_onboard_mission()
 void
 Mission::update_offboard_mission()
 {
+	bool failed = true;
+
 	if (orb_copy(ORB_ID(offboard_mission), _navigator->get_offboard_mission_sub(), &_offboard_mission) == OK) {
 		warnx("offboard mission updated: dataman_id=%d, count=%d, current_seq=%d", _offboard_mission.dataman_id, _offboard_mission.count_formission[_offboard_mission.dataman_id], _offboard_mission.current_seq);
 		/* determine current index */
@@ -238,7 +240,7 @@ Mission::update_offboard_mission()
 		 * however warnings are issued to the gcs via mavlink from inside the MissionFeasiblityChecker */
 		dm_item_t dm_current = DM_KEY_WAYPOINTS_OFFBOARD(_offboard_mission.dataman_id);
 
-		_missionFeasiblityChecker.checkMissionFeasible(_navigator->get_vstatus()->is_rotary_wing,
+		failed = !_missionFeasiblityChecker.checkMissionFeasible(_navigator->get_vstatus()->is_rotary_wing,
 				dm_current, (size_t) _offboard_mission.count_formission[_offboard_mission.dataman_id], _navigator->get_geofence(),
 				_navigator->get_home_position()->alt);
 
@@ -248,6 +250,9 @@ Mission::update_offboard_mission()
 		 * For now try to go on with mission as it is.
 		 */
 		warnx("offboard mission update failed");
+	}
+
+	if (failed) {
 		mavlink_log_critical(_navigator->get_mavlink_fd(), "offboard mission update failed");
 	}
 }
@@ -538,7 +543,7 @@ Mission::heading_sp_update()
 
 	/* Don't change setpoint if last and current waypoint are not valid */
 	if (!pos_sp_triplet->previous.valid || !pos_sp_triplet->current.valid ||
-			!isfinite(_on_arrival_yaw)) {
+			!PX4_ISFINITE(_on_arrival_yaw)) {
 		return;
 	}
 
@@ -586,7 +591,7 @@ Mission::altitude_sp_foh_update()
 
 	/* Don't change setpoint if last and current waypoint are not valid */
 	if (!pos_sp_triplet->previous.valid || !pos_sp_triplet->current.valid ||
-			!isfinite(_mission_item_previous_alt)) {
+			!PX4_ISFINITE(_mission_item_previous_alt)) {
 		return;
 	}
 

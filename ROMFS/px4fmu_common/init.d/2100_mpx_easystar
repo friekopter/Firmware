@@ -3,6 +3,6 @@
 # MPX EasyStar Plane
 #
 
-sh /etc/init.d/rc.fw_defaults
+#sh /etc/init.d/rc.fw_defaults
  
 set MIXER easystar

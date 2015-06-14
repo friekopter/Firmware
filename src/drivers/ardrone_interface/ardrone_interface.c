@@ -37,7 +37,7 @@
  * Implementation of AR.Drone 1.0 / 2.0 motor control interface.
  */
 
-#include <nuttx/config.h>
+#include <px4_config.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -70,13 +70,6 @@
 
 __EXPORT int ardrone_interface_main(int argc, char *argv[]);
 
-static orb_advert_t ardrone_motor_subsystem_info_pub = -1;
-struct subsystem_info_s ardrone_motor_control_info = {
-	true,
-	false,
-	true,
-	SUBSYSTEM_TYPE_MOTORCONTROL
-};
 static bool thread_should_exit = false;		/**< Deamon exit flag */
 static bool thread_running = false;		/**< Deamon status flag */
 static int ardrone_interface_task;		/**< Handle of deamon task / thread */
@@ -129,7 +122,7 @@ int ardrone_interface_main(int argc, char *argv[])
 		}
 
 		thread_should_exit = false;
-		ardrone_interface_task = task_spawn_cmd("ardrone_interface",
+		ardrone_interface_task = px4_task_spawn_cmd("ardrone_interface",
 						    SCHED_DEFAULT,
 						    SCHED_PRIORITY_MAX - 15,
 						    1100,
@@ -273,7 +266,6 @@ int ardrone_interface_thread_main(int argc, char *argv[])
 	/* subscribe to attitude, motor setpoints and system state */
 	int actuator_controls_sub = orb_subscribe(ORB_ID_VEHICLE_ATTITUDE_CONTROLS);
 	int armed_sub = orb_subscribe(ORB_ID(actuator_armed));
-	ardrone_motor_subsystem_info_pub = orb_advertise(ORB_ID(subsystem_info), &ardrone_motor_control_info);
 
 	/* enable UART, writes potentially an empty buffer, but multiplexing is disabled */
 	ardrone_write = ardrone_open_uart(device, &uart_config_original);
@@ -343,8 +335,6 @@ int ardrone_interface_thread_main(int argc, char *argv[])
 		exit(ERROR);
 	}
 
-	ardrone_motor_control_info.enabled = true;
-	orb_publish(ORB_ID(subsystem_info), ardrone_motor_subsystem_info_pub, &ardrone_motor_control_info);
 	while (!thread_should_exit) {
 
 		if (motor_test_mode) {
@@ -411,11 +401,6 @@ int ardrone_interface_thread_main(int argc, char *argv[])
 
 		counter++;
 	}
-
-	ardrone_motor_control_info.enabled = false;
-	ardrone_motor_control_info.present = false;
-	ardrone_motor_control_info.ok = false;
-	orb_publish(ORB_ID(subsystem_info), ardrone_motor_subsystem_info_pub, &ardrone_motor_control_info);
 
 	/* restore old UART config */
 	int termios_state;

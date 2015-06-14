@@ -957,18 +957,6 @@ UBX::payload_rx_done(void)
 		ret = 1;
 		break;
 
-	case UBX_MSG_NAV_DOP:
-		UBX_TRACE_RXMSG("Rx NAV-DOP\n");
-		_gps_position->pDop	= (float)_buf.payload_rx_nav_dop.pDOP * 0.01f;
-		_gps_position->hDop	= (float)_buf.payload_rx_nav_dop.hDOP * 0.01f;
-		_gps_position->vDop	= (float)_buf.payload_rx_nav_dop.vDOP * 0.01f;
-		_gps_position->tDop	= (float)_buf.payload_rx_nav_dop.tDOP * 0.01f;
-		_gps_position->eDop	= (float)_buf.payload_rx_nav_dop.eDOP * 0.01f;
-		_gps_position->nDop	= (float)_buf.payload_rx_nav_dop.nDOP * 0.01f;
-
-		ret = 1;
-		break;
-
 	default:
 		break;
 	}

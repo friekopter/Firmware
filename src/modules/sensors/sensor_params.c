@@ -41,7 +41,7 @@
  * @author Thomas Gubler <thomas@px4.io>
  */
 
-#include <nuttx/config.h>
+#include <px4_config.h>
 #include <systemlib/param/param.h>
 
 /**
@@ -1285,7 +1285,7 @@ PARAM_DEFINE_FLOAT(RC_AUTO_TH, 0.75f);
  *
  * @min -1
  * @max 1
- *
+ * @group Radio Switches
  *
  */
 PARAM_DEFINE_FLOAT(RC_POSCTL_TH, 0.5f);
@@ -1401,3 +1401,12 @@ PARAM_DEFINE_INT32(RC_RSSI_PWM_MAX, 1000);
  *
  */
 PARAM_DEFINE_INT32(RC_RSSI_PWM_MIN, 2000);
+
+/**
+ * Enable Lidar-Lite (LL40LS) pwm driver
+ *
+ * @min 0
+ * @max 1
+ * @group Sensor Enable
+ */
+PARAM_DEFINE_INT32(SENS_EN_LL40LS, 0);

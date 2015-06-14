@@ -1,6 +1,6 @@
 /****************************************************************************
  *
- *   Copyright (c) 2014 PX4 Development Team. All rights reserved.
+ *   Copyright (c) 2014, 2015 PX4 Development Team. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -301,23 +301,30 @@ MavlinkFTP::_reply(mavlink_file_transfer_protocol_t* ftp_req)
 MavlinkFTP::ErrorCode
 MavlinkFTP::_workList(PayloadHeader* payload)
 {
-    char dirPath[kMaxDataLength];
-    strncpy(dirPath, _data_as_cstring(payload), kMaxDataLength);
-    
+	char dirPath[kMaxDataLength];
+	strncpy(dirPath, _data_as_cstring(payload), kMaxDataLength);
+
+	ErrorCode errorCode = kErrNone;
+	unsigned offset = 0;
+
 	DIR *dp = opendir(dirPath);
 
 	if (dp == nullptr) {
-		warnx("FTP: can't open path '%s'", dirPath);
-		return kErrFailErrno;
+#ifdef MAVLINK_FTP_UNIT_TEST
+		warnx("File open failed");
+#else
+		_mavlink->send_statustext_critical("FTP: can't open path (file system corrupted?)");
+		_mavlink->send_statustext_critical(dirPath);
+#endif
+		// this is not an FTP error, abort directory by simulating eof
+		return kErrEOF;
 	}
-    
+
 #ifdef MAVLINK_FTP_DEBUG
 	warnx("FTP: list %s offset %d", dirPath, payload->offset);
 #endif
 
-	ErrorCode errorCode = kErrNone;
 	struct dirent entry, *result = nullptr;
-	unsigned offset = 0;
 
 	// move to the requested offset
 	seekdir(dp, payload->offset);
@@ -325,9 +332,20 @@ MavlinkFTP::_workList(PayloadHeader* payload)
 	for (;;) {
 		// read the directory entry
 		if (readdir_r(dp, &entry, &result)) {
-			warnx("FTP: list %s readdir_r failure\n", dirPath);
-			errorCode = kErrFailErrno;
-			break;
+#ifdef MAVLINK_FTP_UNIT_TEST
+		warnx("readdir_r failed");
+#else
+			_mavlink->send_statustext_critical("FTP: list readdir_r failure");
+			_mavlink->send_statustext_critical(dirPath);
+#endif
+
+			payload->data[offset++] = kDirentSkip;
+			*((char *)&payload->data[offset]) = '\0';
+			offset++;
+			payload->size = offset;
+			closedir(dp);
+
+			return errorCode;
 		}
 
 		// no more entries?
@@ -347,7 +365,11 @@ MavlinkFTP::_workList(PayloadHeader* payload)
 
 		// Determine the directory entry type
 		switch (entry.d_type) {
+#ifdef __PX4_NUTTX
 		case DTYPE_FILE:
+#else
+		case DT_REG:
+#endif
 			// For files we get the file size as well
 			direntType = kDirentFile;
 			snprintf(buf, sizeof(buf), "%s/%s", dirPath, entry.d_name);
@@ -356,7 +378,11 @@ MavlinkFTP::_workList(PayloadHeader* payload)
 				fileSize = st.st_size;
 			}
 			break;
+#ifdef __PX4_NUTTX
 		case DTYPE_DIRECTORY:
+#else
+		case DT_DIR:
+#endif
 			if (strcmp(entry.d_name, ".") == 0 || strcmp(entry.d_name, "..") == 0) {
 				// Don't bother sending these back
 				direntType = kDirentSkip;
@@ -491,6 +517,7 @@ MavlinkFTP::_workBurst(PayloadHeader* payload, uint8_t target_system_id)
 	// Setup for streaming sends
 	_session_info.stream_download = true;
 	_session_info.stream_offset = payload->offset;
+	_session_info.stream_chunk_transmitted = 0;
 	_session_info.stream_seq_number = payload->seq_number + 1;
 	_session_info.stream_target_system_id = target_system_id;
 
@@ -765,7 +792,12 @@ MavlinkFTP::_copy_file(const char *src_path, const char *dst_path, size_t length
 		return -1;
 	}
 
-	dst_fd = ::open(dst_path, O_CREAT | O_TRUNC | O_WRONLY);
+	dst_fd = ::open(dst_path, O_CREAT | O_TRUNC | O_WRONLY
+// POSIX requires the permissions to be supplied if O_CREAT passed
+#ifdef __PX4_POSIX
+			, 0x0777
+#endif
+			);
 	if (dst_fd < 0) {
 		op_errno = errno;
 		::close(src_fd);
@@ -872,6 +904,7 @@ void MavlinkFTP::send(const hrt_abstime t)
 			} else {
 				payload->size = bytes_read;
 				_session_info.stream_offset += bytes_read;
+				_session_info.stream_chunk_transmitted += bytes_read;
 			}
 		}
 		
@@ -890,8 +923,12 @@ void MavlinkFTP::send(const hrt_abstime t)
 #ifndef MAVLINK_FTP_UNIT_TEST
 			if (max_bytes_to_send < (get_size()*2)) {
 				more_data = false;
-				payload->burst_complete = true;
-				_session_info.stream_download = false;
+				/* perform transfers in 35K chunks - this is determined empirical */
+				if (_session_info.stream_chunk_transmitted > 35000) {
+					payload->burst_complete = true;
+					_session_info.stream_download = false;
+					_session_info.stream_chunk_transmitted = 0;
+				}
 			} else {
 #endif
 				more_data = true;

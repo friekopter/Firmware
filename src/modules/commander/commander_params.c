@@ -42,7 +42,7 @@
  * @author Julian Oes <julian@oes.ch>
  */
 
-#include <nuttx/config.h>
+#include <px4_config.h>
 #include <systemlib/param/param.h>
 
 PARAM_DEFINE_FLOAT(TRIM_ROLL, 0.0f);
@@ -195,6 +195,20 @@ PARAM_DEFINE_FLOAT(COM_RC_LOSS_T, 0.5);
  * @max 1
  */
 PARAM_DEFINE_INT32(COM_AUTOS_PAR, 1);
+
+/**
+ * RC control input mode
+ *
+ * The default value of 0 requires a valid RC transmitter setup.
+ * Setting this to 1 disables RC input handling and the associated checks. A value of
+ * 2 will generate RC control data from manual input received via MAVLink instead
+ * of directly forwarding the manual input data.
+ *
+ * @group Commander
+ * @min 0
+ * @max 2
+ */
+PARAM_DEFINE_INT32(COM_RC_IN_MODE, 0);
 
 /**
  * Max horizontal distance in meters.

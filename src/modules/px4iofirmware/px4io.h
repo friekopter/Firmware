@@ -37,7 +37,7 @@
  * General defines and structures for the PX4IO module firmware.
  */
 
-#include <nuttx/config.h>
+#include <px4_config.h>
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -110,6 +110,8 @@ extern uint16_t			r_page_servo_disarmed[];	/* PX4IO_PAGE_DISARMED_PWM */
 #define r_setup_relays		r_page_setup[PX4IO_P_SETUP_RELAYS]
 #endif
 #define r_setup_rc_thr_failsafe	r_page_setup[PX4IO_P_SETUP_RC_THR_FAILSAFE_US]
+
+#define r_setup_pwm_reverse	r_page_setup[PX4IO_P_SETUP_PWM_REVERSE]
 
 #define r_control_values	(&r_page_controls[0])
 
