@@ -33,11 +33,11 @@
 # Definitions for a generic GNU ARM-EABI toolchain
 #
 
-#$(info TOOLCHAIN  gnu-arm-eabi)
+#$(info TOOLCHAIN  arm-linux-gnueabihf)
 
 # Toolchain commands. Normally only used inside this file.
 #
-CROSSDEV		 = arm-none-eabi-
+CROSSDEV		 = arm-linux-gnueabihf-
 
 CC			 = $(CROSSDEV)gcc
 CXX			 = $(CROSSDEV)g++
@@ -50,7 +50,7 @@ OBJDUMP			 = $(CROSSDEV)objdump
 
 # Check if the right version of the toolchain is available
 #
-CROSSDEV_VER_SUPPORTED	 = 4.7.4 4.7.5 4.7.6 4.8.4 4.9.3
+CROSSDEV_VER_SUPPORTED	 = 4.7.4 4.7.5 4.7.6 4.8.2 4.8.4 4.9.3
 CROSSDEV_VER_FOUND	 = $(shell $(CC) -dumpversion)
 
 ifeq (,$(findstring $(CROSSDEV_VER_FOUND), $(CROSSDEV_VER_SUPPORTED)))
@@ -60,10 +60,16 @@ endif
 
 # XXX this is pulled pretty directly from the fmu Make.defs - needs cleanup
 
-MAXOPTIMIZATION		 ?= -ffast-math -Ofast
+MAXOPTIMIZATION		 ?= -O3
 
 # Base CPU flags for each of the supported architectures.
 #
+ARCHCPUFLAGS_CORTEXA8    = -mtune=cortex-a8 \
+                           -mthumb-interwork \
+                           -march=armv7-a \
+                           -mfloat-abi=hard \
+                           -mfpu=neon
+ 
 ARCHCPUFLAGS_CORTEXM4F	 = -mcpu=cortex-m4 \
 			   -mthumb \
 			   -march=armv7e-m \
@@ -99,7 +105,7 @@ endif
 #
 ARCHCPUFLAGS		 = $(ARCHCPUFLAGS_$(CONFIG_ARCH))
 ifeq ($(ARCHCPUFLAGS),)
-$(error Must set CONFIG_ARCH to one of CORTEXM4F, CORTEXM4 or CORTEXM3)
+$(error Must set CONFIG_ARCH to one of CORTEXA8 CORTEXM4F, CORTEXM4 or CORTEXM3)
 endif
 
 # Set the board flags
@@ -107,52 +113,60 @@ endif
 ifeq ($(CONFIG_BOARD),)
 $(error Board config does not define CONFIG_BOARD)
 endif
-ARCHDEFINES		+= -DCONFIG_ARCH_BOARD_$(CONFIG_BOARD) -D__PX4_NUTTX
+ARCHDEFINES		+= -DCONFIG_ARCH_BOARD_$(CONFIG_BOARD) \
+                   -D__PX4_LINUX -D__PX4_POSIX \
+			       -Dnoreturn_function= \
+			       -I$(PX4_BASE)/src/modules/systemlib \
+			       -I$(PX4_BASE)/src/lib/eigen \
+			       -I$(PX4_BASE)/src/platforms/posix/include \
+			       -I$(PX4_BASE)/mavlink/include/mavlink \
+			       -Wno-error=shadow
 
 # optimisation flags
 #
 ARCHOPTIMIZATION	 = $(MAXOPTIMIZATION) \
 			   -g3 \
 			   -fno-strict-aliasing \
-			   -fno-strength-reduce \
 			   -fomit-frame-pointer \
 			   -funsafe-math-optimizations \
 			   -fno-builtin-printf \
 			   -ffunction-sections \
 			   -fdata-sections
 
-# enable precise stack overflow tracking
-# note - requires corresponding support in NuttX
-INSTRUMENTATIONDEFINES	 = $(ARCHINSTRUMENTATIONDEFINES_$(CONFIG_ARCH))
-
 # Language-specific flags
 #
 ARCHCFLAGS		 = -std=gnu99
-ARCHCXXFLAGS		 = -fno-exceptions -fno-rtti -std=gnu++0x -fno-threadsafe-statics -D__CUSTOM_FILE_IO__
+ARCHCXXFLAGS		 = -fno-exceptions -fno-rtti -std=c++0x -fno-threadsafe-statics -D__CUSTOM_FILE_IO__
 
 # Generic warnings
 #
 ARCHWARNINGS		 = -Wall \
 			   -Wextra \
 			   -Werror \
-			   -Wdouble-promotion \
-			   -Wshadow \
 			   -Wfloat-equal \
 			   -Wpointer-arith \
-			   -Wlogical-op \
 			   -Wmissing-declarations \
 			   -Wpacked \
 			   -Wno-unused-parameter \
+			   -Wno-packed \
 			   -Werror=format-security \
 			   -Werror=array-bounds \
 			   -Wfatal-errors \
-			   -Wformat=1 \
-			   -Werror=unused-but-set-variable \
 			   -Werror=unused-variable \
-			   -Werror=double-promotion \
 			   -Werror=reorder \
 			   -Werror=uninitialized \
-			   -Werror=init-self
+			   -Werror=init-self \
+               		   -Wno-error=logical-op \
+			   -Wdouble-promotion \
+			   -Wlogical-op \
+			   -Wformat=1 \
+			   -Werror=unused-but-set-variable \
+			   -Werror=double-promotion \
+			   -fno-strength-reduce \
+                           -Wno-error=unused-value
+
+ARCHOPTIMIZATION	+= -fno-strength-reduce
+
 #   -Werror=float-conversion - works, just needs to be phased in with some effort and needs GCC 4.9+
 #   -Wcast-qual  - generates spurious noreturn attribute warnings, try again later
 #   -Wconversion - would be nice, but too many "risky-but-safe" conversions in the code
@@ -163,8 +177,6 @@ ARCHWARNINGS		 = -Wall \
 ARCHCWARNINGS		 = $(ARCHWARNINGS) \
 			   -Wbad-function-cast \
 			   -Wstrict-prototypes \
-			   -Wold-style-declaration \
-			   -Wmissing-parameter-type \
 			   -Wmissing-prototypes \
 			   -Wnested-externs
 
@@ -175,7 +187,9 @@ ARCHWARNINGSXX		 = $(ARCHWARNINGS) \
 
 # pull in *just* libm from the toolchain ... this is grody
 LIBM			:= $(shell $(CC) $(ARCHCPUFLAGS) -print-file-name=libm.a)
-EXTRA_LIBS		+= $(LIBM)
+#EXTRA_LIBS		+= $(LIBM)
+#EXTRA_LIBS		+= ${PX4_BASE}../muorb_krait/lib/libmuorb.so
+EXTRA_LIBS		+= -pthread -lm -lrt
 
 # Flags we pass to the C compiler
 #
@@ -203,6 +217,7 @@ CXXFLAGS		 = $(ARCHCXXFLAGS) \
 			   -DCONFIG_WCHAR_BUILTIN \
 			   $(EXTRADEFINES) \
 			   $(EXTRACXXFLAGS) \
+			   -Wno-effc++ \
 			   $(addprefix -I,$(INCLUDE_DIRS))
 
 # Flags we pass to the assembler
@@ -211,12 +226,10 @@ AFLAGS			 = $(CFLAGS) -D__ASSEMBLY__ \
 			   $(EXTRADEFINES) \
 			   $(EXTRAAFLAGS)
 
+LDSCRIPT		 = $(PX4_BASE)/posix-configs/posixtest/scripts/ld.script
 # Flags we pass to the linker
 #
-LDFLAGS			+= --warn-common \
-			   --gc-sections \
-			   $(EXTRALDFLAGS) \
-			   $(addprefix -T,$(LDSCRIPT)) \
+LDFLAGS			+= $(EXTRALDFLAGS) \
 			   $(addprefix -L,$(LIB_DIRS))
 
 # Compiler support library
@@ -225,7 +238,8 @@ LIBGCC			:= $(shell $(CC) $(ARCHCPUFLAGS) -print-libgcc-file-name)
 
 # Files that the final link depends on
 #
-LINK_DEPS		+= $(LDSCRIPT)
+#LINK_DEPS		+= $(LDSCRIPT)
+LINK_DEPS		+=
 
 # Files to include to get automated dependencies
 #
@@ -246,6 +260,7 @@ endef
 define COMPILEXX
 	@$(ECHO) "CXX:     $1"
 	@$(MKDIR) -p $(dir $2)
+	@echo $(Q) $(CCACHE) $(CXX) -MD -c $(CXXFLAGS) $(abspath $1) -o $2
 	$(Q) $(CCACHE) $(CXX) -MD -c $(CXXFLAGS) $(abspath $1) -o $2
 endef
 
@@ -259,11 +274,23 @@ endef
 
 # Produce partially-linked $1 from files in $2
 #
+#$(Q) $(LD) -Ur -o $1 $2 # -Ur not supported in ld.gold
 define PRELINK
 	@$(ECHO) "PRELINK: $1"
 	@$(MKDIR) -p $(dir $1)
-	$(Q) $(LD) -Ur -Map $1.map -o $1 $2 && $(OBJCOPY) --localize-hidden $1
+	$(Q) $(LD) -Ur -o $1 $2
+
 endef
+# Produce partially-linked $1 from files in $2
+#
+#$(Q) $(LD) -Ur -o $1 $2 # -Ur not supported in ld.gold
+define PRELINKF
+	@$(ECHO) "PRELINK: $1"
+	@$(MKDIR) -p $(dir $1)
+	$(Q) $(LD) -Ur -T$(LDSCRIPT) -o $1 $2
+
+endef
+#	$(Q) $(LD) -Ur -o $1 $2 && $(OBJCOPY) --localize-hidden $1
 
 # Update the archive $1 with the files in $2
 #
@@ -273,63 +300,30 @@ define ARCHIVE
 	$(Q) $(AR) $1 $2
 endef
 
-# Link the objects in $2 into the binary $1
+# Link the objects in $2 into the shared library $1
+#
+define LINK_A
+	@$(ECHO) "LINK_A:    $1"
+	@$(MKDIR) -p $(dir $1)
+	echo "$(Q) $(AR) $1 $2"
+	$(Q) $(AR) $1 $2
+endef
+
+# Link the objects in $2 into the shared library $1
+#
+define LINK_SO
+	@$(ECHO) "LINK_SO:    $1"
+	@$(MKDIR) -p $(dir $1)
+	echo "$(Q) $(CXX) $(LDFLAGS) -shared -Wl,-soname,`basename $1`.1 -o $1 $2 $(LIBS) $(EXTRA_LIBS)"
+	$(Q) $(CXX) $(LDFLAGS) -shared -Wl,-soname,`basename $1`.1 -o $1 $2 $(LIBS) -pthread -lc
+endef
+
+# Link the objects in $2 into the application $1
 #
 define LINK
 	@$(ECHO) "LINK:    $1"
 	@$(MKDIR) -p $(dir $1)
-	$(Q) $(LD) $(LDFLAGS) -Map $1.map -o $1 --start-group $2 $(LIBS) $(EXTRA_LIBS) $(LIBGCC) --end-group
+	$(Q) $(CXX) $(CXXFLAGS) $(LDFLAGS) -o $1 $2 $(LIBS) $(EXTRA_LIBS) $(LIBGCC)
+
 endef
 
-# Convert $1 from a linked object to a raw binary in $2
-#
-define SYM_TO_BIN
-	@$(ECHO) "BIN:     $2"
-	@$(MKDIR) -p $(dir $2)
-	$(Q) $(OBJCOPY) -O binary $1 $2
-endef
-
-# Take the raw binary $1 and make it into an object file $2.
-# The symbol $3 points to the beginning of the file, and $3_len
-# gives its length.
-#
-# - compile an empty file to generate a suitable object file
-# - relink the object and insert the binary file
-# - extract the length
-# - create const unsigned $3_len with the extracted length as its value and compile it to an object file
-# - link the two generated object files together
-# - edit symbol names to suit
-#
-# NOTE: exercise caution using this with absolute pathnames; it looks
-#       like the MinGW tools insert an extra _ in the binary symbol name; e.g.
-#	the path:
-#
-#	/d/px4/firmware/Build/px4fmu_default.build/romfs.img
-#
-#	is assigned symbols like:
-#
-#	_binary_d__px4_firmware_Build_px4fmu_default_build_romfs_img_size
-#
-#	when we would expect
-#
-#	_binary__d_px4_firmware_Build_px4fmu_default_build_romfs_img_size
-#
-define BIN_SYM_PREFIX
-	_binary_$(subst /,_,$(subst .,_,$1))
-endef
-define BIN_TO_OBJ
-	@$(ECHO) "OBJ:     $2"
-	@$(MKDIR) -p $(dir $2)
-	$(Q) $(ECHO) > $2.c
-	$(call COMPILE,$2.c,$2.c.o)
-	$(Q) $(LD) -r -o $2.bin.o $2.c.o -b binary $1
-	$(Q) $(ECHO) "const unsigned int $3_len = 0x`$(NM) -p --radix=x $2.bin.o | $(GREP) $(call BIN_SYM_PREFIX,$1)_size$$ | $(GREP) -o ^[0-9a-fA-F]*`;" > $2.c
-	$(call COMPILE,$2.c,$2.c.o)
-	$(Q) $(LD) -r -o $2 $2.c.o $2.bin.o
-	$(Q) $(OBJCOPY) $2 \
-		--redefine-sym $(call BIN_SYM_PREFIX,$1)_start=$3 \
-		--strip-symbol $(call BIN_SYM_PREFIX,$1)_size \
-		--strip-symbol $(call BIN_SYM_PREFIX,$1)_end \
-		--rename-section .data=.rodata
-	$(Q) $(REMOVE) $2.c $2.c.o $2.bin.o
-endef
