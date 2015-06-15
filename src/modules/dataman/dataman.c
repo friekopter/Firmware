@@ -685,43 +685,12 @@ task_main(int argc, char *argv[])
 			close(g_task_fd);
 			unlink(k_data_manager_device_path);
 		} else {
-			/* File size ok, check its version */
-			char file_version[sizeof(dm_version)];
-			if (_read(DM_KEY_DBVERSION,0,file_version,sizeof(dm_version)) == sizeof(dm_version)) {
-				/* check if version is correct */
-				if (strncmp(file_version, dm_version, sizeof(dm_version))) {
-					/* wrong version, for now no migration just delete */
-					warnx("Data manager file version %s should be %s", file_version, dm_version);
-					warnx("Incompatible data manager file version %s, resetting it", k_data_manager_device_path);
-					close(g_task_fd);
-					unlink(k_data_manager_device_path);
-				}  else {
-					/* good version */
-					warnx("Data manager file version %s should be %s", file_version, dm_version);
-					close(g_task_fd);
-				}
-			} else {
-				/* could not read version, reset file */
-				warnx("Could not read version reset file");
-				close(g_task_fd);
-				unlink(k_data_manager_device_path);
-			}
+			close(g_task_fd);
 		}
 	}
 
-	/* Open the data manager file */
-	g_task_fd = open(k_data_manager_device_path, O_RDWR | O_BINARY
-#ifdef __PX4_LINUX
-			// Open with read/write permission for user
-			, S_IRUSR | S_IWUSR
-#endif
-			);
-	if(g_task_fd < 0) {
-		/* File did not exist: create */
-		warnx("open new file");
-		g_task_fd = open(k_data_manager_device_path, O_RDWR | O_CREAT | O_BINARY);
-		sys_restart_val = DM_INIT_REASON_RESET;
-	}
+	/* Open or create the data manager file */
+	g_task_fd = open(k_data_manager_device_path, O_RDWR | O_CREAT | O_BINARY, PX4_O_MODE_666);
 
 	if (g_task_fd < 0) {
 		warnx("Could not open data manager file %s", k_data_manager_device_path);
