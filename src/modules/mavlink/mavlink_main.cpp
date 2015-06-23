@@ -435,7 +435,6 @@ Mavlink::forward_message(const mavlink_message_t *msg, Mavlink *self)
 	}
 }
 
-#ifndef __PX4_POSIX
 int
 Mavlink::get_uart_fd(unsigned index)
 {
@@ -453,7 +452,6 @@ Mavlink::get_uart_fd()
 {
 	return _uart_fd;
 }
-#endif // __PX4_POSIX
 
 int
 Mavlink::get_instance_id()
@@ -809,6 +807,11 @@ Mavlink::get_free_tx_buf()
 	}
 
 #endif
+
+	// if we are using network sockets, return max lenght of one packet
+	if (get_protocol() == UDP || get_protocol() == TCP ) {
+		return  1500;
+	}
 
 	return buf_free;
 }
@@ -1525,7 +1528,11 @@ Mavlink::task_main(int argc, char *argv[])
 #ifdef __PX4_NUTTX
 	register_driver(MAVLINK_LOG_DEVICE, &fops, 0666, NULL);
 #else
-	register_driver(MAVLINK_LOG_DEVICE, NULL);
+	int ret;
+	ret = VDev::init();
+	if (ret != OK) {
+		PX4_WARN("VDev setup for mavlink log device failed!\n");
+	}
 #endif
 
 	/* initialize logging device */
@@ -1636,7 +1643,7 @@ Mavlink::task_main(int argc, char *argv[])
 	LL_APPEND(_mavlink_instances, this);
 
 	/* if the protocol is serial, we send the system version blindly */
-	if (get_protocol() != SERIAL) {
+	if (get_protocol() == SERIAL) {
 		send_autopilot_capabilites();
 	}
 

@@ -1,5 +1,5 @@
 #
-# Makefile for the POSIXTEST *default* configuration
+# Makefile for the SITL configuration
 #
 
 #
@@ -31,6 +31,8 @@ MODULES		+= modules/mavlink
 #
 MODULES		+= modules/attitude_estimator_ekf
 MODULES		+= modules/ekf_att_pos_estimator
+MODULES		+= modules/attitude_estimator_q
+MODULES		+= modules/position_estimator_inav
 
 #
 # Vehicle Control
