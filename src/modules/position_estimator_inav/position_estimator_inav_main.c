@@ -267,7 +267,6 @@ int position_estimator_inav_thread_main(int argc, char *argv[])
 	uint16_t attitude_updates = 0;
 	uint16_t flow_updates = 0;
 
-	hrt_abstime updates_counter_start = hrt_absolute_time();
 	hrt_abstime pub_last = hrt_absolute_time();
 
 	hrt_abstime t_prev = 0;
