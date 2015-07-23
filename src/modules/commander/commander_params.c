@@ -216,7 +216,9 @@ PARAM_DEFINE_INT32(COM_RC_IN_MODE, 0);
  *
  * Set to > 0 to activate RTL if horizontal distance to home exceeds this value.
  *
- * @group commander
+ * @group Commander
+ * @min 0
+ * @max 10000
  */
 PARAM_DEFINE_INT32(COM_MX_HOR_DIST, 1500);
 
@@ -225,9 +227,11 @@ PARAM_DEFINE_INT32(COM_MX_HOR_DIST, 1500);
  *
  * Set to > 0 to activate RTL if vertical distance to home exceeds this value.
  *
- * @group commander
+ * @group Commander
+ * @min 0
+ * @max 10000
  */
-PARAM_DEFINE_INT32(COM_MX_VER_DIST, 1500);
+PARAM_DEFINE_INT32(COM_MX_VER_DIST, 100);
 
 /**
  *

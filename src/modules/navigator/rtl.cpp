@@ -147,7 +147,7 @@ RTL::set_rtl_item()
 		_mission_item.autocontinue = true;
 		_mission_item.origin = ORIGIN_ONBOARD;
 
-		mavlink_log_critical(_navigator->get_mavlink_fd(), "RTL: climb to %d m (%d m above home)",
+		mavlink_log_critical(_navigator->get_mavlink_fd(), "RTL: climb to %d m",
 			(int)(climb_alt),
 			(int)(climb_alt - _navigator->get_home_position()->alt));
 		break;
@@ -179,7 +179,7 @@ RTL::set_rtl_item()
 		_mission_item.autocontinue = true;
 		_mission_item.origin = ORIGIN_ONBOARD;
 
-		mavlink_log_critical(_navigator->get_mavlink_fd(), "RTL: return at %d m (%d m above home)",
+		mavlink_log_critical(_navigator->get_mavlink_fd(), "RTL: return at %d m",
 			(int)(_mission_item.altitude),
 			(int)(_mission_item.altitude - _navigator->get_home_position()->alt));
 		break;

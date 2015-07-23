@@ -118,7 +118,7 @@ Mission::on_inactive()
 			dm_item_t dm_current = DM_KEY_WAYPOINTS_OFFBOARD(_offboard_mission.dataman_id);
 
 			_navigator->get_mission_result()->valid = _missionFeasiblityChecker.checkMissionFeasible(_navigator->get_mavlink_fd(), _navigator->get_vstatus()->is_rotary_wing,
-					dm_current, (size_t) _offboard_mission.count, _navigator->get_geofence(),
+					dm_current, (size_t) _offboard_mission.count_formission[_offboard_mission.dataman_id], _navigator->get_geofence(),
 					_navigator->get_home_position()->alt, _navigator->home_position_valid(),
 					_navigator->get_global_position()->lat, _navigator->get_global_position()->lon,
 					_param_dist_1wp.get(), _navigator->get_mission_result()->warning);

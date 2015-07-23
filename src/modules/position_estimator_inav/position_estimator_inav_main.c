@@ -280,6 +280,7 @@ int position_estimator_inav_thread_main(int argc, char *argv[])
 	uint16_t vision_updates = 0;
 	uint16_t mocap_updates = 0;
 
+	hrt_abstime updates_counter_start = hrt_absolute_time();
 	hrt_abstime pub_last = hrt_absolute_time();
 
 	hrt_abstime t_prev = 0;

@@ -198,6 +198,7 @@ static struct home_position_s _home;
 
 static unsigned _last_mission_instance = 0;
 
+static orb_advert_t mission_pub = nullptr;
 /**
  * The daemon app only briefly exists to start
  * the background job. The stack size assigned in the
@@ -1376,6 +1377,8 @@ int commander_thread_main(int argc, char *argv[])
 
 			/* Autostart id */
 			param_get(_param_autostart_id, &autostart_id);
+
+			/* Max distance */
 			param_get(_param_max_horizontal_distance, &max_horizontal_distance);
 			param_get(_param_max_vertical_distance, &max_vertical_distance);
 
@@ -1916,7 +1919,7 @@ int commander_thread_main(int argc, char *argv[])
 
 			} else {
 				if (status.rc_signal_lost) {
-					mavlink_log_critical(mavlink_fd, "RC SIGNAL REGAINED");
+					mavlink_log_critical(mavlink_fd, "RC REGAINED");
 					status_changed = true;
 				}
 			}
@@ -2043,7 +2046,7 @@ int commander_thread_main(int argc, char *argv[])
 
 		} else {
 			if (!status.rc_signal_lost) {
-				mavlink_log_critical(mavlink_fd, "RC SIGNAL LOST");
+				mavlink_log_critical(mavlink_fd, "RC LOST");
 				status.rc_signal_lost = true;
 				status.rc_signal_lost_timestamp = sp_man.timestamp;
 				status_changed = true;
@@ -2224,10 +2227,10 @@ int commander_thread_main(int argc, char *argv[])
 			status_changed = true;
 
 			if (status.failsafe) {
-				mavlink_log_critical(mavlink_fd, "failsafe mode on");
+				mavlink_log_critical(mavlink_fd, "failsafe");
 
 			} else {
-				mavlink_log_critical(mavlink_fd, "failsafe mode off");
+				mavlink_log_critical(mavlink_fd, "failsafe off");
 			}
 
 			failsafe_old = status.failsafe;
@@ -2252,11 +2255,17 @@ int commander_thread_main(int argc, char *argv[])
 					global_position.lat, global_position.lon, global_position.alt,
 					_home.lat, _home.lon, _home.alt,
 					&dist_xy, &dist_z);
-			if(	(max_vertical_distance > 0 && (((int32_t)dist_z) > max_vertical_distance)) ||
-				(max_horizontal_distance > 0 && (((int32_t)dist_xy) > max_horizontal_distance))) {
+			if(	(max_vertical_distance > 0 && (((int32_t)dist_z) > max_vertical_distance))) {
 				if(!status.condition_range_violated) {
 					status.condition_range_violated = true;
-					mavlink_log_critical(mavlink_fd, "#audio: range range");
+					mavlink_log_critical(mavlink_fd, "#audio: range dist %d",(int32_t)dist_xy);
+					status_changed = true;
+				}
+			} else if(max_horizontal_distance > 0 && (((int32_t)dist_xy) > max_horizontal_distance))
+			{
+				if(!status.condition_range_violated) {
+					status.condition_range_violated = true;
+					mavlink_log_critical(mavlink_fd, "#audio: range alt %d",(int32_t)dist_z);
 					status_changed = true;
 				}
 			} else {
