@@ -1,6 +1,6 @@
 /****************************************************************************
  *
- * Copyright (C) 2015 Mark Charlebois. All rights reserved.
+ *   Copyright (c) 2012-2015 PX4 Development Team. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -31,35 +31,54 @@
  *
  ****************************************************************************/
 
-#include <px4_log.h>
-#include <semaphore.h>
-#include <px4_workqueue.h>
+#include <string.h>
+#include "uORBManager.hpp"
+#include "uORBKraitFastRpcChannel.hpp"
 
-#pragma once
+extern "C" { __EXPORT int muorb_main(int argc, char *argv[]); }
 
-__BEGIN_DECLS
-
-extern sem_t _hrt_work_lock;
-extern struct wqueue_s g_hrt_work;
-
-void hrt_work_queue_init(void);
-int hrt_work_queue(struct work_s *work, worker_t worker, void *arg, uint32_t delay);
-void hrt_work_cancel(struct work_s *work);
-
-//inline void hrt_work_lock(void);
-//inline void hrt_work_unlock(void);
-
-static inline void hrt_work_lock()
+static void usage()
 {
-	//PX4_INFO("hrt_work_lock");
-	sem_wait(&_hrt_work_lock);
+	warnx("Usage: muorb 'start', 'stop', 'status'");
 }
 
-static inline void hrt_work_unlock()
+
+int
+muorb_main(int argc, char *argv[])
 {
-	//PX4_INFO("hrt_work_unlock");
-	sem_post(&_hrt_work_lock);
+	if (argc < 2) {
+		usage();
+		return -EINVAL;
+	}
+
+	/*
+	 * Start/load the driver.
+	 *
+	 * XXX it would be nice to have a wrapper for this...
+	 */
+	if (!strcmp(argv[1], "start")) {
+		// register the fast rpc channel with UORB.
+		uORB::Manager::get_instance()->set_uorb_communicator(uORB::KraitFastRpcChannel::GetInstance());
+
+		// start the KaitFastRPC channel thread.
+		uORB::KraitFastRpcChannel::GetInstance()->Start();
+		return OK;
+
+	}
+
+	if (!strcmp(argv[1], "stop")) {
+
+		uORB::KraitFastRpcChannel::GetInstance()->Stop();
+		return OK;
+	}
+
+	/*
+	 * Print driver information.
+	 */
+	if (!strcmp(argv[1], "status")) {
+		return OK;
+	}
+
+	usage();
+	return -EINVAL;
 }
-
-__END_DECLS
-
