@@ -936,6 +936,8 @@ int commander_thread_main(int argc, char *argv[])
 	param_t _param_max_vertical_distance = param_find("COM_MX_VER_DIST");
 	param_t _param_num_missions = param_find("COM_NUM_MISSIONS");
 	param_t _param_rc_in_off = param_find("COM_RC_IN_MODE");
+	param_t _param_eph = param_find("COM_HOME_H_T");
+	param_t _param_epv = param_find("COM_HOME_V_T");
 
 	const char *main_states_str[vehicle_status_s::MAIN_STATE_MAX];
 	main_states_str[vehicle_status_s::MAIN_STATE_MANUAL]			= "MANUAL";
@@ -1384,6 +1386,10 @@ int commander_thread_main(int argc, char *argv[])
 
 			/* Parameter autosave setting */
 			param_get(_param_autosave_params, &autosave_params);
+
+			/* EPH / EPV */
+			param_get(_param_eph, &eph_threshold);
+			param_get(_param_epv, &epv_threshold);
 
 			/* Number of missions */
 			param_get(_param_num_missions, &number_of_missions);

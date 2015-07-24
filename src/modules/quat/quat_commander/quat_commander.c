@@ -98,9 +98,6 @@
 
 PARAM_DEFINE_INT32(SYS_FAILSAVE_LL, 0);	/**< Go into low-level failsafe after 0 ms */
 //PARAM_DEFINE_INT32(SYS_FAILSAVE_HL, 0);	/**< Go into high-level failsafe after 0 ms */
-PARAM_DEFINE_FLOAT(TRIM_ROLL, 0.0f);
-PARAM_DEFINE_FLOAT(TRIM_PITCH, 0.0f);
-PARAM_DEFINE_FLOAT(TRIM_YAW, 0.0f);
 
 #include <systemlib/cpuload.h>
 extern struct system_load_s system_load;
@@ -1127,9 +1124,6 @@ static void *orb_receive_loop(void *arg)  //handles status information coming fr
  */
 float battery_remaining_estimate_voltage(float voltage);
 
-PARAM_DEFINE_FLOAT(BAT_V_EMPTY, 3.2f);
-PARAM_DEFINE_FLOAT(BAT_V_FULL, 4.05f);
-PARAM_DEFINE_FLOAT(BAT_N_CELLS, 3);
 
 float battery_remaining_estimate_voltage(float voltage)
 {
