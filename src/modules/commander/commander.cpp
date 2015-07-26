@@ -1063,7 +1063,6 @@ int commander_thread_main(int argc, char *argv[])
 	memset(&_home, 0, sizeof(_home));
 
 	/* init mission state, do it here to allow navigator to use stored mission even if mavlink failed to start */
-	//orb_advert_t mission_pub = nullptr;
 	mission_s mission;
 	memset(&mission, 0, sizeof(mission));
 	int number_of_missions = 1;
