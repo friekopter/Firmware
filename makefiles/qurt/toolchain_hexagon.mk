@@ -35,9 +35,17 @@
 
 #$(info TOOLCHAIN  gnu-arm-eabi)
 
+#
+# Stop making if ADSP_LIB_ROOT is not set. This defines the path to
+# DspAL headers and driver headers
+#
+ifndef DSPAL_ROOT
+$(error DSPAL_ROOT is not set)
+endif
+
 # Toolchain commands. Normally only used inside this file.
 #
-HEXAGON_TOOLS_ROOT	 = /opt/6.4.03
+HEXAGON_TOOLS_ROOT	 ?= /opt/6.4.03
 #HEXAGON_TOOLS_ROOT	 = /opt/6.4.05
 HEXAGON_SDK_ROOT	 = /opt/Hexagon_SDK/2.0
 V_ARCH			 = v5
@@ -115,11 +123,16 @@ ARCHDEFINES		+= -DCONFIG_ARCH_BOARD_$(CONFIG_BOARD) \
 			    -D__EXPORT= \
 			    -Drestrict= \
                             -D_DEBUG \
-			    -I$(PX4_BASE)/../dspal/include \
-			    -I$(PX4_BASE)/../dspal/sys \
+			    -I$(DSPAL_ROOT)/ \
+			    -I$(DSPAL_ROOT)/dspal/include \
+			    -I$(DSPAL_ROOT)/dspal/sys \
+			    -I$(DSPAL_ROOT)/dspal/sys/sys \
+			    -I$(DSPAL_ROOT)/mpu_spi/inc/ \
+			    -I$(DSPAL_ROOT)/uart_esc/inc/ \
 			    -I$(HEXAGON_TOOLS_ROOT)/gnu/hexagon/include \
 			    -I$(PX4_BASE)/src/lib/eigen \
 			    -I$(PX4_BASE)/src/platforms/qurt/include \
+			    -I$(PX4_BASE)/src/platforms/posix/include \
 			    -I$(PX4_BASE)/mavlink/include/mavlink \
 			    -I$(QURTLIB)/..//include \
 			    -I$(HEXAGON_SDK_ROOT)/inc \
@@ -232,6 +245,10 @@ LDFLAGS			+=  -g -mv5 -mG0lib -G0 -fpic -shared \
                            -lc \
 			   $(EXTRALDFLAGS) \
 			   $(addprefix -L,$(LIB_DIRS))
+
+# driver dynamic libraries
+LDFLAGS	+= -L${DSPAL_ROOT}/mpu_spi/hexagon_Debug_dynamic_toolv64/ship -lmpu9x50
+LDFLAGS	+= -L${DSPAL_ROOT}/uart_esc/hexagon_Debug_dynamic_toolv64/ship -luart_esc
 
 # Compiler support library
 #

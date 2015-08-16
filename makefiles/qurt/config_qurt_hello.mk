@@ -7,7 +7,7 @@
 #
 MODULES		+= drivers/device
 #MODULES		+= drivers/blinkm
-#MODULES		+= drivers/hil
+#MODULES		+= drivers/pwm_out_sim
 #MODULES		+= drivers/led
 #MODULES		+= drivers/rgbled
 #MODULES		+= modules/sensors
@@ -58,6 +58,7 @@ MODULES		+= modules/uORB
 # QuRT port
 #
 MODULES		+= platforms/qurt/px4_layer
+MODULES		+= platforms/posix/work_queue
 #MODULES		+= platforms/posix/drivers/accelsim
 #MODULES		+= platforms/posix/drivers/gyrosim
 #MODULES		+= platforms/posix/drivers/adcsim

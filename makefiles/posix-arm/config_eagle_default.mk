@@ -7,7 +7,7 @@
 #
 MODULES		+= drivers/device
 MODULES		+= drivers/blinkm
-MODULES		+= drivers/hil
+MODULES		+= drivers/pwm_out_sim
 MODULES		+= drivers/rgbled
 MODULES		+= drivers/led
 MODULES		+= modules/sensors
@@ -49,7 +49,7 @@ MODULES		+= modules/dataman
 MODULES		+= modules/sdlog2
 MODULES		+= modules/simulator
 MODULES		+= modules/commander
-#MODULES 	+= modules/controllib
+MODULES 	+= modules/controllib
 
 #
 # Libraries
@@ -63,6 +63,7 @@ MODULES		+= lib/conversion
 # Linux port
 #
 MODULES		+= platforms/posix/px4_layer
+MODULES		+= platforms/posix/work_queue
 
 #
 # Unit tests

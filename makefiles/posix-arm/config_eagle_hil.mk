@@ -7,7 +7,7 @@
 #
 MODULES		+= drivers/device
 #MODULES		+= drivers/blinkm
-#MODULES		+= drivers/hil
+#MODULES		+= drivers/pwm_out_sim
 #MODULES		+= drivers/rgbled
 MODULES		+= drivers/led
 #MODULES		+= modules/sensors
@@ -64,6 +64,7 @@ MODULES		+= lib/conversion
 # Linux port
 #
 MODULES		+= platforms/posix/px4_layer
+MODULES		+= platforms/posix/work_queue
 #MODULES		+= platforms/posix/drivers/accelsim
 #MODULES		+= platforms/posix/drivers/gyrosim
 #MODULES		+= platforms/posix/drivers/adcsim
