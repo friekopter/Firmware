@@ -39,6 +39,7 @@
 #ifndef _DATAMANAGER_H
 #define _DATAMANAGER_H
 
+#include <navigator/navigation.h>
 #include <uORB/topics/mission.h>
 #include <uORB/topics/fence.h>
 
@@ -67,11 +68,11 @@ extern "C" {
 	/** The maximum number of instances for each item type */
 	enum {
 		DM_KEY_SAFE_POINTS_MAX = 8,
-		#ifdef __cplusplus
+	#ifdef __cplusplus
 		DM_KEY_FENCE_POINTS_MAX = fence_s::GEOFENCE_MAX_VERTICES,
-		#else
+	#else
 		DM_KEY_FENCE_POINTS_MAX = GEOFENCE_MAX_VERTICES,
-		#endif
+	#endif
 		DM_KEY_WAYPOINTS_OFFBOARD_0_MAX = NUM_MISSIONS_SUPPORTED,
 		DM_KEY_WAYPOINTS_OFFBOARD_1_MAX = NUM_MISSIONS_SUPPORTED,
 		DM_KEY_WAYPOINTS_OFFBOARD_2_MAX = NUM_MISSIONS_SUPPORTED,
@@ -81,12 +82,12 @@ extern "C" {
 		DM_KEY_DBVERSION_MAX = 1
 	};
 
-	/** Data persistence levels */
-	typedef enum {
-		DM_PERSIST_POWER_ON_RESET = 0,	/* Data survives all resets */
-		DM_PERSIST_IN_FLIGHT_RESET,     /* Data survives in-flight resets only */
-		DM_PERSIST_VOLATILE             /* Data does not survive resets */
-	} dm_persitence_t;
+/** Data persistence levels */
+typedef enum {
+	DM_PERSIST_POWER_ON_RESET = 0,	/* Data survives all resets */
+	DM_PERSIST_IN_FLIGHT_RESET,     /* Data survives in-flight resets only */
+	DM_PERSIST_VOLATILE             /* Data does not survive resets */
+} dm_persitence_t;
 
 	/** The reason for the last reset */
 	typedef enum {
@@ -96,52 +97,52 @@ extern "C" {
 		DM_INIT_REASON_RESET			/* Reset reason reset: cleanup */
 	} dm_reset_reason;
 
-	/** Maximum size in bytes of a single item instance */
-	#define DM_MAX_DATA_SIZE 124
+/** Maximum size in bytes of a single item instance */
+#define DM_MAX_DATA_SIZE 124
 
 
-	/** Retrieve from the data manager store */
-	__EXPORT ssize_t
-	dm_read(
-		dm_item_t item,			/* The item type to retrieve */
-		unsigned char index,		/* The index of the item */
-		void *buffer,			/* Pointer to caller data buffer */
-		size_t buflen			/* Length in bytes of data to retrieve */
-	);
+/** Retrieve from the data manager store */
+__EXPORT ssize_t
+dm_read(
+	dm_item_t item,			/* The item type to retrieve */
+	unsigned char index,		/* The index of the item */
+	void *buffer,			/* Pointer to caller data buffer */
+	size_t buflen			/* Length in bytes of data to retrieve */
+);
 
-	/** write to the data manager store */
-	__EXPORT ssize_t
-	dm_write(
-		dm_item_t  item,		/* The item type to store */
-		unsigned char index,		/* The index of the item */
-		dm_persitence_t persistence,	/* The persistence level of this item */
-		const void *buffer,		/* Pointer to caller data buffer */
-		size_t buflen			/* Length in bytes of data to retrieve */
-	);
+/** write to the data manager store */
+__EXPORT ssize_t
+dm_write(
+	dm_item_t  item,		/* The item type to store */
+	unsigned char index,		/* The index of the item */
+	dm_persitence_t persistence,	/* The persistence level of this item */
+	const void *buffer,		/* Pointer to caller data buffer */
+	size_t buflen			/* Length in bytes of data to retrieve */
+);
 
-	/** Lock all items of this type */
-	__EXPORT void
-	dm_lock(
-		dm_item_t item			/* The item type to clear */
-		);
+/** Lock all items of this type */
+__EXPORT void
+dm_lock(
+	dm_item_t item			/* The item type to clear */
+);
 
-	/** Unlock all items of this type */
-	__EXPORT void
-	dm_unlock(
-		dm_item_t item			/* The item type to clear */
-		);
+/** Unlock all items of this type */
+__EXPORT void
+dm_unlock(
+	dm_item_t item			/* The item type to clear */
+);
 
-	/** Erase all items of this type */
-	__EXPORT int
-	dm_clear(
-		dm_item_t item			/* The item type to clear */
-		);
+/** Erase all items of this type */
+__EXPORT int
+dm_clear(
+	dm_item_t item			/* The item type to clear */
+);
 
-	/** Tell the data manager about the type of the last reset */
-	__EXPORT int
-	dm_restart(
-		dm_reset_reason restart_type	/* The last reset type */
-	);
+/** Tell the data manager about the type of the last reset */
+__EXPORT int
+dm_restart(
+	dm_reset_reason restart_type	/* The last reset type */
+);
 
 #ifdef __cplusplus
 }

@@ -53,6 +53,7 @@
 #include <uORB/topics/vehicle_local_position.h>
 #include <uORB/topics/home_position.h>
 #include <uORB/topics/vehicle_status.h>
+#include <uORB/topics/vtol_vehicle_status.h>
 #include <uORB/topics/vehicle_command.h>
 #include <uORB/topics/vehicle_local_position_setpoint.h>
 #include <uORB/topics/att_pos_mocap.h>
@@ -642,28 +643,28 @@ protected:
 		if (_sensor_sub->update(&_sensor_time, &sensor)) {
 			uint16_t fields_updated = 0;
 
-			if (_accel_timestamp != sensor.accelerometer_timestamp) {
+			if (_accel_timestamp != sensor.accelerometer_timestamp[0]) {
 				/* mark first three dimensions as changed */
 				fields_updated |= (1 << 0) | (1 << 1) | (1 << 2);
-				_accel_timestamp = sensor.accelerometer_timestamp;
+				_accel_timestamp = sensor.accelerometer_timestamp[0];
 			}
 
-			if (_gyro_timestamp != sensor.timestamp) {
+			if (_gyro_timestamp != sensor.gyro_timestamp[0]) {
 				/* mark second group dimensions as changed */
 				fields_updated |= (1 << 3) | (1 << 4) | (1 << 5);
-				_gyro_timestamp = sensor.timestamp;
+				_gyro_timestamp = sensor.gyro_timestamp[0];
 			}
 
-			if (_mag_timestamp != sensor.magnetometer_timestamp) {
+			if (_mag_timestamp != sensor.magnetometer_timestamp[0]) {
 				/* mark third group dimensions as changed */
 				fields_updated |= (1 << 6) | (1 << 7) | (1 << 8);
-				_mag_timestamp = sensor.magnetometer_timestamp;
+				_mag_timestamp = sensor.magnetometer_timestamp[0];
 			}
 
-			if (_baro_timestamp != sensor.baro_timestamp) {
+			if (_baro_timestamp != sensor.baro_timestamp[0]) {
 				/* mark last group dimensions as changed */
 				fields_updated |= (1 << 9) | (1 << 11) | (1 << 12);
-				_baro_timestamp = sensor.baro_timestamp;
+				_baro_timestamp = sensor.baro_timestamp[0];
 			}
 
 			mavlink_highres_imu_t msg;
@@ -678,10 +679,10 @@ protected:
 			msg.xmag = sensor.magnetometer_ga[0];
 			msg.ymag = sensor.magnetometer_ga[1];
 			msg.zmag = sensor.magnetometer_ga[2];
-			msg.abs_pressure = sensor.baro_pres_mbar;
-			msg.diff_pressure = sensor.differential_pressure_pa;
-			msg.pressure_alt = sensor.baro_alt_meter;
-			msg.temperature = sensor.baro_temp_celcius;
+			msg.abs_pressure = sensor.baro_pres_mbar[0];
+			msg.diff_pressure = sensor.differential_pressure_pa[0];
+			msg.pressure_alt = sensor.baro_alt_meter[0];
+			msg.temperature = sensor.baro_temp_celcius[0];
 			msg.fields_updated = fields_updated;
 
 			_mavlink->send_message(MAVLINK_MSG_ID_HIGHRES_IMU, &msg);
@@ -2056,7 +2057,14 @@ protected:
 			msg.y = manual.y * 1000;
 			msg.z = manual.z * 1000;
 			msg.r = manual.r * 1000;
+			unsigned shift = 2;
 			msg.buttons = 0;
+			msg.buttons |= (manual.mode_switch << (shift * 0));
+			msg.buttons |= (manual.return_switch << (shift * 1));
+			msg.buttons |= (manual.posctl_switch << (shift * 2));
+			msg.buttons |= (manual.loiter_switch << (shift * 3));
+			msg.buttons |= (manual.acro_switch << (shift * 4));
+			msg.buttons |= (manual.offboard_switch << (shift * 5));
 
 			_mavlink->send_message(MAVLINK_MSG_ID_MANUAL_CONTROL, &msg);
 		}
@@ -2340,6 +2348,79 @@ protected:
 	}
 };
 
+class MavlinkStreamVtolState : public MavlinkStream
+{
+public:
+	const char *get_name() const
+	{
+		return MavlinkStreamVtolState::get_name_static();
+	}
+
+	static const char *get_name_static()
+	{
+		return "VTOL_STATE";
+	}
+
+	uint8_t get_id()
+	{
+		return MAVLINK_MSG_ID_VTOL_STATE;
+	}
+
+	static MavlinkStream *new_instance(Mavlink *mavlink)
+	{
+		return new MavlinkStreamVtolState(mavlink);
+	}
+
+	unsigned get_size()
+	{
+		return MAVLINK_MSG_ID_VTOL_STATE_LEN + MAVLINK_NUM_NON_PAYLOAD_BYTES;
+	}
+
+private:
+	MavlinkOrbSubscription *_status_sub;
+
+	/* do not allow top copying this class */
+	MavlinkStreamVtolState(MavlinkStreamVtolState &);
+	MavlinkStreamVtolState &operator = (const MavlinkStreamVtolState &);
+
+protected:
+	explicit MavlinkStreamVtolState(Mavlink *mavlink) : MavlinkStream(mavlink),
+		_status_sub(_mavlink->add_orb_subscription(ORB_ID(vehicle_status)))
+	{}
+
+	void send(const hrt_abstime t)
+	{
+		struct vehicle_status_s status;
+
+		if (_status_sub->update(&status)) {
+			mavlink_vtol_state_t msg;
+
+			if (status.is_vtol) {
+				if (status.is_rotary_wing) {
+					if (status.in_transition_mode) {
+						msg.state = MAV_VTOL_STATE_TRANSITION_TO_FW;
+
+					} else {
+						msg.state = MAV_VTOL_STATE_MC;
+					}
+
+				} else {
+					if (status.in_transition_mode) {
+						msg.state = MAV_VTOL_STATE_TRANSITION_TO_MC;
+
+					} else {
+						msg.state = MAV_VTOL_STATE_FW;
+					}
+				}
+
+			} else {
+				msg.state = MAV_VTOL_STATE_UNDEFINED;
+			}
+
+			_mavlink->send_message(MAVLINK_MSG_ID_VTOL_STATE, &msg);
+		}
+	}
+};
 
 const StreamListItem *streams_list[] = {
 	new StreamListItem(&MavlinkStreamHeartbeat::new_instance, &MavlinkStreamHeartbeat::get_name_static),
@@ -2376,5 +2457,6 @@ const StreamListItem *streams_list[] = {
 	new StreamListItem(&MavlinkStreamCameraCapture::new_instance, &MavlinkStreamCameraCapture::get_name_static),
 	new StreamListItem(&MavlinkStreamCameraTrigger::new_instance, &MavlinkStreamCameraTrigger::get_name_static),
 	new StreamListItem(&MavlinkStreamDistanceSensor::new_instance, &MavlinkStreamDistanceSensor::get_name_static),
+	new StreamListItem(&MavlinkStreamVtolState::new_instance, &MavlinkStreamVtolState::get_name_static),
 	nullptr
 };
