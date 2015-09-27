@@ -1821,14 +1821,15 @@ int commander_thread_main(int argc, char *argv[])
 			}
 
 			status_changed = true;
-		} else if (status.condition_battery_voltage_valid && status.battery_remaining < 0.1f &&
+		}
+		if (status.condition_battery_voltage_valid && status.battery_remaining < 0.1f &&
 				((counter % (10000000 / COMMANDER_MONITORING_INTERVAL)) == 0)) {
 			// repeat warning every 10 seconds
-			mavlink_log_critical(mavlink_fd, "#audio: BATTERY CRITICAL CRITICAL");
+			mavlink_log_critical(mavlink_fd, "#audio: BATTERY CRITICAL");
 		} else if (status.condition_battery_voltage_valid && status.battery_remaining < 0.25f &&
-				((counter % (20000000 / COMMANDER_MONITORING_INTERVAL)) == 0)){
+				((counter % (10000000 / COMMANDER_MONITORING_INTERVAL)) == 0)){
 			// repeat warning every 20 seconds
-			mavlink_log_critical(mavlink_fd, "#audio: BATTERY LOW LOW");
+			mavlink_log_critical(mavlink_fd, "#audio: BATTERY LOW");
 		}
 
 		/* End battery voltage check */
@@ -2376,7 +2377,7 @@ int commander_thread_main(int argc, char *argv[])
 		} else if ((status.hil_state != vehicle_status_s::HIL_STATE_ON) &&
 				(status.battery_warning == vehicle_status_s::VEHICLE_BATTERY_WARNING_LOW || status.failsafe)) {
 			/* play tune on battery warning or failsafe */
-			set_tune(TONE_BATTERY_WARNING_FAST_TUNE);//TONE_BATTERY_WARNING_SLOW_TUNE);
+			set_tune(TONE_BATTERY_WARNING_SLOW_TUNE);
 
 		} else {
 			set_tune(TONE_STOP_TUNE);

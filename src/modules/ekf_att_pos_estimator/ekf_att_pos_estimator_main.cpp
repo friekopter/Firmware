@@ -378,7 +378,7 @@ int AttitudePositionEstimatorEKF::check_filter_state()
 					 "stale sensor data, resetting",
 					 "got initial position lock",
 					 "excessive gyro offsets",
-					 "velocity diverted, check accel config",
+					 "velocity div",
 					 "excessive covariances",
 					 "unknown condition, resetting"
 				       };

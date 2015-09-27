@@ -137,7 +137,7 @@ float ECL_RollController::control_bodyrate(const struct ECL_ControlData &ctl_dat
 	//warnx("roll: _integrator: %.4f, _integrator_max: %.4f", (double)_integrator, (double)_integrator_max);
 
 	//Calculate D term
-	float diff_error = -roll_bodyrate;
+	float diff_error = -ctl_data.roll_rate;
 	float d_term = (_k_d * _k_f) * (diff_error - _rate_diff_error_state);
 	_rate_diff_error_state += _k_f * (diff_error - _rate_diff_error_state);
 	if (d_term > 1.0f)

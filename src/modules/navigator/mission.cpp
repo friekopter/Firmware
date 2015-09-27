@@ -640,15 +640,6 @@ Mission::read_mission_item(bool onboard, bool is_current, struct mission_item_s 
 	struct mission_s *mission = (onboard) ? &_onboard_mission : &_offboard_mission;
 	int mission_index_next = (onboard) ? _current_onboard_mission_index : _current_offboard_mission_index;
 
-	/* do not work on empty missions */
-	if (mission->count == 0) {
-		return false;
-	}
-
-	/* move to next item if there is one */
-	if (mission_index_next < ((int)mission->count - 1)) {
-		mission_index_next++;
-	}
 	unsigned mission_count;
 
 	if (onboard) {
@@ -662,6 +653,16 @@ Mission::read_mission_item(bool onboard, bool is_current, struct mission_item_s 
 		mission_index_ptr = is_current ? &_current_offboard_mission_index : &mission_index_next;
 		dm_item = DM_KEY_WAYPOINTS_OFFBOARD(_offboard_mission.dataman_id);
 		mission_count = mission->count_formission[mission->dataman_id];
+	}
+
+	/* do not work on empty missions */
+	if (mission_count <= 0) {
+		return false;
+	}
+
+	/* move to next item if there is one */
+	if (mission_index_next < ((int)mission_count - 1)) {
+		mission_index_next++;
 	}
 
 	/* Repeat this several times in case there are several DO JUMPS that we need to follow along, however, after

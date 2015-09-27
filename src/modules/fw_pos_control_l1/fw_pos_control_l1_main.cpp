@@ -1978,7 +1978,7 @@ FixedwingPositionControl::warn_stall(bool stallCondition)
 	if (stallCondition && !stallWarningSent) {
 		if(hrt_absolute_time() - last_warning_sent > 5e6) {
 			stallWarningSent = true;
-			mavlink_log_info(_mavlink_fd, "#audio: stall stall");
+			mavlink_log_info(_mavlink_fd, "#audio: stall!");
 			last_warning_sent = hrt_absolute_time();
 		}
 	} else if (!stallCondition && stallWarningSent) {

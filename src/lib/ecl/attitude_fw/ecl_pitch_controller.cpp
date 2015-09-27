@@ -189,7 +189,7 @@ float ECL_PitchController::control_bodyrate(const struct ECL_ControlData &ctl_da
 	float integrator_constrained = math::constrain(_integrator * _k_i, -_integrator_max, _integrator_max);
 
 	//Calculate D term
-	float diff_error = -pitch_bodyrate;
+	float diff_error = -ctl_data.pitch_rate;
 	float d_term = (_k_d * _k_f) * (diff_error - _rate_diff_error_state);
 	_rate_diff_error_state += _k_f * (diff_error - _rate_diff_error_state);
 	if (d_term > 1.0f)
