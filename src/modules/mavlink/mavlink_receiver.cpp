@@ -49,7 +49,6 @@
 #include <math.h>
 #include <stdbool.h>
 #include <fcntl.h>
-#include <mqueue.h>
 #include <string.h>
 #include <drivers/drv_hrt.h>
 #include <drivers/drv_accel.h>
@@ -62,7 +61,6 @@
 #include <float.h>
 #include <unistd.h>
 #ifndef __PX4_POSIX
-#include <sys/prctl.h>
 #include <termios.h>
 #endif
 #include <errno.h>
@@ -309,6 +307,10 @@ MavlinkReceiver::handle_message_command_long(mavlink_message_t *msg)
 		} else if (cmd_mavlink.command == MAV_CMD_REQUEST_AUTOPILOT_CAPABILITIES) {
 			/* send autopilot version message */
 			_mavlink->send_autopilot_capabilites();
+
+		} else if (cmd_mavlink.command == MAV_CMD_GET_HOME_POSITION) {
+			_mavlink->configure_stream_threadsafe("HOME_POSITION", 0.5f);
+
 		} else {
 
 			if (msg->sysid == mavlink_system.sysid && msg->compid == mavlink_system.compid) {
@@ -364,6 +366,13 @@ MavlinkReceiver::handle_message_command_int(mavlink_message_t *msg)
 
 			/* terminate other threads and this thread */
 			_mavlink->_task_should_exit = true;
+
+		} else if (cmd_mavlink.command == MAV_CMD_REQUEST_AUTOPILOT_CAPABILITIES) {
+			/* send autopilot version message */
+			_mavlink->send_autopilot_capabilites();
+
+		} else if (cmd_mavlink.command == MAV_CMD_GET_HOME_POSITION) {
+			_mavlink->configure_stream_threadsafe("HOME_POSITION", 0.5f);
 
 		} else {
 
