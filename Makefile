@@ -31,6 +31,34 @@
 #
 ############################################################################
 
+# Enforce the presence of the GIT repository
+#
+# We depend on our submodules, so we have to prevent attempts to
+# compile without it being present.
+ifeq ($(wildcard .git),)
+    $(error YOU HAVE TO USE GIT TO DOWNLOAD THIS REPOSITORY. ABORTING.)
+endif
+
+CMAKE_VER := $(shell Tools/check_cmake.sh; echo $$?)
+ifneq ($(CMAKE_VER),0)
+    $(warning Not a valid CMake version or CMake not installed.)
+    $(warning On Ubuntu, install or upgrade via:)
+    $(warning )
+    $(warning 3rd party PPA:)
+    $(warning sudo add-apt-repository ppa:george-edison55/cmake-3.x -y)
+    $(warning sudo apt-get update)
+    $(warning sudo apt-get install cmake)
+    $(warning )
+    $(warning Official website:)
+    $(warning wget https://cmake.org/files/v3.3/cmake-3.3.2-Linux-x86_64.sh)
+    $(warning chmod +x cmake-3.3.2-Linux-x86_64.sh)
+    $(warning sudo mkdir /opt/cmake-3.3.2)
+    $(warning sudo ./cmake-3.3.2-Linux-x86_64.sh --prefix=/opt/cmake-3.3.2 --exclude-subdir)
+    $(warning export PATH=/opt/cmake-3.3.2/bin:$$PATH)
+    $(warning )
+    $(error Fatal)
+endif
+
 # Help
 # --------------------------------------------------------------------
 # Don't be afraid of this makefile, it is just passing
@@ -59,14 +87,19 @@ all: px4fmu-v2_default
 ARGS := $(wordlist 2,$(words $(MAKECMDGOALS)),$(MAKECMDGOALS))
 j ?= 4
 
-# disable ninja by default for now because it hides upload progress
-#NINJA_BUILD := $(shell ninja --version 2>/dev/null)
+NINJA_BUILD := $(shell ninja --version 2>/dev/null)
 ifdef NINJA_BUILD
     PX4_CMAKE_GENERATOR ?= "Ninja"
     PX4_MAKE = ninja
-    PX4_MAKE_ARGS = 
+    PX4_MAKE_ARGS =
 else
-    PX4_CMAKE_GENERATOR ?= "Unix Makefiles"
+
+ifdef SYSTEMROOT
+	# Windows
+	PX4_CMAKE_GENERATOR ?= "MSYS Makefiles"
+else
+	PX4_CMAKE_GENERATOR ?= "Unix Makefiles"
+endif
     PX4_MAKE = make
     PX4_MAKE_ARGS = -j$(j) --no-print-directory
 endif
@@ -75,7 +108,8 @@ endif
 # --------------------------------------------------------------------
 # describe how to build a cmake config
 define cmake-build
-+@if [ ! -e $(PWD)/build_$@/CMakeCache.txt ]; then mkdir -p $(PWD)/build_$@ && cd $(PWD)/build_$@ && cmake .. -G$(PX4_CMAKE_GENERATOR) -DCONFIG=$(1); fi
++@if [ $(PX4_CMAKE_GENERATOR) = "Ninja" ] && [ -e $(PWD)/build_$@/Makefile ]; then rm -rf $(PWD)/build_$@; fi
++@if [ ! -e $(PWD)/build_$@/CMakeCache.txt ]; then git submodule update --init --recursive --force && mkdir -p $(PWD)/build_$@ && cd $(PWD)/build_$@ && cmake .. -G$(PX4_CMAKE_GENERATOR) -DCONFIG=$(1); fi
 +$(PX4_MAKE) -C $(PWD)/build_$@ $(PX4_MAKE_ARGS) $(ARGS)
 endef
 
@@ -96,60 +130,45 @@ px4fmu-v1_default:
 px4fmu-v2_default:
 	$(call cmake-build,nuttx_px4fmu-v2_default)
 
+px4fmu-v4_default:
+	$(call cmake-build,nuttx_px4fmu-v4_default)
+
 px4fmu-v2_simple:
 	$(call cmake-build,nuttx_px4fmu-v2_simple)
+
+px4fmu-v2_lpe:
+	$(call cmake-build,nuttx_px4fmu-v2_lpe)
 
 nuttx_sim_simple:
 	$(call cmake-build,$@)
 
-posix_sitl_simple:
+posix_sitl_default:
 	$(call cmake-build,$@)
 
-ros_sitl_simple:
+posix_sitl_lpe:
+	$(call cmake-build,$@)
+
+ros_sitl_default:
 	$(call cmake-build,$@)
 
 qurt_eagle_travis:
 	$(call cmake-build,$@)
 
-posix: posix_sitl_simple
+qurt_eagle_release:
+	$(call cmake-build,$@)
 
-ros: ros_sitl_simple
+posix_eagle_release:
+	$(call cmake-build,$@)
 
-run_sitl_quad: posix
-	Tools/sitl_run.sh posix-configs/SITL/init/rcS
+posix: posix_sitl_default
 
-run_sitl_plane: posix
-	Tools/sitl_run.sh posix-configs/SITL/init/rc.fixed_wing
+sitl_deprecation:
+	@echo "Deprecated. Use 'make posix_sitl_default jmavsim' or"
+	@echo "'make posix_sitl_default gazebo' if Gazebo is preferred."
 
-run_sitl_ros: posix
-	Tools/sitl_run.sh posix-configs/SITL/init/rc_iris_ros
-
-lldb_sitl_quad: posix
-	Tools/sitl_run.sh posix-configs/SITL/init/rcS lldb
-
-lldb_sitl_plane: posix
-	Tools/sitl_run.sh posix-configs/SITL/init/rc.fixed_wing lldb
-
-lldb_sitl_ros: posix
-	Tools/sitl_run.sh posix-configs/SITL/init/rc_iris_ros lldb
-
-gdb_sitl_quad: posix
-	Tools/sitl_run.sh posix-configs/SITL/init/rcS gdb
-
-gdb_sitl_plane: posix
-	Tools/sitl_run.sh posix-configs/SITL/init/rc.fixed_wing lldb
-
-gdb_sitl_ros: posix
-	Tools/sitl_run.sh posix-configs/SITL/init/rc_iris_ros lldb
-
-sitl_quad:
-	@echo "Deprecated. Use 'run_sitl_quad' instead."
-
-sitl_plane:
-	@echo "Deprecated. Use 'run_sitl_plane' instead."
-
-sitl_ros:
-	@echo "Deprecated. Use 'run_sitl_ros' instead."
+run_sitl_quad: sitl_deprecation
+run_sitl_plane: sitl_deprecation
+run_sitl_ros: sitl_deprecation
 
 # Other targets
 # --------------------------------------------------------------------
@@ -158,17 +177,14 @@ check_format:
 
 clean:
 	@rm -rf build_*/
-
-distclean: clean
-	@cd NuttX
-	@git clean -d -f -x
-	@cd ..
-	@cd src/lib/uavcan
-	@git clean -d -f -x
-	@cd ../../..
+	@(cd NuttX && git clean -d -f -x)
+	@(cd src/modules/uavcan/libuavcan && git clean -d -f -x)
+	@(git submodule sync)
 
 # targets handled by cmake
-cmake_targets = test upload package package_source debug debug_tui debug_ddd debug_io debug_io_tui debug_io_ddd check_weak libuavcan
+cmake_targets = test upload package package_source debug debug_tui debug_ddd debug_io debug_io_tui debug_io_ddd check_weak \
+	run_cmake_config config gazebo gazebo_gdb gazebo_lldb jmavsim \
+	jmavsim_gdb jmavsim_lldb gazebo_gdb_iris gazebo_lldb_tailsitter gazebo_iris gazebo_tailsitter
 $(foreach targ,$(cmake_targets),$(eval $(call cmake-targ,$(targ))))
 
 .PHONY: clean

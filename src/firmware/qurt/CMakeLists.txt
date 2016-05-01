@@ -14,7 +14,7 @@ if ("${QURT_ENABLE_STUBS}" STREQUAL "1")
 	add_executable(mainapp 
 		${CMAKE_SOURCE_DIR}/src/platforms/qurt/dspal/dspal_stub.c
 		${CMAKE_BINARY_DIR}/apps.h)
-else("${QURT_ENABLE_STUBS}" STREQUAL "1")
+else()
 	add_library(mainapp 
 		${CMAKE_SOURCE_DIR}/src/platforms/qurt/dspal/dspal_stub.c
 		${CMAKE_BINARY_DIR}/apps.h)
@@ -24,6 +24,7 @@ target_link_libraries(mainapp
 	-Wl,--whole-archive
 	${module_libraries}
 	${target_libraries}
+	df_driver_framework
 	m
 	-Wl,--no-whole-archive
 	-Wl,${TOOLSLIB}/pic/libstdc++.a)

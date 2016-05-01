@@ -122,8 +122,9 @@
 #define SENSORIOCGROTATION	_SENSORIOC(6)
 
 /**
- * Set the DLP Filter cutoff frequency
+ * Test the sensor calibration
  */
-#define SENSORIOCSDLPF		_SENSORIOC(7)
+#define SENSORIOCCALTEST	_SENSORIOC(7)
 
 #endif /* _DRV_SENSOR_H */
+

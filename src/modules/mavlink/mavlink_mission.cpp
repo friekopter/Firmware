@@ -283,6 +283,7 @@ MavlinkMissionManager::send_mission_item(uint8_t sysid, uint8_t compid, uint16_t
 		if (_filesystem_errcount++ < FILESYSTEM_ERRCOUNT_NOTIFY_LIMIT) {
 			_mavlink->send_statustext_critical("Mission storage: Unable to read from microSD");
 		}
+
 		if (_verbose) { warnx("WPM: Send MISSION_ITEM ERROR: could not read seq %u from dataman ID %i", seq, _dataman_id); }
 	}
 }
@@ -330,9 +331,11 @@ MavlinkMissionManager::send(const hrt_abstime now)
 	update_offboard_mission();
 	bool updated = false;
 	orb_check(_mission_result_sub, &updated);
+
 	if (updated) {
 		mission_result_s mission_result;
 		orb_copy(ORB_ID(mission_result), _mission_result_sub, &mission_result);
+
 
 		if (_verbose) { warnx("WPM: got mission result, new current_seq: %d", _current_seq); }
 

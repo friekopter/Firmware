@@ -75,7 +75,6 @@ Mission::Mission(Navigator *navigator, const char *name) :
 	_offboard_mission{},
 	_current_onboard_mission_index(-1),
 	_current_offboard_mission_index(-1),
-	_current_dataman_id(-1),
 	_need_takeoff(true),
 	_takeoff(false),
 	_mission_type(MISSION_TYPE_NONE),
@@ -287,6 +286,8 @@ Mission::update_offboard_mission()
 
 		warnx("mission check failed");
 	}
+
+	set_current_offboard_mission_item();
 }
 
 
@@ -313,7 +314,7 @@ Mission::advance_mission()
 	}
 }
 
-int
+float
 Mission::get_absolute_altitude_for_item(struct mission_item_s &mission_item)
 {
 	if (_mission_item.altitude_is_relative) {
@@ -810,6 +811,7 @@ Mission::set_current_offboard_mission_item()
 	_navigator->get_mission_result()->finished = false;
 	_navigator->get_mission_result()->seq_current = _current_offboard_mission_index;
 	_navigator->set_mission_result_updated();
+
 	save_offboard_mission_state();
 }
 

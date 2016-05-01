@@ -117,7 +117,13 @@
 #
 #=============================================================================
 
+# Warning: Changing this modifies CMake's internal workings
+# and leads to wrong toolchain detection
 cmake_minimum_required(VERSION 2.8 FATAL_ERROR)
+
+# Use clang
+#SET (CMAKE_C_COMPILER /usr/bin/clang-3.6)
+#SET (CMAKE_CXX_COMPILER /usr/bin/clang++-3.6)
 
 #=============================================================================
 # parameters
@@ -143,6 +149,16 @@ list(GET config_args 0 OS)
 list(GET config_args 1 BOARD)
 list(GET config_args 2 LABEL)
 set(target_name "${OS}-${BOARD}-${LABEL}")
+
+if("${OS}" STREQUAL "posix")
+	if (APPLE)
+		set(DF_TARGET darwin)
+	else()
+		set(DF_TARGET linux)
+	endif()
+else()
+	set(DF_TARGET ${OS})
+endif()
 
 message(STATUS "${target_name}")
 
@@ -184,6 +200,7 @@ project(px4 CXX C ASM)
 if (NOT ${CMAKE_VERSION} VERSION_LESS 3.0.0)
 	cmake_policy(SET CMP0045 NEW) # error on non-existent target in get prop
 	cmake_policy(SET CMP0046 NEW) # no non-existent targets as dependencies
+	cmake_policy(SET CMP0025 OLD) # still report AppleClang as Clang
 endif()
 if (NOT ${CMAKE_VERSION} VERSION_LESS 3.1.0)
 	cmake_policy(SET CMP0054 NEW) # don't dereference quoted variables
@@ -224,15 +241,31 @@ px4_add_git_submodule(TARGET git_genmsg PATH "Tools/genmsg")
 px4_add_git_submodule(TARGET git_gencpp PATH "Tools/gencpp")
 px4_add_git_submodule(TARGET git_mavlink PATH "mavlink/include/mavlink/v1.0")
 px4_add_git_submodule(TARGET git_gtest PATH "unittets/gtest")
-px4_add_git_submodule(TARGET git_uavcan PATH "src/lib/uavcan")
-px4_add_git_submodule(TARGET git_eigen PATH "src/lib/eigen")
+px4_add_git_submodule(TARGET git_uavcan PATH "src/modules/uavcan/libuavcan")
 px4_add_git_submodule(TARGET git_nuttx PATH "NuttX")
 px4_add_git_submodule(TARGET git_dspal PATH "src/lib/dspal")
+px4_add_git_submodule(TARGET git_driverframework PATH "src/lib/DriverFramework")
+px4_add_git_submodule(TARGET git_jmavsim PATH "Tools/jMAVSim")
+px4_add_git_submodule(TARGET git_gazebo PATH "Tools/sitl_gazebo")
+px4_add_git_submodule(TARGET git_matrix PATH "src/lib/matrix")
 
 add_custom_target(submodule_clean
 	WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 	COMMAND git submodule deinit -f .
 	COMMAND rm -rf .git/modules/*
+	)
+
+#=============================================================================
+# misc targets
+#
+add_custom_target(check_format
+	COMMAND Tools/check_code_style.sh
+	WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+	)
+
+add_custom_target(config
+	COMMAND cmake-gui .
+	WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
 	)
 
 #=============================================================================
@@ -286,6 +319,9 @@ set_property(DIRECTORY PROPERTY EP_BASE ${ep_base})
 # add external project install folders to build
 link_directories(${ep_base}/Install/lib)
 include_directories(${ep_base}/Install/include)
+# add the directories so cmake won't warn
+execute_process(COMMAND cmake -E make_directory ${ep_base}/Install/lib)
+execute_process(COMMAND cmake -E make_directory ${ep_base}/Install/include)
 
 #=============================================================================
 # subdirectories
@@ -299,6 +335,11 @@ foreach(module ${config_module_list})
 endforeach()
 
 add_subdirectory(src/firmware/${OS})
+
+add_subdirectory(src/lib/DriverFramework/framework/src)
+#add_dependencies(df_driver_framework nuttx_export_${CONFIG}.stamp)
+if (NOT "${OS}" STREQUAL "nuttx")
+endif()
 
 if (config_io_board)
 	add_subdirectory(src/modules/px4iofirmware)

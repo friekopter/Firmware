@@ -1,6 +1,7 @@
 #!/usr/bin/python
 
 import glob
+import os
 import sys
 
 # This script is run from Build/<target>_default.build/$(PX4_BASE)/Firmware/src/systemcmds/topic_listener
@@ -16,18 +17,23 @@ for index,m in enumerate(raw_messages):
 	temp_list_floats = []
 	temp_list_uint64 = []
 	temp_list_bool = []
-	if("actuator_control" not in m and "pwm_input" not in m and "position_setpoint" not in m):
+	if("pwm_input" not in m and "position_setpoint" not in m):
 		temp_list = []
 		f = open(m,'r')
 		for line in f.readlines():
 			if ('float32[' in line.split(' ')[0]):
 				num_floats = int(line.split(" ")[0].split("[")[1].split("]")[0])
 				temp_list.append(("float_array",line.split(' ')[1].split('\t')[0].split('\n')[0],num_floats))
-			if ('uint64[' in line.split(' ')[0]):
+			elif ('float64[' in line.split(' ')[0]):
+				num_floats = int(line.split(" ")[0].split("[")[1].split("]")[0])
+				temp_list.append(("double_array",line.split(' ')[1].split('\t')[0].split('\n')[0],num_floats))
+			elif ('uint64[' in line.split(' ')[0]):
 				num_floats = int(line.split(" ")[0].split("[")[1].split("]")[0])
 				temp_list.append(("uint64_array",line.split(' ')[1].split('\t')[0].split('\n')[0],num_floats))
 			elif(line.split(' ')[0] == "float32"):
 				temp_list.append(("float",line.split(' ')[1].split('\t')[0].split('\n')[0]))
+			elif(line.split(' ')[0] == "float64"):
+				temp_list.append(("double",line.split(' ')[1].split('\t')[0].split('\n')[0]))
 			elif(line.split(' ')[0] == "uint64") and len(line.split('=')) == 1:
 				temp_list.append(("uint64",line.split(' ')[1].split('\t')[0].split('\n')[0]))
 			elif(line.split(' ')[0] == "uint32") and len(line.split('=')) == 1:
@@ -48,8 +54,12 @@ for index,m in enumerate(raw_messages):
 				temp_list.append(("int8",line.split(' ')[1].split('\t')[0].split('\n')[0]))
 
 		f.close()
-		messages.append(m.split('/')[-1].split('.')[0])
-		message_elements.append(temp_list)
+		(m_head, m_tail) = os.path.split(m)
+		message = m_tail.split('.')[0]
+		if message != "actuator_controls":
+			messages.append(message)
+			message_elements.append(temp_list)
+		#messages.append(m.split('/')[-1].split('.')[0])
 
 num_messages = len(messages);
 
@@ -111,6 +121,10 @@ print("""
 #define PRIu64 "llu"
 #endif
 
+#ifndef PRId64
+#define PRId64 "lld"
+#endif
+
 """)
 for m in messages:
 	print("#include <uORB/topics/%s.h>" % m)
@@ -148,11 +162,19 @@ for index,m in enumerate(messages[1:]):
 	print("\t\t\torb_copy(ID,sub,&container);")
 	for item in message_elements[index+1]:
 		if item[0] == "float":
-			print("\t\t\tprintf(\"%s: %%f\\n\",(double)container.%s);" % (item[1], item[1]))
+			print("\t\t\tprintf(\"%s: %%8.4f\\n\",(double)container.%s);" % (item[1], item[1]))
 		elif item[0] == "float_array":
 			print("\t\t\tprintf(\"%s: \");" % item[1])
 			print("\t\t\tfor (int j = 0; j < %d; j++) {" % item[2])
-			print("\t\t\t\tprintf(\"%%f \",(double)container.%s[j]);" % item[1])
+			print("\t\t\t\tprintf(\"%%8.4f \",(double)container.%s[j]);" % item[1])
+			print("\t\t\t}")
+			print("\t\t\tprintf(\"\\n\");")
+		elif item[0] == "double":
+			print("\t\t\tprintf(\"%s: %%8.4f\\n\",(double)container.%s);" % (item[1], item[1]))
+		elif item[0] == "double_array":
+			print("\t\t\tprintf(\"%s: \");" % item[1])
+			print("\t\t\tfor (int j = 0; j < %d; j++) {" % item[2])
+			print("\t\t\t\tprintf(\"%%8.4f \",(double)container.%s[j]);" % item[1])
 			print("\t\t\t}")
 			print("\t\t\tprintf(\"\\n\");")
 		elif item[0] == "uint64":
@@ -164,7 +186,7 @@ for index,m in enumerate(messages[1:]):
 			print("\t\t\t}")
 			print("\t\t\tprintf(\"\\n\");")
 		elif item[0] == "int64":
-			print("\t\t\tprintf(\"%s: %%\" PRI64 \"\\n\",container.%s);" % (item[1], item[1]))
+			print("\t\t\tprintf(\"%s: %%\" PRId64 \"\\n\",container.%s);" % (item[1], item[1]))
 		elif item[0] == "int32":
 			print("\t\t\tprintf(\"%s: %%d\\n\",container.%s);" % (item[1], item[1]))
 		elif item[0] == "uint32":
@@ -178,6 +200,7 @@ for index,m in enumerate(messages[1:]):
 print("\t} else {")
 print("\t\t printf(\" Topic did not match any known topics\\n\");")
 print("\t}")
+print("\t\torb_unsubscribe(sub);")
 print("\t return 0;")
 
 print("}")

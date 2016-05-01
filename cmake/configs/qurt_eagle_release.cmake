@@ -20,7 +20,7 @@ set(target_libraries
 	)
 
 
-set(CMAKE_TOOLCHAIN_FILE ${CMAKE_SOURCE_DIR}/cmake/toolchains/Toolchain-hexagon-7.4.cmake)
+set(CMAKE_TOOLCHAIN_FILE ${CMAKE_SOURCE_DIR}/cmake/toolchains/Toolchain-hexagon-7.2.10.cmake)
 
 set(config_module_list
 	#
@@ -70,6 +70,8 @@ set(config_module_list
 	lib/geo
 	lib/geo_lookup
 	lib/conversion
+	lib/terrain_estimation
+	lib/runway_takeoff
 
 	#
 	# QuRT port

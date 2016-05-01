@@ -32,17 +32,17 @@
 ############################################################################
 
 set(MODULE_CFLAGS )
-if(NOT ${OS} STREQUAL "qurt")
+if(${OS} STREQUAL "nuttx")
 	list(APPEND MODULE_CFLAGS -Wframe-larger-than=3400)
 endif()
 
 px4_add_module(
 	MODULE modules__ekf_att_pos_estimator
 	MAIN ekf_att_pos_estimator
+	STACK 3000
 	COMPILE_FLAGS ${MODULE_CFLAGS}
 	SRCS
 		ekf_att_pos_estimator_main.cpp
-		ekf_att_pos_estimator_params.c
 		estimator_22states.cpp
 		estimator_utilities.cpp
 	DEPENDS

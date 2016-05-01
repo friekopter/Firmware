@@ -7,6 +7,6 @@
 # @maintainer Lorenz Meier <lorenz@px4.io>
 #
 
-#sh /etc/init.d/rc.fw_defaults
+sh /etc/init.d/rc.fw_defaults
  
 set MIXER easystar

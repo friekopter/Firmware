@@ -63,7 +63,6 @@ set(config_module_list
 	modules/navigator
 	modules/mavlink
 	modules/gpio_led
-	modules/uavcan
 	modules/land_detector
 
 	#
@@ -112,6 +111,8 @@ set(config_module_list
 	lib/geo_lookup
 	lib/conversion
 	lib/launchdetection
+	lib/terrain_estimation
+	lib/runway_takeoff
 	platforms/nuttx
 
 	# had to add for cmake, not sure why wasn't in original config
